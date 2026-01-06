@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:super_swipe/core/models/recipe.dart';
 import 'package:super_swipe/core/providers/draft_recipe_provider.dart';
 import 'package:super_swipe/core/providers/firestore_providers.dart';
+import 'package:super_swipe/core/providers/selected_ingredients_provider.dart';
 import 'package:super_swipe/core/providers/user_data_providers.dart';
 import 'package:super_swipe/core/theme/app_theme.dart';
 import 'package:super_swipe/core/widgets/shared/shared_widgets.dart';
@@ -48,8 +49,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
   // Image service
   final ImageSearchService _imageService = ImageSearchService();
 
-  // Multi-select pantry items for "pick your heroes" feature
-  Set<String> _selectedPantryItems = {};
+  // Selected pantry items are now managed by selectedIngredientsProvider for persistence
 
   @override
   void initState() {
@@ -211,52 +211,55 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
             const SizedBox(height: 32),
 
             // Generate Button with disabled state when no items selected
-            Tooltip(
-              message: _selectedPantryItems.isEmpty
-                  ? 'Please select at least one ingredient'
-                  : '',
-              child: SizedBox(
-                width: double.infinity,
-                height: 60,
-                child: ElevatedButton.icon(
-                  onPressed:
-                      _isGenerating ||
-                          _isRefining ||
-                          _selectedPantryItems.isEmpty
-                      ? null
-                      : _showPreFlightDialog,
-                  icon: _isGenerating
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.restaurant, size: 28),
-                  label: Text(
-                    _isGenerating
-                        ? 'Chef is thinking...'
-                        : _selectedPantryItems.isEmpty
-                        ? 'Select Ingredients First'
-                        : 'Create Recipe',
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
+            Builder(
+              builder: (context) {
+                final selectedItems = ref.watch(selectedIngredientsProvider);
+                return Tooltip(
+                  message: selectedItems.isEmpty
+                      ? 'Please select at least one ingredient'
+                      : '',
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 60,
+                    child: ElevatedButton.icon(
+                      onPressed:
+                          _isGenerating || _isRefining || selectedItems.isEmpty
+                          ? null
+                          : _showPreFlightDialog,
+                      icon: _isGenerating
+                          ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.restaurant, size: 28),
+                      label: Text(
+                        _isGenerating
+                            ? 'Chef is thinking...'
+                            : selectedItems.isEmpty
+                            ? 'Select Ingredients First'
+                            : 'Create Recipe',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: selectedItems.isEmpty
+                            ? Colors.grey.shade400
+                            : AppTheme.primaryColor,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
                     ),
                   ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _selectedPantryItems.isEmpty
-                        ? Colors.grey.shade400
-                        : AppTheme.primaryColor,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                ),
-              ),
+                );
+              },
             ),
 
             // Error Message
@@ -324,18 +327,17 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
   Widget _buildPantryPreview() {
     final pantryItems = ref.watch(pantryItemsProvider).value ?? [];
     final itemNames = pantryItems.map((i) => i.name).toList();
+    final selectedItems = ref.watch(selectedIngredientsProvider);
+    final selectedNotifier = ref.read(selectedIngredientsProvider.notifier);
 
-    // Initialize selected items to all if empty
-    if (_selectedPantryItems.isEmpty && itemNames.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          setState(() => _selectedPantryItems = itemNames.toSet());
-        }
-      });
-    }
+    // Initialize/sync selected items with current pantry
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        selectedNotifier.syncWithPantry(itemNames);
+      }
+    });
 
-    final allSelected =
-        _selectedPantryItems.length == itemNames.length && itemNames.isNotEmpty;
+    final allSelected = selectedNotifier.isAllSelected(itemNames);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -348,13 +350,21 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
             if (itemNames.isNotEmpty)
               TextButton.icon(
                 onPressed: () {
-                  setState(() {
-                    if (allSelected) {
-                      _selectedPantryItems.clear();
-                    } else {
-                      _selectedPantryItems = itemNames.toSet();
-                    }
-                  });
+                  if (allSelected) {
+                    // Deselect all except one (keep first)
+                    selectedNotifier.deselectAllExceptOne(itemNames);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'At least one ingredient must be selected',
+                        ),
+                        duration: Duration(seconds: 2),
+                        backgroundColor: Colors.orange,
+                      ),
+                    );
+                  } else {
+                    selectedNotifier.selectAll(itemNames);
+                  }
                 },
                 icon: Icon(
                   allSelected ? Icons.deselect : Icons.select_all,
@@ -370,7 +380,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          '${_selectedPantryItems.length} of ${itemNames.length} selected',
+          '${selectedItems.length} of ${itemNames.length} selected',
           style: const TextStyle(color: AppTheme.textSecondary),
         ),
         const SizedBox(height: 12),
@@ -391,18 +401,24 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
             spacing: 8,
             runSpacing: 8,
             children: itemNames.map((name) {
-              final isSelected = _selectedPantryItems.contains(name);
+              final isSelected = selectedItems.contains(name);
               return FilterChip(
                 label: Text(name),
                 selected: isSelected,
                 onSelected: (selected) {
-                  setState(() {
-                    if (selected) {
-                      _selectedPantryItems.add(name);
-                    } else {
-                      _selectedPantryItems.remove(name);
-                    }
-                  });
+                  final success = selectedNotifier.toggleIngredient(name);
+                  if (!success) {
+                    // Tried to deselect last item - denied
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'At least one ingredient must be selected',
+                        ),
+                        duration: Duration(seconds: 2),
+                        backgroundColor: Colors.orange,
+                      ),
+                    );
+                  }
                 },
                 selectedColor: AppTheme.primaryColor.withValues(alpha: 0.2),
                 checkmarkColor: AppTheme.primaryColor,
@@ -705,7 +721,8 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
 
   /// Pre-flight confirmation dialog before generating recipe
   void _showPreFlightDialog() {
-    if (_selectedPantryItems.isEmpty) {
+    final selectedItems = ref.read(selectedIngredientsProvider);
+    if (selectedItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -746,7 +763,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
               const SizedBox(height: 12),
               _buildSummaryRow(
                 'Ingredients',
-                '${_selectedPantryItems.length} selected',
+                '${selectedItems.length} selected',
               ),
               _buildSummaryRow('Meal Type', _selectedMealType ?? 'Any'),
               _buildSummaryRow('Energy Level', _getEnergyLabel(_energyLevel)),
@@ -756,7 +773,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
               Wrap(
                 spacing: 4,
                 runSpacing: 4,
-                children: _selectedPantryItems
+                children: selectedItems
                     .take(10)
                     .map(
                       (name) => Chip(
@@ -769,11 +786,11 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                     )
                     .toList(),
               ),
-              if (_selectedPantryItems.length > 10)
+              if (selectedItems.length > 10)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(
-                    '+${_selectedPantryItems.length - 10} more',
+                    '+${selectedItems.length - 10} more',
                     style: const TextStyle(color: AppTheme.textSecondary),
                   ),
                 ),
@@ -853,7 +870,8 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
     }
 
     // Validation: need at least 1 selected ingredient
-    if (_selectedPantryItems.isEmpty) {
+    final selectedItems = ref.read(selectedIngredientsProvider);
+    if (selectedItems.isEmpty) {
       setState(() {
         _errorMessage = 'Please select at least one ingredient.';
       });
@@ -874,7 +892,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
 
       final aiService = AiRecipeService();
       var recipe = await aiService.generateRecipe(
-        pantryItems: _selectedPantryItems.toList(),
+        pantryItems: selectedItems.toList(),
         allergies: userProfile?.preferences.allergies ?? [],
         dietaryRestrictions: userProfile?.preferences.dietaryRestrictions ?? [],
         cravings: _cravingsController.text.trim(),
@@ -1049,7 +1067,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
     }
   }
 
-  /// Deplete pantry items that match recipe ingredients
+  /// Delete pantry items that were used in the recipe
   Future<void> _depleteUsedIngredients(
     String userId,
     List<String> recipeIngredients,
@@ -1067,12 +1085,9 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
             pantryName.contains(ingredientLower);
       });
 
-      if (isUsed && pantryItem.quantity > 0) {
-        await pantryService.updatePantryItem(
-          userId,
-          pantryItem.id,
-          quantity: 0, // Mark as depleted
-        );
+      if (isUsed) {
+        // Delete the pantry item entirely (Issue 2 fix)
+        await pantryService.deletePantryItem(userId, pantryItem.id);
       }
     }
   }
