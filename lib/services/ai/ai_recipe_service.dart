@@ -1,4 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:collection';
+import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:super_swipe/core/models/recipe.dart';
@@ -7,6 +11,40 @@ import 'package:super_swipe/core/models/recipe_preview.dart';
 /// Google Gemini Powered AI Recipe Service
 /// Migrated from OpenAI to resolve quota issues.
 class AiRecipeService {
+  AiRecipeService({void Function(String message)? onStatus})
+    : _onStatus = onStatus;
+
+  final void Function(String message)? _onStatus;
+
+  // Global Gemini call limiter
+  // Swipe deck generation and single-recipe generation must share the same
+  // limiter so we don't burst requests and trigger 429 / parsing instability.
+  static const int _maxConcurrentGeminiCalls = 1;
+  static int _activeGeminiCalls = 0;
+  static final Queue<Completer<void>> _geminiWaitQueue =
+      Queue<Completer<void>>();
+
+  static Future<void> _acquireGeminiPermit() {
+    if (_activeGeminiCalls < _maxConcurrentGeminiCalls) {
+      _activeGeminiCalls++;
+      return Future.value();
+    }
+    final c = Completer<void>();
+    _geminiWaitQueue.add(c);
+    return c.future;
+  }
+
+  static void _releaseGeminiPermit() {
+    final next = _geminiWaitQueue.isNotEmpty
+        ? _geminiWaitQueue.removeFirst()
+        : null;
+    if (next != null) {
+      next.complete();
+      return;
+    }
+    _activeGeminiCalls = (_activeGeminiCalls - 1).clamp(0, 1 << 30);
+  }
+
   // Gemini API Configuration
   static const String _baseUrl =
       'https://generativelanguage.googleapis.com/v1beta/models';
@@ -38,9 +76,13 @@ Return JSON with this exact format:
 {
   "title": "Recipe Name",
   "vibe_description": "Brief enticing description of the dish vibe",
-  "main_ingredients": ["ingredient 1", "ingredient 2", "ingredient 3"],
+  "ingredients": ["ingredient 1", "ingredient 2", "ingredient 3"],
   "estimated_time_minutes": 25,
+  "calories": 450,
+  "equipment_icons": ["pan", "pot"],
   "meal_type": "dinner",
+  "cuisine": "italian",
+  "skill_level": "beginner",
   "energy_level": 2
 }
 ''';
@@ -67,6 +109,7 @@ Return JSON with this exact format:
   "instructions": ["Detailed step 1 with temps", "Step 2 with technique"],
   "timeMinutes": 25,
   "calories": 450,
+  "equipment": ["pan", "pot"],
   "prep_time": "10 min",
   "cook_time": "15 min",
   "temperatures": {"oven": "375°F", "stovetop": "medium-high"}
@@ -83,6 +126,14 @@ Return JSON with this exact format:
     List<String> preferredCuisines = const [],
     String? mealType,
     bool strictPantryMatch = true,
+    // Filter panel / discovery hints (Swipe-to-unlock spec)
+    List<String> cuisines = const [],
+    List<String> skillLevels = const [],
+    List<String> equipmentPreferences = const [],
+    int? maxMinutes,
+    int? maxCalories,
+    int? pantryMissingAllowed,
+    String? customPreferences,
   }) async {
     if (_apiKey.isEmpty) {
       throw Exception('Kitchen is closed: GEMINI_API_KEY missing in .env');
@@ -96,6 +147,14 @@ Return JSON with this exact format:
       energyLevel: energyLevel,
       mealType: mealType,
       strictPantryMatch: strictPantryMatch,
+      preferredCuisines: preferredCuisines,
+      cuisines: cuisines,
+      skillLevels: skillLevels,
+      equipmentPreferences: equipmentPreferences,
+      maxMinutes: maxMinutes,
+      maxCalories: maxCalories,
+      pantryMissingAllowed: pantryMissingAllowed,
+      customPreferences: customPreferences,
     );
 
     final response = await _callGemini(
@@ -104,9 +163,69 @@ Return JSON with this exact format:
       systemPrompt: _systemPromptPreview,
     );
 
-    return RecipePreview.fromJson(
-      response,
-    ).copyWith(energyLevel: energyLevel, mealType: mealType ?? 'dinner');
+    return RecipePreview.fromJson(response).copyWith(
+      energyLevel: energyLevel,
+      mealType: mealType ?? response['meal_type'] ?? 'dinner',
+    );
+  }
+
+  /// PHASE 1B: Generate multiple lightweight previews in one call.
+  /// Used by Swipe deck to avoid bursting many concurrent requests.
+  Future<List<RecipePreview>> generateRecipePreviewsBatch({
+    required int count,
+    required List<String> pantryItems,
+    required List<String> allergies,
+    required List<String> dietaryRestrictions,
+    required String cravings,
+    required int energyLevel,
+    List<String> preferredCuisines = const [],
+    String? mealType,
+    bool strictPantryMatch = true,
+  }) async {
+    if (_apiKey.isEmpty) {
+      throw Exception('Kitchen is closed: GEMINI_API_KEY missing in .env');
+    }
+
+    final userPrompt = _buildPreviewBatchPrompt(
+      count: count,
+      pantryItems: pantryItems,
+      allergies: allergies,
+      dietaryRestrictions: dietaryRestrictions,
+      cravings: cravings,
+      energyLevel: energyLevel,
+      mealType: mealType,
+      strictPantryMatch: strictPantryMatch,
+      preferredCuisines: preferredCuisines,
+    );
+
+    final response = await _callGemini(
+      userPrompt,
+      model: _previewModel,
+      systemPrompt: _systemPromptPreview,
+    );
+
+    // Expected format: { "previews": [ {preview json}, ... ] }
+    final rawList = response['previews'];
+    if (rawList is List) {
+      return rawList
+          .whereType<Map>()
+          .map((m) => RecipePreview.fromJson(Map<String, dynamic>.from(m)))
+          .map(
+            (p) => p.copyWith(
+              energyLevel: energyLevel,
+              mealType: mealType ?? p.mealType,
+            ),
+          )
+          .toList();
+    }
+
+    // Fallback: if model returned a single preview JSON.
+    return [
+      RecipePreview.fromJson(response).copyWith(
+        energyLevel: energyLevel,
+        mealType: mealType ?? response['meal_type'] ?? 'dinner',
+      ),
+    ];
   }
 
   /// PHASE 2: Generate full recipe from preview (deep thinking)
@@ -141,6 +260,11 @@ Return JSON with this exact format:
       preview.energyLevel,
       showCalories,
       existingImageUrl: preview.imageUrl,
+      forcedId: preview.id,
+      fallbackEquipment: preview.equipmentIcons,
+      fallbackIngredientIds: preview.ingredients.isNotEmpty
+          ? preview.ingredients
+          : preview.mainIngredients,
     );
   }
 
@@ -214,95 +338,130 @@ Return JSON with this exact format:
     required String model,
     required String systemPrompt,
   }) async {
-    print('🧑‍🍳 AI Chef using model: $model'); // DEBUG: Verify model
+    if (kDebugMode) {
+      debugPrint('AI Chef using model: $model');
+    }
 
-    try {
-      final url = Uri.parse('$_baseUrl/$model:generateContent?key=$_apiKey');
-
-      final body = {
-        'contents': [
-          {
-            'parts': [
-              {'text': userPrompt},
-            ],
-          },
-        ],
-        'system_instruction': {
+    final url = Uri.parse('$_baseUrl/$model:generateContent?key=$_apiKey');
+    final body = {
+      'contents': [
+        {
           'parts': [
-            {'text': systemPrompt},
+            {'text': userPrompt},
           ],
         },
-        'generationConfig': {
-          'temperature': 0.7,
-          'maxOutputTokens': 8192,
-          'response_mime_type': 'application/json',
-        },
-      };
+      ],
+      'system_instruction': {
+        'parts': [
+          {'text': systemPrompt},
+        ],
+      },
+      'generationConfig': {
+        'temperature': 0.7,
+        'maxOutputTokens': 8192,
+        'response_mime_type': 'application/json',
+      },
+    };
 
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(body),
-      );
+    const maxRetries = 2;
+    for (var attempt = 0; attempt <= maxRetries; attempt++) {
+      var acquiredPermit = false;
+      try {
+        await _acquireGeminiPermit();
+        acquiredPermit = true;
 
-      if (response.statusCode != 200) {
-        final errorBody = jsonDecode(response.body);
-        final errorMessage = errorBody['error']?['message'] ?? 'Unknown error';
+        final response = await http.post(
+          url,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(body),
+        );
 
-        // DEBUG: If 404, check available models
-        if (response.statusCode == 404) {
-          await _debugPrintAvailableModels();
+        if (response.statusCode != 200) {
+          String errorMessage = 'Unknown error';
+          try {
+            final errorBody = jsonDecode(response.body);
+            errorMessage =
+                errorBody['error']?['message']?.toString() ?? errorMessage;
+          } catch (_) {
+            // ignore parse errors
+          }
+
+          if (response.statusCode == 429 && attempt < maxRetries) {
+            _onStatus?.call('The Chef is preparing more ideas... one moment!');
+            final seconds = Random().nextInt(3) + 2;
+            await Future.delayed(Duration(seconds: seconds));
+            continue;
+          }
+
+          // DEBUG: If 404, check available models
+          if (response.statusCode == 404) {
+            await _debugPrintAvailableModels();
+          }
+
+          if (response.statusCode == 429) {
+            throw Exception(
+              'The Chef is preparing more ideas... one moment! (Rate limited)',
+            );
+          }
+
+          throw Exception('AI Error (${response.statusCode}): $errorMessage');
         }
 
-        throw Exception('AI Error (${response.statusCode}): $errorMessage');
+        final responseBody = jsonDecode(response.body);
+        final candidates = responseBody['candidates'] as List?;
+
+        if (candidates == null || candidates.isEmpty) {
+          throw Exception('Chef returned no recipes. The kitchen is empty.');
+        }
+
+        final contentParts = candidates[0]['content']?['parts'] as List?;
+        final textContent = contentParts?[0]?['text'] as String?;
+
+        if (textContent == null) {
+          throw Exception('Chef returned an empty plate.');
+        }
+
+        // 1. Sanitize: Remove markdown backticks
+        var cleanJson = textContent
+            .replaceAll(RegExp(r'^```json\s*'), '')
+            .replaceAll(RegExp(r'^```\s*'), '')
+            .replaceAll(RegExp(r'\s*```$'), '')
+            .trim();
+
+        // 2. Extract: Find the first '{' and last '}' to ignore preamble/postscript
+        final startIndex = cleanJson.indexOf('{');
+        final endIndex = cleanJson.lastIndexOf('}');
+
+        if (startIndex != -1 && endIndex != -1 && endIndex > startIndex) {
+          cleanJson = cleanJson.substring(startIndex, endIndex + 1);
+        }
+
+        try {
+          return jsonDecode(cleanJson) as Map<String, dynamic>;
+        } catch (e) {
+          if (kDebugMode) {
+            debugPrint('JSON parse error. Raw content:\n$cleanJson\n');
+          }
+          throw FormatException('Failed to parse recipe: $e');
+        }
+      } on http.ClientException catch (e) {
+        throw Exception('Network Error: $e');
+      } finally {
+        if (acquiredPermit) {
+          _releaseGeminiPermit();
+        }
       }
-
-      final responseBody = jsonDecode(response.body);
-      final candidates = responseBody['candidates'] as List?;
-
-      if (candidates == null || candidates.isEmpty) {
-        throw Exception('Chef returned no recipes. The kitchen is empty.');
-      }
-
-      final contentParts = candidates[0]['content']?['parts'] as List?;
-      final textContent = contentParts?[0]?['text'] as String?;
-
-      if (textContent == null) {
-        throw Exception('Chef returned an empty plate.');
-      }
-
-      // 1. Sanitize: Remove markdown backticks
-      var cleanJson = textContent
-          .replaceAll(RegExp(r'^```json\s*'), '')
-          .replaceAll(RegExp(r'^```\s*'), '')
-          .replaceAll(RegExp(r'\s*```$'), '')
-          .trim();
-
-      // 2. Extract: Find the first '{' and last '}' to ignore preamble/postscript
-      final startIndex = cleanJson.indexOf('{');
-      final endIndex = cleanJson.lastIndexOf('}');
-
-      if (startIndex != -1 && endIndex != -1 && endIndex > startIndex) {
-        cleanJson = cleanJson.substring(startIndex, endIndex + 1);
-      }
-
-      try {
-        return jsonDecode(cleanJson) as Map<String, dynamic>;
-      } catch (e) {
-        print('❌ JSON PARSE ERROR. Raw content:\n$cleanJson\n'); // DEBUG LOG
-        throw FormatException('Failed to parse recipe: $e');
-      }
-    } on http.ClientException catch (e) {
-      throw Exception('Network Error: $e');
-    } catch (e) {
-      throw Exception('Unexpected Error: $e');
     }
+
+    throw Exception('Unexpected Error: exhausted retries');
   }
 
   /// DEBUG: Fetch and print available models
   Future<void> _debugPrintAvailableModels() async {
     try {
-      print('🔍 Debugging: Fetching available models for this API key...');
+      if (kDebugMode) {
+        debugPrint('Debugging: Fetching available models for this API key...');
+      }
       final url = Uri.parse(
         'https://generativelanguage.googleapis.com/v1beta/models?key=$_apiKey',
       );
@@ -313,16 +472,21 @@ Return JSON with this exact format:
         final models = (data['models'] as List?)
             ?.map((m) => m['name'])
             .toList();
-        print('📋 AVAILABLE GEMINI MODELS:');
-        models?.forEach((m) => print('  - $m'));
-        print('-------------------------------------------');
+        if (kDebugMode) {
+          debugPrint('AVAILABLE GEMINI MODELS:');
+          models?.forEach((m) => debugPrint('  - $m'));
+        }
       } else {
-        print(
-          '❌ Failed to list models: ${response.statusCode} ${response.body}',
-        );
+        if (kDebugMode) {
+          debugPrint(
+            'Failed to list models: ${response.statusCode} ${response.body}',
+          );
+        }
       }
     } catch (e) {
-      print('❌ Failed to debug models: $e');
+      if (kDebugMode) {
+        debugPrint('Failed to debug models: $e');
+      }
     }
   }
 
@@ -335,22 +499,117 @@ Return JSON with this exact format:
     required int energyLevel,
     String? mealType,
     bool strictPantryMatch = true,
+    List<String> preferredCuisines = const [],
+    List<String> cuisines = const [],
+    List<String> skillLevels = const [],
+    List<String> equipmentPreferences = const [],
+    int? maxMinutes,
+    int? maxCalories,
+    int? pantryMissingAllowed,
+    String? customPreferences,
   }) {
     final pantryRule = strictPantryMatch
         ? 'CRITICAL: Use ONLY these pantry ingredients: [${pantryItems.join(', ')}].'
         : 'Prioritize: [${pantryItems.join(', ')}], may add 1-2 common staples.';
 
+    final effectiveCuisine = cuisines.isNotEmpty
+        ? cuisines.join(', ')
+        : (preferredCuisines.isNotEmpty ? preferredCuisines.join(', ') : 'Any');
+
+    final pantryFlexNote = pantryMissingAllowed == null
+        ? ''
+        : 'Pantry flexibility: you may include up to $pantryMissingAllowed missing ingredients (common items).';
+
+    final filterBlock =
+        '''
+  FILTER PANEL (SECOND PRIORITY):
+  - Meal Type: ${mealType ?? 'Any'}
+  - Cuisine: $effectiveCuisine
+  - Skill Level: ${skillLevels.isNotEmpty ? skillLevels.join(', ') : 'Any'}
+  - Equipment available/preferred: ${equipmentPreferences.isNotEmpty ? equipmentPreferences.join(', ') : 'Any'}
+  - Max time: ${maxMinutes != null ? '$maxMinutes minutes' : 'Any'}
+  - Max calories: ${maxCalories != null ? maxCalories.toString() : 'Any'}
+  $pantryFlexNote
+  ''';
+
+    final customBlock =
+        '''
+  CUSTOM PREFERENCES (THIRD PRIORITY):
+  - ${customPreferences != null && customPreferences.trim().isNotEmpty ? customPreferences.trim() : 'None'}
+  ''';
+
     return '''
-$pantryRule
+  $pantryRule
+
+  $filterBlock
+
+  $customBlock
 
 Create a recipe PREVIEW (not full recipe) for:
 - Cravings: ${cravings.isNotEmpty ? cravings : 'Surprise me!'}
 - Allergies to AVOID: ${allergies.isNotEmpty ? allergies.join(', ') : 'None'}
 - Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'None'}
-- Meal Type: ${mealType ?? 'Any'}
 - Energy Level: $energyLevel/3 (0=ready-made, 3=elaborate)
 
-Return ONLY: title, vibe_description, main_ingredients (3-5 items), estimated_time_minutes.
+  Return ONLY the JSON fields exactly as specified in the system format.
+  IMPORTANT: "ingredients" MUST be a list of ingredient names with NO quantities.
+''';
+  }
+
+  String _buildPreviewBatchPrompt({
+    required int count,
+    required List<String> pantryItems,
+    required List<String> allergies,
+    required List<String> dietaryRestrictions,
+    required String cravings,
+    required int energyLevel,
+    String? mealType,
+    bool strictPantryMatch = true,
+    List<String> preferredCuisines = const [],
+  }) {
+    final pantryRule = strictPantryMatch
+        ? 'CRITICAL: Use ONLY these pantry ingredients: [${pantryItems.join(', ')}].'
+        : 'Prioritize: [${pantryItems.join(', ')}], may add 1-2 common staples.';
+
+    final cuisineNote = preferredCuisines.isNotEmpty
+        ? 'Preferred cuisines: ${preferredCuisines.join(', ')}'
+        : 'Preferred cuisines: Any';
+
+    return '''
+$pantryRule
+
+$cuisineNote
+Meal Type: ${mealType ?? 'Any'}
+
+Generate EXACTLY $count DISTINCT recipe previews.
+
+Return JSON with this exact format:
+{
+  "previews": [
+    {
+      "title": "Recipe Name",
+      "vibe_description": "Brief enticing description of the dish vibe",
+      "ingredients": ["ingredient 1", "ingredient 2"],
+      "estimated_time_minutes": 25,
+      "calories": 450,
+      "equipment_icons": ["pan", "pot"],
+      "meal_type": "dinner",
+      "cuisine": "italian",
+      "skill_level": "beginner",
+      "energy_level": 2
+    }
+  ]
+}
+
+Rules:
+- No quantities in "ingredients".
+- Titles must be unique.
+
+Context:
+- Cravings: ${cravings.isNotEmpty ? cravings : 'Surprise me!'}
+- Allergies to AVOID: ${allergies.isNotEmpty ? allergies.join(', ') : 'None'}
+- Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'None'}
+- Energy Level: $energyLevel/3 (0=ready-made, 3=elaborate)
 ''';
   }
 
@@ -434,20 +693,35 @@ Keep the title similar unless specifically asked to change it.
     int energy,
     bool showCals, {
     String? existingImageUrl,
+    String? forcedId,
+    List<String>? fallbackEquipment,
+    List<String>? fallbackIngredientIds,
   }) {
+    final rawEquipment = data['equipment'];
+    final equipment = rawEquipment is List
+        ? rawEquipment.map((e) => e.toString()).toList()
+        : (fallbackEquipment ?? const <String>[]);
+
+    final ingredients = List<String>.from(data['ingredients'] ?? []);
+    final ingredientIds = (fallbackIngredientIds ?? const <String>[])
+        .map((e) => e.toString().toLowerCase().trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+
     return Recipe(
-      id: 'ai_${DateTime.now().millisecondsSinceEpoch}',
+      id: forcedId ?? 'ai_${DateTime.now().millisecondsSinceEpoch}',
       title: data['title'] ?? 'Chef\'s Special',
       description: data['description'] ?? '',
       imageUrl:
           existingImageUrl ??
           'https://images.unsplash.com/photo-1737032571846-445ec57a41da?q=80',
-      ingredients: List<String>.from(data['ingredients'] ?? []),
+      ingredients: ingredients,
       instructions: List<String>.from(data['instructions'] ?? []),
       timeMinutes: data['timeMinutes'] ?? 15,
       calories: showCals ? (data['calories'] ?? 0) : 0,
-      equipment: [],
+      equipment: equipment,
       energyLevel: energy,
+      ingredientIds: ingredientIds,
     );
   }
 }

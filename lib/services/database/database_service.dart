@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:super_swipe/core/models/pantry_item.dart';
 import 'package:super_swipe/core/models/recipe.dart';
+import 'package:super_swipe/core/models/recipe_preview.dart';
 import 'package:super_swipe/core/models/user_profile.dart';
 
 /// Production-grade Database Service implementing:
@@ -40,6 +41,9 @@ class DatabaseService {
 
   CollectionReference<Map<String, dynamic>> _pantryLogs(String userId) =>
       _users.doc(userId).collection('pantry_logs');
+
+  CollectionReference<Map<String, dynamic>> _swipeDeck(String userId) =>
+      _users.doc(userId).collection('swipeDeck');
 
   // ============================================================
   // 1. CARROT ECONOMY - LAZY WEEKLY RESET
@@ -128,6 +132,7 @@ class DatabaseService {
       transaction.update(userRef, {
         'carrots.current': currentCarrots - 1,
         'stats.totalCarrotsSpent': FieldValue.increment(1),
+        'stats.recipesUnlocked': FieldValue.increment(1),
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
@@ -254,6 +259,85 @@ class DatabaseService {
   // ============================================================
   // 3. PANTRY SYNC
   // ============================================================
+
+  // ============================================================
+  // 4. SWIPE DECK PERSISTENCE (per-user)
+  // ============================================================
+
+  /// Returns unconsumed swipe cards for the user.
+  ///
+  /// Note: We avoid composite indexes by querying only on `isConsumed`
+  /// and sorting client-side if needed.
+  Future<List<RecipePreview>> getUnconsumedSwipeCards(
+    String userId, {
+    int limit = 200,
+  }) async {
+    final snap = await _swipeDeck(
+      userId,
+    ).where('isConsumed', isEqualTo: false).limit(limit).get();
+
+    final docs = snap.docs;
+    if (docs.isEmpty) return const <RecipePreview>[];
+
+    // Sort by createdAt if present (stable-ish ordering).
+    docs.sort((a, b) {
+      final aTs = a.data()['createdAt'];
+      final bTs = b.data()['createdAt'];
+      final aDt = (aTs is Timestamp) ? aTs.toDate() : null;
+      final bDt = (bTs is Timestamp) ? bTs.toDate() : null;
+      if (aDt == null && bDt == null) return 0;
+      if (aDt == null) return 1;
+      if (bDt == null) return -1;
+      return aDt.compareTo(bDt);
+    });
+
+    return docs.map(RecipePreview.fromFirestore).toList(growable: false);
+  }
+
+  /// Persists new swipe cards (idempotent per card id).
+  Future<void> upsertSwipeCards(
+    String userId,
+    List<RecipePreview> cards,
+  ) async {
+    if (cards.isEmpty) return;
+
+    final batch = _firestore.batch();
+    for (final card in cards) {
+      final ref = _swipeDeck(userId).doc(card.id);
+      batch.set(ref, {
+        ...card.toFirestore(),
+        'isConsumed': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+    await batch.commit();
+  }
+
+  /// Marks a swipe card as consumed so it won't show again.
+  Future<void> markSwipeCardConsumed(String userId, String cardId) async {
+    try {
+      await _swipeDeck(userId).doc(cardId).set({
+        'isConsumed': true,
+        'consumedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (_) {
+      // Best-effort; don't block UX.
+    }
+  }
+
+  /// Clears the user's swipe deck (used for manual refresh).
+  Future<void> clearSwipeDeck(String userId) async {
+    const pageSize = 400;
+    while (true) {
+      final snap = await _swipeDeck(userId).limit(pageSize).get();
+      if (snap.docs.isEmpty) return;
+      final batch = _firestore.batch();
+      for (final doc in snap.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+    }
+  }
 
   /// Adds or updates pantry items.
   /// Used for manual additions and guest-to-user migration.

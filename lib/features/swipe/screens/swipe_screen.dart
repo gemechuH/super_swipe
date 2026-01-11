@@ -8,7 +8,6 @@ import 'package:go_router/go_router.dart';
 import 'package:super_swipe/core/models/pantry_item.dart';
 import 'package:super_swipe/core/models/recipe.dart';
 import 'package:super_swipe/core/providers/app_state_provider.dart';
-import 'package:super_swipe/core/providers/firestore_providers.dart';
 import 'package:super_swipe/core/providers/recipe_providers.dart';
 import 'package:super_swipe/core/providers/user_data_providers.dart';
 
@@ -18,6 +17,8 @@ import 'package:super_swipe/core/models/recipe_preview.dart';
 import 'package:super_swipe/core/widgets/dialogs/confirm_unlock_dialog.dart';
 import 'package:super_swipe/features/auth/providers/auth_provider.dart';
 import 'package:super_swipe/services/database/database_provider.dart';
+import 'package:super_swipe/services/ai/ai_recipe_service.dart';
+import 'package:super_swipe/services/image/image_search_service.dart';
 
 class SwipeScreen extends ConsumerStatefulWidget {
   const SwipeScreen({super.key});
@@ -31,19 +32,32 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
   int _selectedEnergyLevel = 2; // Default to 'Okay'
   bool _unlockFlowInProgress = false;
 
+  bool _deckLoading = false;
+  int _deckRequestToken = 0;
+  DateTime? _lastChefStatusAt;
+  List<Recipe> _aiDeck = const <Recipe>[];
+  final Set<String> _consumedCardIds = <String>{};
+  final Set<int> _loadingMoreEnergy = <int>{};
+  final Map<int, List<Recipe>> _dbBufferByEnergy = <int, List<Recipe>>{};
+  late final AiRecipeService _ai;
+  final ImageSearchService _imageService = ImageSearchService();
+  static final Map<String, List<Recipe>> _deckCache = <String, List<Recipe>>{};
+
+  ({
+    List<String> pantryNames,
+    List<String> allergies,
+    List<String> dietary,
+    String inspiration,
+    List<String> preferredCuisines,
+    String? mealType,
+    String cravings,
+  })?
+  _activeDeckQuery;
+
   // Filter Panel state (PDF spec)
   final TextEditingController _customPreferenceController =
       TextEditingController();
-  final Set<String> _selectedMealTypes = {};
-  final Set<String> _selectedDietaryTags = {};
-  int? _maxMinutes;
-  int? _maxCalories;
-  final Set<String> _selectedFlavorProfiles = {};
-  final Set<String> _selectedCuisines = {};
-  final Set<String> _selectedEquipment = {};
-  String _pantryFlex = 'show_all'; // exact | allow_1 | allow_2 | show_all
-  final Set<String> _selectedSkillLevels = {};
-  final Set<String> _selectedPrepTags = {};
+  // Filters are intentionally disabled for now per request.
 
   @override
   void dispose() {
@@ -52,7 +66,53 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     super.dispose();
   }
 
+  @override
+  void initState() {
+    super.initState();
+    _ai = AiRecipeService(onStatus: _handleChefStatus);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_refreshDeck());
+    });
+  }
+
+  void _handleChefStatus(String message) {
+    if (!mounted) return;
+    final now = DateTime.now();
+    final last = _lastChefStatusAt;
+    if (last != null && now.difference(last).inSeconds < 2) return;
+    _lastChefStatusAt = now;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.removeCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  String _buildDeckKey({
+    required List<String> pantryNames,
+    required List<String> allergies,
+    required List<String> dietary,
+    required List<String> preferredCuisines,
+    required String? mealType,
+    required String cravings,
+  }) {
+    final p = [...pantryNames]..sort();
+    final a = [...allergies]..sort();
+    final d = [...dietary]..sort();
+    final pc = [...preferredCuisines]..sort();
+    return <String>[
+      'p=${p.join(",")}',
+      'a=${a.join(",")}',
+      'd=${d.join(",")}',
+      'pc=${pc.join(",")}',
+      'm=${mealType ?? ""}',
+      'cr=${cravings.trim().toLowerCase()}',
+    ].join('|');
+  }
+
   // Mock Recipes with real Unsplash images
+  // (Kept for reference; Swipe deck is AI-driven now.)
+  // ignore: unused_field
   final List<Recipe> _recipes = [
     Recipe(
       id: '1',
@@ -237,6 +297,283 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
 
   String _norm(String value) => value.toLowerCase().trim();
 
+  String? _persistedUserIdOrNull() {
+    final authUser = ref.read(authProvider).user;
+    final isGuest = ref.read(appStateProvider).isGuest;
+    if (authUser == null) return null;
+    if (isGuest || authUser.isAnonymous == true) return null;
+    return authUser.uid;
+  }
+
+  int _remainingForEnergy(int energyLevel) {
+    var count = 0;
+    for (final r in _aiDeck) {
+      if (r.energyLevel != energyLevel) continue;
+      if (_consumedCardIds.contains(r.id)) continue;
+      count++;
+    }
+    return count;
+  }
+
+  void _markCardConsumed(Recipe recipe) {
+    if (!_consumedCardIds.add(recipe.id)) return;
+    final userId = _persistedUserIdOrNull();
+    if (userId == null) return;
+    unawaited(
+      ref
+          .read(databaseServiceProvider)
+          .markSwipeCardConsumed(userId, recipe.id),
+    );
+  }
+
+  Recipe _recipeFromPreview(RecipePreview p) {
+    final ing = p.ingredients.isNotEmpty ? p.ingredients : p.mainIngredients;
+    return Recipe(
+      id: p.id,
+      title: p.title,
+      imageUrl: p.imageUrl ?? ImageSearchService.getFallbackImage(p.mealType),
+      description: p.vibeDescription,
+      ingredients: ing,
+      instructions: const <String>[],
+      ingredientIds: ing.map((e) => _norm(e)).toList(),
+      energyLevel: p.energyLevel,
+      timeMinutes: p.estimatedTimeMinutes,
+      calories: p.calories,
+      equipment: p.equipmentIcons,
+      mealType: p.mealType,
+      cuisine: p.cuisine,
+      skillLevel: p.skillLevel,
+      dietaryTags: const <String>[],
+    );
+  }
+
+  Map<int, List<Recipe>> _partitionByEnergy(List<Recipe> recipes) {
+    final map = <int, List<Recipe>>{
+      0: <Recipe>[],
+      1: <Recipe>[],
+      2: <Recipe>[],
+      3: <Recipe>[],
+    };
+    for (final r in recipes) {
+      final e = (r.energyLevel).clamp(0, 3);
+      map.putIfAbsent(e, () => <Recipe>[]).add(r);
+    }
+    return map;
+  }
+
+  void _seedDeckFromDbRecipes({
+    required List<Recipe> recipes,
+    required ({
+      List<String> pantryNames,
+      List<String> allergies,
+      List<String> dietary,
+      String inspiration,
+      List<String> preferredCuisines,
+      String? mealType,
+      String cravings,
+    })
+    query,
+    required String deckKey,
+  }) {
+    final byEnergy = _partitionByEnergy(recipes);
+    final visible = <Recipe>[];
+    final buffer = <int, List<Recipe>>{};
+
+    for (final energy in const [0, 1, 2, 3]) {
+      final list = byEnergy[energy] ?? const <Recipe>[];
+      final head = list.take(3).toList(growable: false);
+      final tail = list.length > 3 ? list.sublist(3) : const <Recipe>[];
+      visible.addAll(head);
+      buffer[energy] = List<Recipe>.from(tail);
+    }
+
+    setState(() {
+      _activeDeckQuery = query;
+      _consumedCardIds.clear();
+      _aiDeck = visible;
+      _dbBufferByEnergy
+        ..clear()
+        ..addAll(buffer);
+    });
+
+    _deckCache[deckKey] = List<Recipe>.from(visible);
+  }
+
+  Future<
+    ({
+      List<String> pantryNames,
+      List<String> allergies,
+      List<String> dietary,
+      String inspiration,
+      List<String> preferredCuisines,
+      String? mealType,
+      String cravings,
+    })
+  >
+  _computeDeckQuery() async {
+    final pantryItems =
+        ref.read(pantryItemsProvider).value ?? const <PantryItem>[];
+    final profile = ref.read(userProfileProvider).value;
+
+    final pantryNames = pantryItems
+        .map((p) => p.normalizedName)
+        .where((e) => e.trim().isNotEmpty)
+        .toList();
+
+    final isZeroPantry = pantryNames.isEmpty;
+    final mealType = profile?.preferences.defaultMealType;
+
+    final cravings = _customPreferenceController.text.trim();
+    final inspiration = isZeroPantry
+        ? (cravings.isNotEmpty
+              ? cravings
+              : 'Inspiration: popular, highly-rated meals that match my preferences')
+        : cravings;
+
+    final allergies = profile?.preferences.allergies ?? const <String>[];
+    final dietary =
+        profile?.preferences.dietaryRestrictions ?? const <String>[];
+    final preferredCuisines =
+        profile?.preferences.preferredCuisines ?? const <String>[];
+
+    return (
+      pantryNames: pantryNames,
+      allergies: allergies,
+      dietary: dietary,
+      inspiration: inspiration,
+      preferredCuisines: preferredCuisines,
+      mealType: mealType,
+      cravings: cravings,
+    );
+  }
+
+  Future<void> _loadMoreForEnergy(int energyLevel) async {
+    if (_loadingMoreEnergy.contains(energyLevel)) return;
+    if (_remainingForEnergy(energyLevel) > 0) return;
+
+    final buffered = _dbBufferByEnergy[energyLevel] ?? const <Recipe>[];
+    if (buffered.isNotEmpty) {
+      final take = buffered.length >= 3 ? 3 : buffered.length;
+      final next = buffered.take(take).toList(growable: false);
+      final rest = buffered.skip(take).toList(growable: false);
+      setState(() {
+        _aiDeck = [..._aiDeck, ...next];
+        _dbBufferByEnergy[energyLevel] = List<Recipe>.from(rest);
+      });
+      return;
+    }
+
+    final userId = _persistedUserIdOrNull();
+    final requestToken = _deckRequestToken;
+
+    setState(() => _loadingMoreEnergy.add(energyLevel));
+    try {
+      final query = _activeDeckQuery ?? await _computeDeckQuery();
+      _activeDeckQuery ??= query;
+
+      final shownIds = <String>{};
+      for (final r in _aiDeck) {
+        shownIds.add(r.id);
+      }
+
+      // 1) Signed-in users: pull next 3 from DB first (until depleted).
+      if (userId != null) {
+        final previews = await ref
+            .read(databaseServiceProvider)
+            .getUnconsumedSwipeCards(userId);
+        if (!mounted || requestToken != _deckRequestToken) return;
+
+        final candidates = previews
+            .where(
+              (p) =>
+                  !_consumedCardIds.contains(p.id) && !shownIds.contains(p.id),
+            )
+            .map(_recipeFromPreview)
+            .toList(growable: false);
+
+        if (candidates.isNotEmpty) {
+          final byEnergy = _partitionByEnergy(candidates);
+          final newBuffers = <int, List<Recipe>>{};
+          for (final energy in const [0, 1, 2, 3]) {
+            newBuffers[energy] = List<Recipe>.from(
+              byEnergy[energy] ?? const <Recipe>[],
+            );
+          }
+
+          final list = newBuffers[energyLevel] ?? const <Recipe>[];
+          final take = list.length >= 3 ? 3 : list.length;
+          final next = list.take(take).toList(growable: false);
+          newBuffers[energyLevel] = list.skip(take).toList(growable: false);
+
+          setState(() {
+            _aiDeck = [..._aiDeck, ...next];
+            _dbBufferByEnergy
+              ..clear()
+              ..addAll(newBuffers);
+          });
+
+          if (next.isNotEmpty) return;
+        }
+      }
+
+      final seenTitles = <String>{};
+      for (final r in _aiDeck) {
+        if (_consumedCardIds.contains(r.id)) continue;
+        seenTitles.add(_norm(r.title));
+      }
+
+      final previews = await _ai.generateRecipePreviewsBatch(
+        count: 3,
+        pantryItems: query.pantryNames,
+        allergies: query.allergies,
+        dietaryRestrictions: query.dietary,
+        cravings: query.inspiration,
+        energyLevel: energyLevel,
+        preferredCuisines: query.preferredCuisines,
+        mealType: query.mealType,
+        strictPantryMatch: false,
+      );
+
+      if (!mounted || requestToken != _deckRequestToken) return;
+
+      final persisted = <RecipePreview>[];
+      final added = <Recipe>[];
+      for (final p in previews) {
+        if (!mounted || requestToken != _deckRequestToken) return;
+        final titleKey = _norm(p.title);
+        if (!seenTitles.add(titleKey)) continue;
+
+        final img = await _imageService.searchRecipeImage(
+          recipeTitle: p.title,
+          ingredients: p.ingredients.isNotEmpty
+              ? p.ingredients
+              : p.mainIngredients,
+        );
+        final imageUrl =
+            img?.imageUrl ??
+            p.imageUrl ??
+            ImageSearchService.getFallbackImage(p.mealType);
+        final persistedPreview = p.copyWith(imageUrl: imageUrl);
+        persisted.add(persistedPreview);
+        added.add(_recipeFromPreview(persistedPreview));
+      }
+
+      if (added.isNotEmpty && mounted && requestToken == _deckRequestToken) {
+        setState(() => _aiDeck = [..._aiDeck, ...added]);
+      }
+
+      if (userId != null && persisted.isNotEmpty) {
+        unawaited(
+          ref.read(databaseServiceProvider).upsertSwipeCards(userId, persisted),
+        );
+      }
+    } catch (_) {
+      // Best-effort; avoid interrupting swipe UX.
+    } finally {
+      if (mounted) setState(() => _loadingMoreEnergy.remove(energyLevel));
+    }
+  }
+
   Set<String> _pantryKeySet(List<PantryItem> pantryItems) {
     return pantryItems
         .map((i) => _norm(i.normalizedName))
@@ -256,229 +593,171 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     return false;
   }
 
-  int _missingIngredientCount(Recipe recipe, Set<String> pantry) {
-    final ids = recipe.ingredientIds.isNotEmpty
-        ? recipe.ingredientIds
-        : recipe.ingredients.map(_norm).toList();
-
-    var missing = 0;
-    for (final id in ids) {
-      if (!_pantryHas(pantry, id)) missing++;
-    }
-    return missing;
-  }
-
-  bool _passesPantryFlex(Recipe recipe, Set<String> pantry) {
-    final missing = _missingIngredientCount(recipe, pantry);
-    switch (_pantryFlex) {
-      case 'exact':
-        return missing == 0;
-      case 'allow_1':
-        return missing <= 1;
-      case 'allow_2':
-        return missing <= 2;
-      case 'show_all':
-      default:
-        return true;
-    }
-  }
-
-  /// Returns filtered recipes from the given source list.
-  /// If [sourceRecipes] is empty, falls back to mock [_recipes].
-  List<Recipe> _getFilteredRecipes(
-    Set<String> pantry, {
-    List<Recipe>? sourceRecipes,
-  }) {
-    // Use Firestore recipes if available, otherwise fallback to mock data
-    final recipesToFilter = (sourceRecipes != null && sourceRecipes.isNotEmpty)
-        ? sourceRecipes
-        : _recipes;
-
-    Iterable<Recipe> results = recipesToFilter.where(
-      (r) => r.energyLevel == _selectedEnergyLevel,
-    );
-
-    // 1) Pantry matching
-    results = results.where((r) => _passesPantryFlex(r, pantry));
-
-    // 2) Meal type
-    if (_selectedMealTypes.isNotEmpty) {
-      results = results.where(
-        (r) => _selectedMealTypes.contains(_norm(r.mealType)),
-      );
-    }
-
-    // 3) Time constraints
-    if (_maxMinutes != null) {
-      results = results.where((r) => r.timeMinutes <= _maxMinutes!);
-    }
-
-    // 3.5) Prep level
-    if (_selectedPrepTags.isNotEmpty) {
-      results = results.where((r) {
-        final tags = r.prepTags.map(_norm).toSet();
-        return _selectedPrepTags.any(tags.contains);
-      });
-    }
-
-    // 4) Dietary requirements (must include all selected tags)
-    if (_selectedDietaryTags.isNotEmpty) {
-      results = results.where((r) {
-        final tags = r.dietaryTags.map(_norm).toSet();
-        return _selectedDietaryTags.every(tags.contains);
-      });
-    }
-
-    // 5) Flavor and cuisine preferences
-    if (_selectedFlavorProfiles.isNotEmpty) {
-      results = results.where((r) {
-        final flavors = r.flavorProfiles.map(_norm).toSet();
-        return _selectedFlavorProfiles.any(flavors.contains);
-      });
-    }
-    if (_selectedCuisines.isNotEmpty) {
-      results = results.where(
-        (r) => _selectedCuisines.contains(_norm(r.cuisine)),
-      );
-    }
-
-    // 6) Equipment + Skill level
-    if (_selectedEquipment.isNotEmpty) {
-      results = results.where((r) {
-        final equip = r.equipment.map(_norm).toSet();
-        return _selectedEquipment.any(equip.contains);
-      });
-    }
-    if (_selectedSkillLevels.isNotEmpty) {
-      results = results.where(
-        (r) => _selectedSkillLevels.contains(_norm(r.skillLevel)),
-      );
-    }
-
-    // Calories filter (simple cap)
-    if (_maxCalories != null) {
-      results = results.where((r) => r.calories <= _maxCalories!);
-    }
-
-    // Rank: pantry match first (fewest missing ingredients)
-    final list = results.toList();
-    list.sort((a, b) {
-      final aMissing = _missingIngredientCount(a, pantry);
-      final bMissing = _missingIngredientCount(b, pantry);
-      if (aMissing != bMissing) return aMissing.compareTo(bMissing);
-
-      final timeCmp = a.timeMinutes.compareTo(b.timeMinutes);
-      if (timeCmp != 0) return timeCmp;
-
-      final aScore = _customPreferenceScore(a);
-      final bScore = _customPreferenceScore(b);
-      if (aScore != bScore) return bScore.compareTo(aScore);
-
-      return 0;
-    });
-    return list;
-  }
-
-  int _customPreferenceScore(Recipe recipe) {
-    final raw = _customPreferenceController.text.trim().toLowerCase();
-    if (raw.isEmpty) return 0;
-
-    final haystack = [
-      recipe.title,
-      recipe.description,
-      ...recipe.ingredients,
-      recipe.cuisine,
-      recipe.mealType,
-      recipe.skillLevel,
-      ...recipe.flavorProfiles,
-      ...recipe.equipment,
-      ...recipe.prepTags,
-    ].join(' ').toLowerCase();
-
-    final tokens = raw
-        .split(RegExp(r'\\s+'))
-        .map((t) => t.trim())
-        .where((t) => t.length >= 3)
-        .toSet();
-
-    var score = 0;
-    for (final t in tokens) {
-      if (haystack.contains(t)) score++;
-    }
-    return score;
-  }
-
   void _onSwipeEnd(
+    List<Recipe> deck,
     int previousIndex,
     int targetIndex,
     SwiperActivity activity,
   ) {
     if (activity is Swipe) {
-      final pantryItems =
-          ref.read(pantryItemsProvider).value ?? const <PantryItem>[];
-      final firestoreRecipes =
-          ref.read(swipeDeckRecipesProvider).value ?? const <Recipe>[];
-      final filteredRecipes = _getFilteredRecipes(
-        _pantryKeySet(pantryItems),
-        sourceRecipes: firestoreRecipes,
-      );
-      if (previousIndex < filteredRecipes.length) {
+      if (previousIndex < deck.length) {
+        final swipedRecipe = deck[previousIndex];
         if (activity.direction == AxisDirection.right) {
-          unawaited(_handleRightSwipe(filteredRecipes[previousIndex]));
+          unawaited(_handleRightSwipe(swipedRecipe));
         } else {
-          // Left swipe - just dismiss
+          // Left swipe - dismiss & consume.
+          _markCardConsumed(swipedRecipe);
+          if (_remainingForEnergy(swipedRecipe.energyLevel) == 0) {
+            unawaited(_loadMoreForEnergy(swipedRecipe.energyLevel));
+          }
         }
       }
     }
   }
 
-  Future<bool> _unlockRecipe(Recipe recipe) async {
-    final authUser = ref.read(authProvider).user;
-    final userId = authUser?.uid;
+  @override
+  Widget build(BuildContext context) {
+    final profile = ref.watch(userProfileProvider).value;
+    final subscription = profile?.subscriptionStatus.toLowerCase() ?? 'free';
+    final isPremium = subscription == 'premium' || subscription == 'pro';
 
-    // Block guests from unlocking - per requirements spec
-    if (userId == null || authUser?.isAnonymous == true) {
-      _showGuestRestrictedDialog();
-      return false;
-    }
+    final carrotsObj = profile?.carrots;
+    final maxCarrots = carrotsObj?.max ?? 5;
+    final currentCarrots = carrotsObj?.current ?? 0;
+    final lastResetAt = carrotsObj?.lastResetAt;
+    final needsReset =
+        lastResetAt == null ||
+        DateTime.now().difference(lastResetAt).inDays >= 7;
+    final availableCarrots = needsReset ? maxCarrots : currentCarrots;
 
-    try {
-      // Fix #15: Use atomic transaction for unlocking
-      final success = await ref
-          .read(userServiceProvider)
-          .unlockRecipe(userId, recipe);
+    final canUnlock = isPremium || availableCarrots > 0;
+    final visibleDeck = _aiDeck
+        .where(
+          (r) =>
+              r.energyLevel == _selectedEnergyLevel &&
+              !_consumedCardIds.contains(r.id),
+        )
+        .toList(growable: false);
 
-      if (!success) {
-        _showOutOfCarrots();
-        return false;
-      }
+    final showLoading =
+        (_deckLoading && _aiDeck.isEmpty) ||
+        _loadingMoreEnergy.contains(_selectedEnergyLevel);
 
-      if (mounted) {
-        final userProfile = ref.read(userProfileProvider).value;
-        final isPremium =
-            (userProfile?.subscriptionStatus.toLowerCase() == 'premium') ||
-            (userProfile?.subscriptionStatus.toLowerCase() == 'pro');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              isPremium
-                  ? 'Recipe Unlocked & Saved! 🎉'
-                  : 'Recipe Unlocked & Saved! 🎉 -1 Carrot',
-            ),
-            backgroundColor: AppTheme.primaryColor,
-            duration: Duration(seconds: 2),
+    Widget deckWidget;
+    if (showLoading) {
+      deckWidget = _buildDeckLoading();
+    } else if (visibleDeck.isEmpty) {
+      deckWidget = Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            _aiDeck.isEmpty
+                ? 'No recipes yet. Tap refresh to generate.'
+                : 'No recipes for this energy level. Try another level.',
+            textAlign: TextAlign.center,
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
           ),
-        );
-      }
-      return true;
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
-      }
-      return false;
+        ),
+      );
+    } else {
+      deckWidget = AppinioSwiper(
+        controller: _swiperController,
+        cardCount: visibleDeck.length,
+        onSwipeEnd: (previousIndex, targetIndex, activity) =>
+            _onSwipeEnd(visibleDeck, previousIndex, targetIndex, activity),
+        cardBuilder: (context, index) => _buildRecipeCard(visibleDeck[index]),
+      );
     }
+
+    return Scaffold(
+      backgroundColor: AppTheme.backgroundColor,
+      appBar: AppBar(
+        title: const Text('Swipe'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          IconButton(
+            tooltip: 'Refresh deck',
+            onPressed: _deckLoading
+                ? null
+                : () => unawaited(_refreshDeck(forceRegenerate: true)),
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: _buildEnergySlider(),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: deckWidget,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 18),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _buildActionButton(
+                    icon: Icons.close,
+                    color: AppTheme.errorColor,
+                    onPressed: (_unlockFlowInProgress || visibleDeck.isEmpty)
+                        ? null
+                        : () => _swiperController.swipeLeft(),
+                  ),
+                  const SizedBox(width: AppTheme.spacingXL),
+                  _buildActionButton(
+                    icon: Icons.info_outline_rounded,
+                    color: Colors.blueGrey,
+                    isSmall: true,
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Tip: Tap “Show Ingredients Needed” to preview without unlocking.',
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(width: AppTheme.spacingXL),
+                  AnimatedOpacity(
+                    duration: const Duration(milliseconds: 200),
+                    opacity: canUnlock ? 1.0 : 0.5,
+                    child: _buildActionButton(
+                      icon: Icons.arrow_forward_rounded,
+                      color: AppTheme.primaryColor,
+                      onPressed: (_unlockFlowInProgress || visibleDeck.isEmpty)
+                          ? null
+                          : () {
+                              final authUser = ref.read(authProvider).user;
+                              if (authUser == null) {
+                                context.go(AppRoutes.login);
+                                return;
+                              }
+
+                              if (canUnlock) {
+                                _swiperController.swipeRight();
+                              } else {
+                                _showOutOfCarrots();
+                              }
+                            },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _openRecipeDetail(Recipe recipe) {
@@ -500,6 +779,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     try {
       final authUser = ref.read(authProvider).user;
       final userId = authUser?.uid;
+      final isGuest = ref.read(appStateProvider).isGuest;
 
       if (userId == null) {
         if (mounted) context.go(AppRoutes.login);
@@ -508,17 +788,21 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
       }
 
       // Guests can swipe, but cannot unlock (must authenticate).
-      if (authUser?.isAnonymous == true) {
+      if (isGuest || authUser?.isAnonymous == true) {
+        if (mounted) context.go(AppRoutes.login);
         await undoLastSwipe();
-        _showGuestRestrictedDialog();
         return;
       }
 
-      // If already unlocked, just open the recipe page.
-      final isUnlocked = await ref
+      // If already saved/unlocked, just open.
+      final alreadySaved = await ref
           .read(recipeServiceProvider)
           .isRecipeSaved(userId, recipe.id);
-      if (isUnlocked) {
+      if (alreadySaved) {
+        _markCardConsumed(recipe);
+        if (_remainingForEnergy(recipe.energyLevel) == 0) {
+          unawaited(_loadMoreForEnergy(recipe.energyLevel));
+        }
         if (mounted) _openRecipeDetail(recipe);
         return;
       }
@@ -526,6 +810,9 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
       final profile = ref.read(userProfileProvider).value;
       final subscription = profile?.subscriptionStatus.toLowerCase() ?? 'free';
       final isPremium = subscription == 'premium' || subscription == 'pro';
+
+      // Persisted via SharedPreferences; requirement calls this hideUnlockReminder.
+      final hideUnlockReminder = ref.read(appStateProvider).skipUnlockReminder;
 
       // Build RecipePreview from existing recipe for dialog
       final preview = RecipePreview(
@@ -553,45 +840,113 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
       if (!mounted) return;
 
       // Show ConfirmUnlockDialog immediately on swipe right
-      final confirmed = await showDialog<bool>(
-        context: context,
-        barrierDismissible: false,
-        builder: (dialogContext) {
-          return ConfirmUnlockDialog(
-            preview: preview,
-            currentCarrots: isPremium ? 999 : availableCarrots,
-            maxCarrots: isPremium ? 999 : maxCarrots,
-            onCancel: () => Navigator.of(dialogContext).pop(false),
-            onUnlock: () => Navigator.of(dialogContext).pop(true),
-          );
-        },
-      );
+      bool shouldProceed;
+      if (isPremium) {
+        // Premium users bypass modal and cost.
+        shouldProceed = true;
+      } else if (hideUnlockReminder) {
+        shouldProceed = await _showReducedUnlockDialog(
+          preview: preview,
+          currentCarrots: availableCarrots,
+          maxCarrots: maxCarrots,
+        );
+      } else {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) {
+            return ConfirmUnlockDialog(
+              preview: preview,
+              currentCarrots: availableCarrots,
+              maxCarrots: maxCarrots,
+              initialDoNotShowAgain: hideUnlockReminder,
+              onDoNotShowAgainChanged: (v) {
+                unawaited(
+                  ref.read(appStateProvider.notifier).setSkipUnlockReminder(v),
+                );
+              },
+              onCancel: () => Navigator.of(dialogContext).pop(false),
+              onUnlock: () => Navigator.of(dialogContext).pop(true),
+            );
+          },
+        );
+        shouldProceed = confirmed == true;
+      }
 
-      if (confirmed != true) {
+      if (!shouldProceed) {
         await undoLastSwipe();
         return;
       }
 
-      // Deduct carrot atomically (free users only)
+      // Atomic spend (free users only) AFTER confirmation.
       if (!isPremium) {
         final db = ref.read(databaseServiceProvider);
         final success = await db.deductCarrot(userId);
         if (!success) {
+          if (!mounted) return;
           _showOutOfCarrots();
           await undoLastSwipe();
           return;
         }
       }
 
-      // Unlock and save the recipe
-      final unlocked = await _unlockRecipe(recipe);
-      if (unlocked && mounted) {
-        _openRecipeDetail(recipe);
-        return;
-      }
+      // Generate full recipe ONLY after spend/premium bypass.
+      final pantryItems =
+          ref.read(pantryItemsProvider).value ?? const <PantryItem>[];
+      final pantryNames = pantryItems.map((p) => p.normalizedName).toList();
 
-      // Unlock failed; restore the card
-      await undoLastSwipe();
+      final full = await _ai.generateFullRecipe(
+        preview: preview.copyWith(
+          calories: preview.calories,
+          equipmentIcons: preview.equipmentIcons,
+          ingredients: preview.ingredients.isNotEmpty
+              ? preview.ingredients
+              : preview.mainIngredients,
+        ),
+        pantryItems: pantryNames,
+        allergies: profile?.preferences.allergies ?? const <String>[],
+        dietaryRestrictions:
+            profile?.preferences.dietaryRestrictions ?? const <String>[],
+        showCalories: true,
+        strictPantryMatch: false,
+      );
+
+      final fullWithMeta = full.copyWith(
+        id: recipe.id,
+        imageUrl: recipe.imageUrl,
+        calories: full.calories > 0 ? full.calories : recipe.calories,
+        timeMinutes: full.timeMinutes > 0
+            ? full.timeMinutes
+            : recipe.timeMinutes,
+        equipment: full.equipment.isNotEmpty
+            ? full.equipment
+            : recipe.equipment,
+        mealType: recipe.mealType,
+        cuisine: recipe.cuisine,
+        skillLevel: recipe.skillLevel,
+        ingredientIds: recipe.ingredientIds,
+      );
+
+      await ref.read(recipeServiceProvider).saveRecipe(userId, fullWithMeta);
+
+      if (mounted) {
+        _markCardConsumed(recipe);
+        if (_remainingForEnergy(recipe.energyLevel) == 0) {
+          unawaited(_loadMoreForEnergy(recipe.energyLevel));
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isPremium
+                  ? 'Recipe Unlocked & Saved!'
+                  : 'Recipe Unlocked & Saved! -1 Carrot',
+            ),
+            backgroundColor: AppTheme.primaryColor,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        _openRecipeDetail(fullWithMeta);
+      }
     } catch (e) {
       await undoLastSwipe();
       if (mounted) {
@@ -606,37 +961,206 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     }
   }
 
-  void _showGuestRestrictedDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Create Account to Unlock'),
-        content: const Text(
-          'Guest users can browse recipes but cannot unlock instructions.\n\n'
-          'Create a free account to:\n'
-          '• Unlock 5 recipes per week\n'
-          '• Save your pantry\n'
-          '• Track your progress\n\n'
-          'Sign up now?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+  Future<void> _refreshDeck({bool forceRegenerate = false}) async {
+    if (_deckLoading) return;
+    final requestToken = ++_deckRequestToken;
+    setState(() => _deckLoading = true);
+
+    try {
+      final query = await _computeDeckQuery();
+      final deckKey = _buildDeckKey(
+        pantryNames: query.pantryNames,
+        allergies: query.allergies,
+        dietary: query.dietary,
+        preferredCuisines: query.preferredCuisines,
+        mealType: query.mealType,
+        cravings: query.cravings,
+      );
+
+      final userId = _persistedUserIdOrNull();
+
+      if (userId != null && forceRegenerate) {
+        await ref.read(databaseServiceProvider).clearSwipeDeck(userId);
+        _deckCache.remove(deckKey);
+        if (mounted && requestToken == _deckRequestToken) {
+          setState(() => _dbBufferByEnergy.clear());
+        }
+      }
+
+      // Prefer persisted deck for signed-in users.
+      if (userId != null && !forceRegenerate) {
+        final previews = await ref
+            .read(databaseServiceProvider)
+            .getUnconsumedSwipeCards(userId);
+        if (!mounted || requestToken != _deckRequestToken) return;
+
+        if (previews.isNotEmpty) {
+          final loaded = previews
+              .map(_recipeFromPreview)
+              .toList(growable: false);
+          _seedDeckFromDbRecipes(
+            recipes: loaded,
+            query: query,
+            deckKey: deckKey,
+          );
+          return;
+        }
+      }
+
+      // Local caching: if we already generated a deck for this pantry+filters,
+      // reuse it (no re-generation on back/return).
+      if (!forceRegenerate) {
+        final cached = _deckCache[deckKey];
+        if (cached != null && cached.isNotEmpty) {
+          if (mounted && requestToken == _deckRequestToken) {
+            setState(() {
+              _activeDeckQuery = (
+                pantryNames: query.pantryNames,
+                allergies: query.allergies,
+                dietary: query.dietary,
+                inspiration: query.inspiration,
+                preferredCuisines: query.preferredCuisines,
+                mealType: query.mealType,
+                cravings: query.cravings,
+              );
+              _consumedCardIds.clear();
+              _aiDeck = cached;
+            });
+          }
+          return;
+        }
+      }
+
+      if (mounted && requestToken == _deckRequestToken) {
+        setState(() {
+          _activeDeckQuery = (
+            pantryNames: query.pantryNames,
+            allergies: query.allergies,
+            dietary: query.dietary,
+            inspiration: query.inspiration,
+            preferredCuisines: query.preferredCuisines,
+            mealType: query.mealType,
+            cravings: query.cravings,
+          );
+          _consumedCardIds.clear();
+          _aiDeck = const <Recipe>[];
+          _dbBufferByEnergy.clear();
+        });
+      }
+
+      // Generate 3 cards for each energy level (0..3) => 12 total.
+      await _generateDeckAllEnergyLevels(
+        requestToken: requestToken,
+        deckKey: deckKey,
+        query: _activeDeckQuery!,
+      );
+    } catch (e) {
+      // If AI fails, keep existing deck (or empty).
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load AI deck: $e'),
+            backgroundColor: AppTheme.errorColor,
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              GoRouter.of(context).go(AppRoutes.signup);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryColor,
-            ),
-            child: const Text('Sign Up'),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _deckLoading = false);
+    }
+  }
+
+  Future<void> _generateDeckAllEnergyLevels({
+    required int requestToken,
+    required String deckKey,
+    required ({
+      List<String> pantryNames,
+      List<String> allergies,
+      List<String> dietary,
+      String inspiration,
+      List<String> preferredCuisines,
+      String? mealType,
+      String cravings,
+    })
+    query,
+  }) async {
+    final all = <Recipe>[];
+    final seen = <String>{};
+    final persisted = <RecipePreview>[];
+    final userId = _persistedUserIdOrNull();
+
+    for (final energy in const [0, 1, 2, 3]) {
+      if (!mounted || requestToken != _deckRequestToken) return;
+
+      final previews = await _ai.generateRecipePreviewsBatch(
+        count: 3,
+        pantryItems: query.pantryNames,
+        allergies: query.allergies,
+        dietaryRestrictions: query.dietary,
+        cravings: query.inspiration,
+        energyLevel: energy,
+        preferredCuisines: query.preferredCuisines,
+        mealType: query.mealType,
+        strictPantryMatch: false,
+      );
+
+      for (final p in previews) {
+        if (!mounted || requestToken != _deckRequestToken) return;
+        final titleKey = _norm(p.title);
+        if (!seen.add(titleKey)) continue;
+
+        final img = await _imageService.searchRecipeImage(
+          recipeTitle: p.title,
+          ingredients: p.ingredients.isNotEmpty
+              ? p.ingredients
+              : p.mainIngredients,
+        );
+
+        final imageUrl =
+            img?.imageUrl ??
+            p.imageUrl ??
+            ImageSearchService.getFallbackImage(p.mealType);
+
+        final persistedPreview = p.copyWith(imageUrl: imageUrl);
+        persisted.add(persistedPreview);
+
+        final ing = persistedPreview.ingredients.isNotEmpty
+            ? persistedPreview.ingredients
+            : persistedPreview.mainIngredients;
+        all.add(
+          Recipe(
+            id: persistedPreview.id,
+            title: persistedPreview.title,
+            imageUrl: imageUrl,
+            description: persistedPreview.vibeDescription,
+            ingredients: ing,
+            instructions: const <String>[],
+            ingredientIds: ing.map((e) => _norm(e)).toList(),
+            energyLevel: energy,
+            timeMinutes: persistedPreview.estimatedTimeMinutes,
+            calories: persistedPreview.calories,
+            equipment: persistedPreview.equipmentIcons,
+            mealType: persistedPreview.mealType,
+            cuisine: persistedPreview.cuisine,
+            skillLevel: persistedPreview.skillLevel,
+            dietaryTags: query.dietary,
           ),
-        ],
-      ),
-    );
+        );
+      }
+
+      if (mounted && requestToken == _deckRequestToken) {
+        setState(() => _aiDeck = List<Recipe>.from(all));
+      }
+    }
+
+    if (mounted && requestToken == _deckRequestToken) {
+      _deckCache[deckKey] = List<Recipe>.from(all);
+    }
+
+    if (userId != null && persisted.isNotEmpty) {
+      unawaited(
+        ref.read(databaseServiceProvider).upsertSwipeCards(userId, persisted),
+      );
+    }
   }
 
   void _showOutOfCarrots() {
@@ -648,675 +1172,103 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final userProfileAsync = ref.watch(userProfileProvider);
-    final pantryItems =
-        ref.watch(pantryItemsProvider).value ?? const <PantryItem>[];
-    final pantry = _pantryKeySet(pantryItems);
-    final appState = ref.watch(appStateProvider);
-
-    // Watch Firestore recipes (empty if no data, fallback to mock in _getFilteredRecipes)
-    final firestoreRecipes =
-        ref.watch(swipeDeckRecipesProvider).value ?? const <Recipe>[];
-    final filteredRecipes = _getFilteredRecipes(
-      pantry,
-      sourceRecipes: firestoreRecipes,
-    );
-
-    return userProfileAsync.when(
-      loading: () => Scaffold(
-        backgroundColor: AppTheme.backgroundColor,
-        appBar: AppBar(title: const Text('Swipe for Supper')),
-        body: const Center(child: CircularProgressIndicator()),
-      ),
-      error: (error, stack) => Scaffold(
-        backgroundColor: AppTheme.backgroundColor,
-        appBar: AppBar(title: const Text('Swipe for Supper')),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 64, color: Colors.red),
-              const SizedBox(height: 16),
-              Text('Error loading profile: $error'),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () => context.go(AppRoutes.home),
-                child: const Text('Go Home'),
-              ),
-            ],
-          ),
+  Widget _buildDeckLoading() {
+    Widget skeletonLine({double width = double.infinity, double height = 14}) {
+      return Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade200,
+          borderRadius: BorderRadius.circular(10),
         ),
-      ),
-      data: (userProfile) {
-        if (userProfile == null) {
-          return Scaffold(
-            backgroundColor: AppTheme.backgroundColor,
-            appBar: AppBar(title: const Text('Swipe for Supper')),
-            body: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text('Please sign in to continue'),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => context.go(AppRoutes.login),
-                    child: const Text('Sign In'),
-                  ),
-                ],
+      );
+    }
+
+    final textTheme = Theme.of(context).textTheme;
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              height: 420,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: AppTheme.mediumShadow,
               ),
-            ),
-          );
-        }
-
-        final subscription = userProfile.subscriptionStatus.toLowerCase();
-        final isPremium = subscription == 'premium' || subscription == 'pro';
-
-        // Carrot economy (spec): 5/week for free users, unlimited for premium.
-        // We treat a due weekly reset as "refilled" immediately so users are never stuck at 0.
-        final carrots = userProfile.carrots;
-        final maxCarrots = carrots.max;
-        final needsReset =
-            !isPremium &&
-            (carrots.lastResetAt == null ||
-                DateTime.now().difference(carrots.lastResetAt!).inDays >= 7);
-        final carrotCount = needsReset ? maxCarrots : carrots.current;
-        final canUnlock = isPremium || carrotCount > 0;
-
-        return Scaffold(
-          backgroundColor: AppTheme.backgroundColor,
-          appBar: AppBar(
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: () => context.pop(),
-            ),
-            title: const Text('Swipe for Supper'),
-            actions: [
-              Padding(
-                padding: const EdgeInsets.only(
-                  right: AppTheme.spacingL,
-                  top: AppTheme.spacingS,
-                  bottom: AppTheme.spacingS,
-                ),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppTheme.surfaceColor,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (isPremium) ...[
-                        const Text('⭐', style: TextStyle(fontSize: 16)),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Premium',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                color: AppTheme.textPrimary,
-                              ),
-                        ),
-                      ] else ...[
-                        Text(
-                          '$carrotCount/$maxCarrots',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                color: AppTheme.textPrimary,
-                              ),
-                        ),
-                        const SizedBox(width: 4),
-                        const Text('🥕', style: TextStyle(fontSize: 16)),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          body: Column(
-            children: [
-              const SizedBox(height: AppTheme.spacingS),
-
-              // Energy Level Slider (always visible)
-              Container(
-                margin: const EdgeInsets.symmetric(
-                  horizontal: AppTheme.spacingM,
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: AppTheme.surfaceColor,
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: AppTheme.softShadow,
-                ),
-                child: _buildEnergySlider(),
-              ),
-
-              const SizedBox(height: AppTheme.spacingS),
-
-              // Filter Panel (collapsed by default, state remembered)
-              _buildFilterPanel(isExpanded: appState.filterExpanded),
-
-              const SizedBox(height: AppTheme.spacingM),
-
-              // Card Stack
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppTheme.spacingM),
-                  child: filteredRecipes.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Container(color: Colors.grey.shade100),
+                    Positioned(
+                      left: 18,
+                      right: 18,
+                      bottom: 18,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
                             children: [
-                              const Icon(
-                                Icons.search_off_rounded,
-                                size: 48,
-                                color: Colors.grey,
+                              skeletonLine(width: 90, height: 18),
+                              const SizedBox(width: 10),
+                              skeletonLine(width: 70, height: 18),
+                              const SizedBox(width: 10),
+                              skeletonLine(width: 80, height: 18),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          skeletonLine(width: 240, height: 22),
+                          const SizedBox(height: 10),
+                          skeletonLine(width: 320, height: 14),
+                          const SizedBox(height: 8),
+                          skeletonLine(width: 280, height: 14),
+                          const SizedBox(height: 18),
+                          Row(
+                            children: [
+                              const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    AppTheme.primaryColor,
+                                  ),
+                                ),
                               ),
-                              const SizedBox(height: 16),
+                              const SizedBox(width: 10),
                               Text(
-                                'No recipes match your filters.',
-                                style: Theme.of(context).textTheme.bodyLarge,
+                                'Cooking up ideas… just a few seconds',
+                                style: textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: AppTheme.textPrimary,
+                                ),
                               ),
                             ],
                           ),
-                        )
-                      : AppinioSwiper(
-                          key: ValueKey(
-                            '${Object.hashAll(filteredRecipes.map((r) => r.id))}_$carrotCount',
-                          ),
-                          controller: _swiperController,
-                          cardCount: filteredRecipes.length,
-                          isDisabled: _unlockFlowInProgress,
-                          onSwipeEnd: _onSwipeEnd,
-                          swipeOptions: SwipeOptions.only(
-                            left: true,
-                            right: canUnlock,
-                          ),
-                          cardBuilder: (context, index) {
-                            if (index >= filteredRecipes.length) {
-                              return const SizedBox();
-                            }
-                            return _buildRecipeCard(filteredRecipes[index]);
-                          },
-                        ),
-                ),
-              ),
-
-              // Action Buttons
-              Padding(
-                padding: const EdgeInsets.only(bottom: AppTheme.spacingL),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _buildActionButton(
-                      icon: Icons.close_rounded,
-                      color: AppTheme.errorColor,
-                      onPressed: _unlockFlowInProgress
-                          ? null
-                          : () => _swiperController.swipeLeft(),
-                    ),
-                    const SizedBox(width: AppTheme.spacingXL),
-                    _buildActionButton(
-                      icon: Icons.info_outline_rounded,
-                      color: Colors.blueGrey,
-                      isSmall: true,
-                      onPressed: _unlockFlowInProgress
-                          ? null
-                          : () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Tap “Show Ingredients Needed” on the card to preview without unlocking.',
-                                  ),
-                                ),
-                              );
-                            },
-                    ),
-                    const SizedBox(width: AppTheme.spacingXL),
-                    AnimatedOpacity(
-                      duration: const Duration(milliseconds: 200),
-                      opacity: canUnlock ? 1.0 : 0.5,
-                      child: _buildActionButton(
-                        icon: Icons.arrow_forward_rounded,
-                        color: AppTheme.primaryColor,
-                        onPressed: _unlockFlowInProgress
-                            ? null
-                            : () {
-                                final authUser = ref.read(authProvider).user;
-                                if (authUser == null) {
-                                  context.go(AppRoutes.login);
-                                  return;
-                                }
-
-                                if (canUnlock) {
-                                  _swiperController.swipeRight();
-                                } else {
-                                  _showOutOfCarrots();
-                                }
-                              },
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildFilterPanel({required bool isExpanded}) {
-    const mealTypes = [
-      'Breakfast',
-      'Lunch',
-      'Dinner',
-      'Snacks',
-      'Desserts',
-      'Drinks',
-    ];
-    const dietary = [
-      'High Protein',
-      'Low Carb',
-      'Low Fat',
-      'Low Calorie',
-      'High Fiber',
-      'Gluten Free',
-      'Dairy Free',
-      'Vegetarian',
-      'Vegan',
-      'Nut Free',
-    ];
-    const flavors = [
-      'Sweet',
-      'Savory',
-      'Spicy',
-      'Mild',
-      'Umami',
-      'Comfort food',
-      'Fresh and light',
-    ];
-    const cuisines = [
-      'American',
-      'Italian',
-      'Mexican',
-      'Mediterranean',
-      'Japanese',
-      'Chinese',
-      'Thai',
-      'Indian',
-      'Middle Eastern',
-      'French',
-      'Latin inspired',
-    ];
-    const equipment = [
-      'Microwave',
-      'Stovetop',
-      'Oven',
-      'Air fryer',
-      'Blender',
-      'No equipment',
-    ];
-    const skillLevels = ['Beginner', 'Moderate', 'Advanced'];
-    const timeCaps = [10, 20, 30, 45, 60];
-    const calorieCaps = [300, 500, 700, 1000];
-    const prepLevels = [
-      'Minimal prep',
-      'Microwave friendly',
-      'One pan',
-      'No chopping',
-      'No bake',
-    ];
-
-    Widget sectionTitle(String text) => Padding(
-      padding: const EdgeInsets.only(top: 12, bottom: 6),
-      child: Text(
-        text,
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-          fontWeight: FontWeight.w800,
-          color: AppTheme.textPrimary,
-        ),
-      ),
-    );
-
-    FilterChip chip({
-      required String label,
-      required bool selected,
-      required VoidCallback onToggle,
-    }) {
-      return FilterChip(
-        label: Text(label),
-        selected: selected,
-        onSelected: (_) => onToggle(),
-        selectedColor: AppTheme.primaryLight.withValues(alpha: 0.35),
-        checkmarkColor: AppTheme.primaryDark,
-        labelStyle: TextStyle(
-          fontWeight: FontWeight.w700,
-          color: selected ? AppTheme.primaryDark : AppTheme.textPrimary,
-        ),
-      );
-    }
-
-    ChoiceChip choice({
-      required String label,
-      required bool selected,
-      required VoidCallback onSelect,
-    }) {
-      return ChoiceChip(
-        label: Text(label),
-        selected: selected,
-        onSelected: (_) => onSelect(),
-        selectedColor: AppTheme.primaryLight.withValues(alpha: 0.35),
-        labelStyle: TextStyle(
-          fontWeight: FontWeight.w700,
-          color: selected ? AppTheme.primaryDark : AppTheme.textPrimary,
-        ),
-      );
-    }
-
-    Widget hScroll({required List<Widget> children}) {
-      if (children.isEmpty) return const SizedBox.shrink();
-      return SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            for (int i = 0; i < children.length; i++) ...[
-              children[i],
-              if (i != children.length - 1) const SizedBox(width: 8),
-            ],
+            ),
+            const SizedBox(height: 18),
+            Text(
+              'Generating 3 meals for each energy level.',
+              textAlign: TextAlign.center,
+              style: textTheme.bodyMedium?.copyWith(
+                color: AppTheme.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ],
         ),
-      );
-    }
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: AppTheme.spacingM),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceColor,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: AppTheme.softShadow,
-      ),
-      child: Column(
-        children: [
-          InkWell(
-            borderRadius: BorderRadius.circular(24),
-            onTap: () async {
-              await ref
-                  .read(appStateProvider.notifier)
-                  .setFilterExpanded(!isExpanded);
-            },
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              child: Row(
-                children: [
-                  const Icon(Icons.tune_rounded, size: 18),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Text(
-                      'Filters',
-                      style: TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                  Icon(
-                    isExpanded
-                        ? Icons.keyboard_arrow_up_rounded
-                        : Icons.keyboard_arrow_down_rounded,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (isExpanded)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  // Prevent overflow on small screens by allowing internal scroll.
-                  maxHeight: MediaQuery.of(context).size.height * 0.42,
-                ),
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      sectionTitle('Pantry Flexibility'),
-                      hScroll(
-                        children: [
-                          choice(
-                            label: 'Exact match',
-                            selected: _pantryFlex == 'exact',
-                            onSelect: () =>
-                                setState(() => _pantryFlex = 'exact'),
-                          ),
-                          choice(
-                            label: 'Allow 1 missing',
-                            selected: _pantryFlex == 'allow_1',
-                            onSelect: () =>
-                                setState(() => _pantryFlex = 'allow_1'),
-                          ),
-                          choice(
-                            label: 'Allow 2 missing',
-                            selected: _pantryFlex == 'allow_2',
-                            onSelect: () =>
-                                setState(() => _pantryFlex = 'allow_2'),
-                          ),
-                          choice(
-                            label: 'Show all meals',
-                            selected: _pantryFlex == 'show_all',
-                            onSelect: () =>
-                                setState(() => _pantryFlex = 'show_all'),
-                          ),
-                        ],
-                      ),
-
-                      sectionTitle('Meal Type'),
-                      hScroll(
-                        children: mealTypes.map((label) {
-                          final key = _norm(label);
-                          return chip(
-                            label: label,
-                            selected: _selectedMealTypes.contains(key),
-                            onToggle: () => setState(() {
-                              if (_selectedMealTypes.contains(key)) {
-                                _selectedMealTypes.remove(key);
-                              } else {
-                                _selectedMealTypes.add(key);
-                              }
-                            }),
-                          );
-                        }).toList(),
-                      ),
-
-                      sectionTitle('Time (Total)'),
-                      hScroll(
-                        children: [
-                          choice(
-                            label: 'Any',
-                            selected: _maxMinutes == null,
-                            onSelect: () => setState(() => _maxMinutes = null),
-                          ),
-                          ...timeCaps.map(
-                            (m) => choice(
-                              label: 'Under $m min',
-                              selected: _maxMinutes == m,
-                              onSelect: () => setState(() => _maxMinutes = m),
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      sectionTitle('Prep level'),
-                      hScroll(
-                        children: prepLevels.map((label) {
-                          final key = _norm(label);
-                          return chip(
-                            label: label,
-                            selected: _selectedPrepTags.contains(key),
-                            onToggle: () => setState(() {
-                              if (_selectedPrepTags.contains(key)) {
-                                _selectedPrepTags.remove(key);
-                              } else {
-                                _selectedPrepTags.add(key);
-                              }
-                            }),
-                          );
-                        }).toList(),
-                      ),
-
-                      sectionTitle('Calories'),
-                      hScroll(
-                        children: [
-                          choice(
-                            label: 'Any',
-                            selected: _maxCalories == null,
-                            onSelect: () => setState(() => _maxCalories = null),
-                          ),
-                          ...calorieCaps.map(
-                            (c) => choice(
-                              label: 'Under $c',
-                              selected: _maxCalories == c,
-                              onSelect: () => setState(() => _maxCalories = c),
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      sectionTitle('Dietary Filters'),
-                      hScroll(
-                        children: dietary.map((label) {
-                          final key = _norm(label);
-                          return chip(
-                            label: label,
-                            selected: _selectedDietaryTags.contains(key),
-                            onToggle: () => setState(() {
-                              if (_selectedDietaryTags.contains(key)) {
-                                _selectedDietaryTags.remove(key);
-                              } else {
-                                _selectedDietaryTags.add(key);
-                              }
-                            }),
-                          );
-                        }).toList(),
-                      ),
-
-                      sectionTitle('Flavor Profile'),
-                      hScroll(
-                        children: flavors.map((label) {
-                          final key = _norm(label);
-                          return chip(
-                            label: label,
-                            selected: _selectedFlavorProfiles.contains(key),
-                            onToggle: () => setState(() {
-                              if (_selectedFlavorProfiles.contains(key)) {
-                                _selectedFlavorProfiles.remove(key);
-                              } else {
-                                _selectedFlavorProfiles.add(key);
-                              }
-                            }),
-                          );
-                        }).toList(),
-                      ),
-
-                      sectionTitle('Cuisine Types'),
-                      hScroll(
-                        children: cuisines.map((label) {
-                          final key = _norm(label);
-                          return chip(
-                            label: label,
-                            selected: _selectedCuisines.contains(key),
-                            onToggle: () => setState(() {
-                              if (_selectedCuisines.contains(key)) {
-                                _selectedCuisines.remove(key);
-                              } else {
-                                _selectedCuisines.add(key);
-                              }
-                            }),
-                          );
-                        }).toList(),
-                      ),
-
-                      sectionTitle('Equipment'),
-                      hScroll(
-                        children: equipment.map((label) {
-                          final key = _norm(label);
-                          return chip(
-                            label: label,
-                            selected: _selectedEquipment.contains(key),
-                            onToggle: () => setState(() {
-                              if (_selectedEquipment.contains(key)) {
-                                _selectedEquipment.remove(key);
-                              } else {
-                                _selectedEquipment.add(key);
-                              }
-                            }),
-                          );
-                        }).toList(),
-                      ),
-
-                      sectionTitle('Skill Level'),
-                      hScroll(
-                        children: skillLevels.map((label) {
-                          final key = _norm(label);
-                          return chip(
-                            label: label,
-                            selected: _selectedSkillLevels.contains(key),
-                            onToggle: () => setState(() {
-                              if (_selectedSkillLevels.contains(key)) {
-                                _selectedSkillLevels.remove(key);
-                              } else {
-                                _selectedSkillLevels.add(key);
-                              }
-                            }),
-                          );
-                        }).toList(),
-                      ),
-
-                      sectionTitle('Custom Preference (120 chars max)'),
-                      TextField(
-                        controller: _customPreferenceController,
-                        maxLength: 120,
-                        decoration: const InputDecoration(
-                          hintText: 'e.g., Something warm and cheesy',
-                        ),
-                      ),
-
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: () => setState(() {
-                            _selectedMealTypes.clear();
-                            _selectedDietaryTags.clear();
-                            _selectedFlavorProfiles.clear();
-                            _selectedCuisines.clear();
-                            _selectedEquipment.clear();
-                            _selectedSkillLevels.clear();
-                            _selectedPrepTags.clear();
-                            _maxMinutes = null;
-                            _maxCalories = null;
-                            _pantryFlex = 'show_all';
-                            _customPreferenceController.clear();
-                          }),
-                          icon: const Icon(Icons.refresh_rounded),
-                          label: const Text('Clear Filters'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-        ],
       ),
     );
   }
@@ -1402,7 +1354,6 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                   CachedNetworkImage(
                     imageUrl: recipe.imageUrl,
                     fit: BoxFit.cover,
-                    memCacheWidth: 800,
                     placeholder: (context, url) => Container(
                       color: Colors.grey.shade200,
                       child: const Center(child: CircularProgressIndicator()),
@@ -1417,13 +1368,14 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                     ),
                   )
                 else
-                  Image.asset(
-                    recipe.imageUrl,
+                  Image.network(
+                    // Fallback to an Unsplash-hosted image to avoid local placeholders.
+                    'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?q=80&w=1200&auto=format&fit=crop',
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) => Container(
                       color: Colors.grey.shade200,
                       child: const Icon(
-                        Icons.image,
+                        Icons.broken_image,
                         size: 80,
                         color: Colors.grey,
                       ),
@@ -1500,13 +1452,32 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 16),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: recipe.equipment
-                        .map((e) => _buildTag(e, Icons.kitchen_outlined))
-                        .toList(),
-                  ),
+                  if (recipe.equipment.isNotEmpty)
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: recipe.equipment.map((label) {
+                        return Tooltip(
+                          message: label,
+                          child: Container(
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.45),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.12),
+                              ),
+                            ),
+                            child: Icon(
+                              _equipmentIcon(label),
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
                   const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
@@ -1591,6 +1562,62 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     );
   }
 
+  IconData _equipmentIcon(String raw) {
+    final v = _norm(raw);
+    if (v.contains('microwave')) return Icons.microwave_outlined;
+    if (v.contains('oven')) return Icons.kitchen_outlined;
+    if (v.contains('air fryer') || v.contains('airfryer')) {
+      return Icons.local_fire_department_outlined;
+    }
+    if (v.contains('stove') || v.contains('stovetop') || v.contains('burner')) {
+      return Icons.local_fire_department_outlined;
+    }
+    if (v.contains('grill')) return Icons.outdoor_grill_outlined;
+    if (v.contains('pot') || v.contains('pan') || v.contains('skillet')) {
+      return Icons.soup_kitchen_outlined;
+    }
+    if (v.contains('knife') || v.contains('cutting')) {
+      return Icons.restaurant_outlined;
+    }
+    if (v.contains('blender') || v.contains('food processor')) {
+      return Icons.blender_outlined;
+    }
+    if (v.contains('bowl')) return Icons.ramen_dining_outlined;
+    if (v.contains('toaster')) return Icons.breakfast_dining_outlined;
+    return Icons.kitchen_outlined;
+  }
+
+  Future<bool> _showReducedUnlockDialog({
+    required RecipePreview preview,
+    required int currentCarrots,
+    required int maxCarrots,
+  }) async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Unlock Recipe?'),
+          content: Text(
+            'Unlock full instructions for 1 carrot?\n\n'
+            'Carrots: $currentCarrots / $maxCarrots',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Unlock'),
+            ),
+          ],
+        );
+      },
+    );
+    return result == true;
+  }
+
   Widget _buildActionButton({
     required IconData icon,
     required Color color,
@@ -1673,32 +1700,51 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
             final hasIt = _pantryHas(pantry, key);
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: Row(
-                children: [
-                  Icon(
-                    hasIt ? Icons.check_circle_rounded : Icons.cancel_rounded,
-                    color: hasIt ? AppTheme.successColor : AppTheme.errorColor,
-                    size: 18,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      display,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    hasIt ? 'Have' : 'Missing',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: hasIt
+                      ? AppTheme.successColor.withValues(alpha: 0.06)
+                      : AppTheme.errorColor.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      hasIt ? Icons.check_circle_rounded : Icons.cancel_rounded,
                       color: hasIt
                           ? AppTheme.successColor
                           : AppTheme.errorColor,
+                      size: 18,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        display,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: hasIt
+                              ? AppTheme.textPrimary
+                              : AppTheme.errorColor,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      hasIt ? 'Have' : 'Missing',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: hasIt
+                            ? AppTheme.successColor
+                            : AppTheme.errorColor,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
           }),
@@ -1711,6 +1757,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
   Future<void> _handleShowDirections(Recipe recipe) async {
     final authUser = ref.read(authProvider).user;
     final userId = authUser?.uid;
+    final isGuest = ref.read(appStateProvider).isGuest;
 
     if (userId == null) {
       if (mounted) context.go(AppRoutes.login);
@@ -1718,93 +1765,137 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     }
 
     // Guests must authenticate before unlocking directions (spec)
-    if (authUser?.isAnonymous == true) {
-      _showGuestRestrictedDialog();
+    if (isGuest || authUser?.isAnonymous == true) {
+      if (mounted) context.go(AppRoutes.login);
       return;
     }
+
+    // If already saved/unlocked, open immediately.
+    final alreadySaved = await ref
+        .read(recipeServiceProvider)
+        .isRecipeSaved(userId, recipe.id);
+    if (alreadySaved) {
+      if (mounted) _openRecipeDetail(recipe);
+      return;
+    }
+
+    if (!mounted) return;
 
     final profile = ref.read(userProfileProvider).value;
     final subscription = profile?.subscriptionStatus.toLowerCase() ?? 'free';
     final isPremium = subscription == 'premium' || subscription == 'pro';
 
-    // Premium users bypass the reminder and can view directions instantly.
-    if (isPremium) {
-      final ok = await _unlockRecipe(recipe);
-      if (ok && mounted) _openRecipeDetail(recipe);
-      return;
-    }
+    // Persisted via SharedPreferences; requirement calls this hideUnlockReminder.
+    final hideUnlockReminder = ref.read(appStateProvider).skipUnlockReminder;
 
-    // If already unlocked, go straight to the recipe page.
-    final isUnlocked = await ref
-        .read(recipeServiceProvider)
-        .isRecipeSaved(userId, recipe.id);
-    if (isUnlocked) {
-      if (mounted) _openRecipeDetail(recipe);
-      return;
-    }
-
-    final appState = ref.read(appStateProvider);
-    final skipReminder = appState.skipUnlockReminder;
-    bool doNotShowAgain = skipReminder;
-
-    if (!mounted) return;
-
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('Unlock Recipe'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    skipReminder
-                        ? 'Unlock this recipe? This will use 1 carrot.'
-                        : 'Unlock to view directions. This will use 1 carrot and save the recipe to your collection.',
-                  ),
-                  if (!skipReminder) ...[
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Checkbox(
-                          value: doNotShowAgain,
-                          onChanged: (value) => setDialogState(
-                            () => doNotShowAgain = value ?? false,
-                          ),
-                        ),
-                        const Expanded(
-                          child: Text('Do not show this reminder again'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    Navigator.of(dialogContext).pop();
-                    if (doNotShowAgain && !skipReminder) {
-                      await ref
-                          .read(appStateProvider.notifier)
-                          .setSkipUnlockReminder(true);
-                    }
-                    final ok = await _unlockRecipe(recipe);
-                    if (ok && mounted) _openRecipeDetail(recipe);
-                  },
-                  child: const Text('Unlock Recipe'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+    // Build preview for AI full generation.
+    final preview = RecipePreview(
+      id: recipe.id,
+      title: recipe.title,
+      vibeDescription: recipe.description,
+      ingredients: recipe.ingredients,
+      mainIngredients: recipe.ingredients.take(5).toList(),
+      imageUrl: recipe.imageUrl,
+      estimatedTimeMinutes: recipe.timeMinutes,
+      calories: recipe.calories,
+      equipmentIcons: recipe.equipment,
+      mealType: recipe.mealType,
+      energyLevel: recipe.energyLevel,
+      cuisine: recipe.cuisine,
+      skillLevel: recipe.skillLevel,
     );
+
+    bool shouldProceed;
+    if (isPremium) {
+      shouldProceed = true;
+    } else if (hideUnlockReminder) {
+      final carrotsObj = profile?.carrots;
+      final maxCarrots = carrotsObj?.max ?? 5;
+      final currentCarrots = carrotsObj?.current ?? 0;
+      final lastResetAt = carrotsObj?.lastResetAt;
+      final needsReset =
+          lastResetAt == null ||
+          DateTime.now().difference(lastResetAt).inDays >= 7;
+      final availableCarrots = needsReset ? maxCarrots : currentCarrots;
+
+      shouldProceed = await _showReducedUnlockDialog(
+        preview: preview,
+        currentCarrots: availableCarrots,
+        maxCarrots: maxCarrots,
+      );
+    } else {
+      final carrotsObj = profile?.carrots;
+      final maxCarrots = carrotsObj?.max ?? 5;
+      final currentCarrots = carrotsObj?.current ?? 0;
+      final lastResetAt = carrotsObj?.lastResetAt;
+      final needsReset =
+          lastResetAt == null ||
+          DateTime.now().difference(lastResetAt).inDays >= 7;
+      final availableCarrots = needsReset ? maxCarrots : currentCarrots;
+
+      final confirmed = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          return ConfirmUnlockDialog(
+            preview: preview,
+            currentCarrots: availableCarrots,
+            maxCarrots: maxCarrots,
+            initialDoNotShowAgain: hideUnlockReminder,
+            onDoNotShowAgainChanged: (v) {
+              unawaited(
+                ref.read(appStateProvider.notifier).setSkipUnlockReminder(v),
+              );
+            },
+            onCancel: () => Navigator.of(dialogContext).pop(false),
+            onUnlock: () => Navigator.of(dialogContext).pop(true),
+          );
+        },
+      );
+      shouldProceed = confirmed == true;
+    }
+
+    if (!shouldProceed || !mounted) return;
+
+    // Atomic spend (free users only) AFTER confirmation.
+    if (!isPremium) {
+      final success = await ref
+          .read(databaseServiceProvider)
+          .deductCarrot(userId);
+      if (!success) {
+        if (!mounted) return;
+        _showOutOfCarrots();
+        return;
+      }
+    }
+
+    final pantryItems =
+        ref.read(pantryItemsProvider).value ?? const <PantryItem>[];
+    final pantryNames = pantryItems.map((p) => p.normalizedName).toList();
+
+    final full = await _ai.generateFullRecipe(
+      preview: preview,
+      pantryItems: pantryNames,
+      allergies: profile?.preferences.allergies ?? const <String>[],
+      dietaryRestrictions:
+          profile?.preferences.dietaryRestrictions ?? const <String>[],
+      showCalories: true,
+      strictPantryMatch: false,
+    );
+
+    final fullWithMeta = full.copyWith(
+      id: recipe.id,
+      imageUrl: recipe.imageUrl,
+      mealType: recipe.mealType,
+      cuisine: recipe.cuisine,
+      skillLevel: recipe.skillLevel,
+      ingredientIds: recipe.ingredientIds,
+      calories: full.calories > 0 ? full.calories : recipe.calories,
+      timeMinutes: full.timeMinutes > 0 ? full.timeMinutes : recipe.timeMinutes,
+      equipment: full.equipment.isNotEmpty ? full.equipment : recipe.equipment,
+    );
+
+    await ref.read(recipeServiceProvider).saveRecipe(userId, fullWithMeta);
+    if (mounted) _openRecipeDetail(fullWithMeta);
   }
 }

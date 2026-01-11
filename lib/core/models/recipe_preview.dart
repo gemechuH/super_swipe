@@ -7,33 +7,70 @@ class RecipePreview {
   final String id;
   final String title;
   final String vibeDescription;
+
+  /// Full ingredient list (no quantities) for the preview card.
+  final List<String> ingredients;
+
+  /// Back-compat: small subset used for chips in some UIs.
   final List<String> mainIngredients;
   final String? imageUrl;
   final int estimatedTimeMinutes;
+  final int calories;
+
+  /// Normalized equipment/icon tokens (e.g. "pan", "oven", "blender").
+  final List<String> equipmentIcons;
   final String mealType;
   final int energyLevel;
+
+  /// Optional discovery metadata.
+  final String cuisine;
+  final String skillLevel;
 
   const RecipePreview({
     required this.id,
     required this.title,
     required this.vibeDescription,
+    this.ingredients = const [],
     required this.mainIngredients,
     this.imageUrl,
     this.estimatedTimeMinutes = 30,
+    this.calories = 0,
+    this.equipmentIcons = const [],
     this.mealType = 'dinner',
     this.energyLevel = 2,
+    this.cuisine = 'other',
+    this.skillLevel = 'beginner',
   });
 
   /// Create from OpenAI JSON response
   factory RecipePreview.fromJson(Map<String, dynamic> json) {
+    final parsedIngredients = List<String>.from(
+      json['ingredients'] ??
+          json['ingredient_list'] ??
+          json['main_ingredients'] ??
+          [],
+    );
+    final parsedMain = List<String>.from(json['main_ingredients'] ?? []);
     return RecipePreview(
       id: 'preview_${DateTime.now().millisecondsSinceEpoch}',
       title: json['title'] ?? 'Chef\'s Special',
       vibeDescription: json['vibe_description'] ?? json['description'] ?? '',
-      mainIngredients: List<String>.from(json['main_ingredients'] ?? []),
-      estimatedTimeMinutes: json['estimated_time_minutes'] ?? 30,
-      mealType: json['meal_type'] ?? 'dinner',
-      energyLevel: json['energy_level'] ?? 2,
+      ingredients: parsedIngredients,
+      mainIngredients: parsedMain.isNotEmpty
+          ? parsedMain
+          : (parsedIngredients.length > 4
+                ? parsedIngredients.take(4).toList()
+                : parsedIngredients),
+      estimatedTimeMinutes:
+          (json['estimated_time_minutes'] ?? json['timeMinutes'] ?? 30) as int,
+      calories: (json['calories'] ?? json['calories_estimate'] ?? 0) as int,
+      equipmentIcons: List<String>.from(
+        json['equipment_icons'] ?? json['equipment'] ?? [],
+      ),
+      mealType: json['meal_type'] ?? json['mealType'] ?? 'dinner',
+      energyLevel: json['energy_level'] ?? json['energyLevel'] ?? 2,
+      cuisine: json['cuisine'] ?? 'other',
+      skillLevel: json['skill_level'] ?? json['skillLevel'] ?? 'beginner',
     );
   }
 
@@ -43,10 +80,15 @@ class RecipePreview {
       'id': id,
       'title': title,
       'vibe_description': vibeDescription,
+      'ingredients': ingredients,
       'main_ingredients': mainIngredients,
       'estimated_time_minutes': estimatedTimeMinutes,
+      'calories': calories,
+      'equipment_icons': equipmentIcons,
       'meal_type': mealType,
       'energy_level': energyLevel,
+      'cuisine': cuisine,
+      'skill_level': skillLevel,
     };
   }
 
@@ -57,11 +99,21 @@ class RecipePreview {
       id: doc.id,
       title: data['title'] ?? '',
       vibeDescription: data['vibeDescription'] ?? data['description'] ?? '',
+      ingredients: List<String>.from(
+        data['ingredients'] ??
+            data['ingredientList'] ??
+            data['mainIngredients'] ??
+            [],
+      ),
       mainIngredients: List<String>.from(data['mainIngredients'] ?? []),
       imageUrl: data['imageUrl'],
       estimatedTimeMinutes: data['estimatedTimeMinutes'] ?? 30,
+      calories: (data['calories'] as num?)?.toInt() ?? 0,
+      equipmentIcons: List<String>.from(data['equipmentIcons'] ?? []),
       mealType: data['mealType'] ?? 'dinner',
       energyLevel: data['energyLevel'] ?? 2,
+      cuisine: data['cuisine'] ?? 'other',
+      skillLevel: data['skillLevel'] ?? 'beginner',
     );
   }
 
@@ -70,11 +122,16 @@ class RecipePreview {
     return {
       'title': title,
       'vibeDescription': vibeDescription,
+      'ingredients': ingredients,
       'mainIngredients': mainIngredients,
       'imageUrl': imageUrl,
       'estimatedTimeMinutes': estimatedTimeMinutes,
+      'calories': calories,
+      'equipmentIcons': equipmentIcons,
       'mealType': mealType,
       'energyLevel': energyLevel,
+      'cuisine': cuisine,
+      'skillLevel': skillLevel,
     };
   }
 
@@ -82,21 +139,31 @@ class RecipePreview {
     String? id,
     String? title,
     String? vibeDescription,
+    List<String>? ingredients,
     List<String>? mainIngredients,
     String? imageUrl,
     int? estimatedTimeMinutes,
+    int? calories,
+    List<String>? equipmentIcons,
     String? mealType,
     int? energyLevel,
+    String? cuisine,
+    String? skillLevel,
   }) {
     return RecipePreview(
       id: id ?? this.id,
       title: title ?? this.title,
       vibeDescription: vibeDescription ?? this.vibeDescription,
+      ingredients: ingredients ?? this.ingredients,
       mainIngredients: mainIngredients ?? this.mainIngredients,
       imageUrl: imageUrl ?? this.imageUrl,
       estimatedTimeMinutes: estimatedTimeMinutes ?? this.estimatedTimeMinutes,
+      calories: calories ?? this.calories,
+      equipmentIcons: equipmentIcons ?? this.equipmentIcons,
       mealType: mealType ?? this.mealType,
       energyLevel: energyLevel ?? this.energyLevel,
+      cuisine: cuisine ?? this.cuisine,
+      skillLevel: skillLevel ?? this.skillLevel,
     );
   }
 }

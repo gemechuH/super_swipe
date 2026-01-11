@@ -4,6 +4,7 @@ import 'package:super_swipe/core/models/user_profile.dart';
 import 'package:super_swipe/core/models/pantry_item.dart';
 import 'package:super_swipe/core/config/pantry_constants.dart';
 import 'package:super_swipe/core/providers/firestore_providers.dart';
+import 'package:super_swipe/core/services/user_service.dart';
 import 'package:super_swipe/features/auth/providers/auth_provider.dart';
 
 /// Stream user profile (real-time updates)
@@ -26,7 +27,10 @@ final userProfileProvider = StreamProvider<UserProfile?>((ref) {
 });
 
 /// Creates a stream that waits gracefully for new user profile creation
-Stream<UserProfile?> _gracefulProfileStream(userService, String userId) async* {
+Stream<UserProfile?> _gracefulProfileStream(
+  UserService userService,
+  String userId,
+) async* {
   final stopTime = DateTime.now().add(const Duration(seconds: 5));
   var hasYieldedProfile = false;
 

@@ -323,7 +323,10 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
           displayName: _nameController.text.trim(),
         );
 
-    if (success && mounted) {
+    if (!success) return;
+    if (!mounted) return;
+
+    {
       // ==========================================
       // GUEST-TO-USER MIGRATION
       // ==========================================
@@ -334,6 +337,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
           await ref
               .read(guestStateProvider.notifier)
               .migrateToFirestore(userId);
+          if (!mounted) return;
         }
       }
 

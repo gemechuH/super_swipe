@@ -199,7 +199,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                 subtitle: const Text('Show calorie count in the recipe'),
                 value: _showCalories,
                 onChanged: (v) => setState(() => _showCalories = v),
-                activeColor: AppTheme.primaryColor,
+                activeThumbColor: AppTheme.primaryColor,
               ),
             ),
 
@@ -890,7 +890,19 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
       final strictMatch =
           userProfile?.preferences.pantryFlexibility == 'strict';
 
-      final aiService = AiRecipeService();
+      final messenger = ScaffoldMessenger.of(context);
+      final aiService = AiRecipeService(
+        onStatus: (message) {
+          if (!mounted) return;
+          messenger.removeCurrentSnackBar();
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(message),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        },
+      );
       var recipe = await aiService.generateRecipe(
         pantryItems: selectedItems.toList(),
         allergies: userProfile?.preferences.allergies ?? [],
@@ -969,7 +981,19 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
     });
 
     try {
-      final aiService = AiRecipeService();
+      final messenger = ScaffoldMessenger.of(context);
+      final aiService = AiRecipeService(
+        onStatus: (message) {
+          if (!mounted) return;
+          messenger.removeCurrentSnackBar();
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(message),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        },
+      );
       final currentDraft = ref.read(draftRecipeProvider)!;
       // Use the new refineRecipe method that sends original JSON to Gemini
       var refinedRecipe = await aiService.refineRecipe(
@@ -1190,7 +1214,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
           controller: scrollController,
           padding: const EdgeInsets.all(16),
           itemCount: recipes.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          separatorBuilder: (context, index) => const SizedBox(height: 12),
           itemBuilder: (context, index) {
             final recipe = recipes[index];
             return ListTile(
@@ -1229,66 +1253,6 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
           },
         );
       },
-    );
-  }
-
-  /// Show friendly dialog when pantry is empty
-  void _showEmptyPantryDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Icon(Icons.kitchen_rounded, color: AppTheme.primaryColor, size: 28),
-            const SizedBox(width: 12),
-            const Text('Empty Pantry'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.restaurant_menu_rounded,
-                size: 48,
-                color: AppTheme.primaryColor,
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Chef needs ingredients!',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Add some items to your pantry before we can create delicious recipe magic together.',
-              style: TextStyle(color: Colors.grey[600], fontSize: 14),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Later'),
-          ),
-          FilledButton.icon(
-            onPressed: () {
-              Navigator.pop(context);
-              context.go('/pantry');
-            },
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('Go to Pantry'),
-          ),
-        ],
-      ),
     );
   }
 }
