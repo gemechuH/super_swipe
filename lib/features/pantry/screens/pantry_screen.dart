@@ -201,7 +201,7 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
                             );
 
                             // Register undo operation
-                            if (mounted) {
+                            if (context.mounted) {
                               ref
                                   .read(undoServiceProvider.notifier)
                                   .registerUndo(
@@ -222,7 +222,7 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
                             }
                             return true;
                           } catch (e) {
-                            if (mounted) {
+                            if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text('Failed to delete: $e'),
@@ -567,6 +567,7 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
                       ? null
                       : () async {
                           setDialogState(() => isSaving = true);
+                          final messenger = ScaffoldMessenger.of(context);
                           try {
                             await ref
                                 .read(pantryServiceProvider)
@@ -580,14 +581,13 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
                             }
                           } catch (e) {
                             setDialogState(() => isSaving = false);
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Failed to update: $e'),
-                                  backgroundColor: AppTheme.errorColor,
-                                ),
-                              );
-                            }
+                            if (!mounted) return;
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text('Failed to update: $e'),
+                                backgroundColor: AppTheme.errorColor,
+                              ),
+                            );
                           }
                         },
                   style: ElevatedButton.styleFrom(
@@ -631,6 +631,8 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
         return PantryCategorySelector(
           existingPantryItems: pantryItems,
           onApply: (toAdd, toRemove, categoryMap) async {
+            final navigator = Navigator.of(context);
+            final messenger = ScaffoldMessenger.of(context);
             try {
               // We need to read the providers from the parent context,
               // or ensure the sheet has access to them.
@@ -686,28 +688,26 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
                 await pantryService.batchAddPantryItems(userId, batchPayload);
               }
 
-              if (mounted) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Updated pantry (+${toAdd.length}, -${toRemove.length})',
-                    ),
-                    backgroundColor: AppTheme.successColor,
-                    behavior: SnackBarBehavior.floating,
+              if (!mounted) return;
+              navigator.pop();
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Updated pantry (+${toAdd.length}, -${toRemove.length})',
                   ),
-                );
-              }
+                  backgroundColor: AppTheme.successColor,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
             } catch (e) {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Failed to apply changes: $e'),
-                    backgroundColor: AppTheme.errorColor,
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              }
+              if (!mounted) return;
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text('Failed to apply changes: $e'),
+                  backgroundColor: AppTheme.errorColor,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
             }
           },
         );
@@ -741,6 +741,7 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
         final url = urlMatch.group(0)!;
         onAction = () async {
           await Clipboard.setData(ClipboardData(text: url));
+          if (!context.mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: const Text('Index URL copied to clipboard.')),
           );
@@ -790,7 +791,7 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
                   width: 100,
                   height: 100,
                   decoration: BoxDecoration(
-                    color: iconColor.withOpacity(0.1),
+                    color: iconColor.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(icon, size: 50, color: iconColor),

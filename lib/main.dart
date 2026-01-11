@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:super_swipe/core/router/app_router.dart';
 import 'package:super_swipe/core/theme/app_theme.dart';
 import 'package:super_swipe/firebase_options.dart';
@@ -58,8 +59,11 @@ class _BootstrapAppState extends State<_BootstrapApp> {
     await _initializeFirebase().timeout(const Duration(seconds: 10));
 
     // 3) Configure Firestore (after Firebase init).
-    FirebaseFirestore.instance.settings = const Settings(
-      persistenceEnabled: true,
+    // Web IndexedDB can get into a corrupted state (often after "clear site data"),
+    // causing Firestore to refuse opening persistence.
+    // Disable persistence on web to keep the app usable.
+    FirebaseFirestore.instance.settings = Settings(
+      persistenceEnabled: !kIsWeb,
       cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
     );
 
@@ -198,10 +202,38 @@ class SuperSwipeApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
 
+    final baseTheme = AppTheme.lightTheme;
+    TextTheme withDmSansFallback(TextTheme theme) {
+      final dm = GoogleFonts.dmSansTextTheme(theme);
+      TextStyle? f(TextStyle? s) => s?.copyWith(
+        fontFamilyFallback: const <String>['Arial', 'sans-serif'],
+      );
+      return dm.copyWith(
+        displayLarge: f(dm.displayLarge),
+        displayMedium: f(dm.displayMedium),
+        displaySmall: f(dm.displaySmall),
+        headlineLarge: f(dm.headlineLarge),
+        headlineMedium: f(dm.headlineMedium),
+        headlineSmall: f(dm.headlineSmall),
+        titleLarge: f(dm.titleLarge),
+        titleMedium: f(dm.titleMedium),
+        titleSmall: f(dm.titleSmall),
+        bodyLarge: f(dm.bodyLarge),
+        bodyMedium: f(dm.bodyMedium),
+        bodySmall: f(dm.bodySmall),
+        labelLarge: f(dm.labelLarge),
+        labelMedium: f(dm.labelMedium),
+        labelSmall: f(dm.labelSmall),
+      );
+    }
+
     return MaterialApp.router(
       title: 'Super Swipe',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
+      theme: baseTheme.copyWith(
+        textTheme: withDmSansFallback(baseTheme.textTheme),
+        primaryTextTheme: withDmSansFallback(baseTheme.primaryTextTheme),
+      ),
       routerConfig: router,
       // locale: DevicePreview.locale(context),
       // builder: DevicePreview.appBuilder,

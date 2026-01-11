@@ -160,7 +160,7 @@ class HomeScreen extends ConsumerWidget {
                       );
                     },
                     loading: () => const SizedBox.shrink(),
-                    error: (_, __) => const SizedBox.shrink(),
+                    error: (error, stackTrace) => const SizedBox.shrink(),
                   ),
 
                   // 3. Pantry Summary Card (Real-time data)
@@ -401,93 +401,6 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildLatestRecipeCard(BuildContext context, recipe) {
-    return GestureDetector(
-      onTap: () =>
-          context.push('${AppRoutes.recipes}/${recipe.id}', extra: recipe),
-      child: Container(
-        width: 160,
-        margin: const EdgeInsets.only(right: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Image
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(16),
-              ),
-              child: SizedBox(
-                height: 100,
-                width: double.infinity,
-                child: recipe.imageUrl.startsWith('http')
-                    ? CachedNetworkImage(
-                        imageUrl: recipe.imageUrl,
-                        fit: BoxFit.cover,
-                        memCacheWidth: 400,
-                        placeholder: (_, __) =>
-                            Container(color: Colors.grey.shade200),
-                        errorWidget: (_, __, ___) => Container(
-                          color: Colors.grey.shade200,
-                          child: const Icon(
-                            Icons.restaurant,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      )
-                    : Image.asset(recipe.imageUrl, fit: BoxFit.cover),
-              ),
-            ),
-            // Content
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    recipe.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                      color: Color(0xFF2D2621),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.access_time,
-                        size: 12,
-                        color: Colors.grey[600],
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${recipe.timeMinutes}m',
-                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildVerticalRecipeCard(BuildContext context, recipe) {
     return GestureDetector(
       onTap: () =>
@@ -519,9 +432,9 @@ class HomeScreen extends ConsumerWidget {
                         imageUrl: recipe.imageUrl,
                         fit: BoxFit.cover,
                         memCacheWidth: 300,
-                        placeholder: (_, __) =>
+                        placeholder: (context, url) =>
                             Container(color: Colors.grey.shade200),
-                        errorWidget: (_, __, ___) => Container(
+                        errorWidget: (context, url, error) => Container(
                           color: Colors.grey.shade200,
                           child: const Icon(
                             Icons.restaurant,
@@ -820,162 +733,6 @@ class HomeScreen extends ConsumerWidget {
             const SizedBox(height: 16),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildContinueRecipeCard(BuildContext context, recipe) {
-    // `recipe` comes from Firestore saved recipes stream.
-    // It should be a `Recipe`, but keep this defensive for legacy data.
-    final int currentStep = (recipe.currentStep as int?) ?? 0;
-    final int totalSteps = (recipe.instructions as List?)?.length ?? 0;
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Image
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            child: SizedBox(
-              height: 160,
-              width: double.infinity,
-              child: recipe.imageUrl.startsWith('http')
-                  ? CachedNetworkImage(
-                      imageUrl: recipe.imageUrl,
-                      fit: BoxFit.cover,
-                      memCacheWidth: 800,
-                      placeholder: (context, url) => Container(
-                        color: Colors.grey.shade200,
-                        child: const Center(child: CircularProgressIndicator()),
-                      ),
-                      errorWidget: (context, url, error) => Container(
-                        color: Colors.grey.shade200,
-                        child: const Icon(
-                          Icons.broken_image,
-                          size: 48,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    )
-                  : Image.asset(
-                      recipe.imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        color: Colors.grey.shade200,
-                        child: const Icon(
-                          Icons.broken_image,
-                          size: 48,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.restaurant_rounded,
-                      color: AppTheme.primaryColor,
-                      size: 24,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Continue Recipe',
-                      style: GoogleFonts.dmSerifDisplay(
-                        fontSize: 18,
-                        color: const Color(0xFF2D2621),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  recipe.title,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF2D2621),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.access_time_rounded,
-                      size: 16,
-                      color: Colors.grey[600],
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${recipe.timeMinutes} min',
-                      style: TextStyle(color: Colors.grey[600]),
-                    ),
-                    const SizedBox(width: 16),
-                    Icon(
-                      Icons.format_list_numbered_rounded,
-                      size: 16,
-                      color: Colors.grey[600],
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Step $currentStep/$totalSteps',
-                      style: TextStyle(color: Colors.grey[600]),
-                    ),
-                    const SizedBox(width: 16),
-                    Icon(
-                      Icons.local_fire_department_rounded,
-                      size: 16,
-                      color: Colors.grey[600],
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${recipe.calories} kcal',
-                      style: TextStyle(color: Colors.grey[600]),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () => context.push(
-                      '${AppRoutes.recipes}/${recipe.id}',
-                      extra: recipe,
-                    ),
-                    icon: const Icon(Icons.arrow_forward_rounded),
-                    label: const Text('Continue Recipe'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primaryColor,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }

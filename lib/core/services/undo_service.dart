@@ -75,9 +75,10 @@ class UndoService extends StateNotifier<UndoableOperation?> {
 
   /// Execute the undo action
   Future<void> executeUndo(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
     final operation = state;
     if (operation == null || operation.isExpired) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(
           content: Text('Undo expired'),
           duration: Duration(seconds: 2),
@@ -88,8 +89,8 @@ class UndoService extends StateNotifier<UndoableOperation?> {
 
     try {
       await operation.undoAction();
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
         SnackBar(
           content: const Text('✓ Action undone'),
           duration: const Duration(seconds: 2),
@@ -102,7 +103,7 @@ class UndoService extends StateNotifier<UndoableOperation?> {
         ),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(
           content: Text('Failed to undo: $e'),
           backgroundColor: Colors.red,

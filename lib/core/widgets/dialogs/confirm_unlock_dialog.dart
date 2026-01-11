@@ -5,12 +5,15 @@ import 'package:super_swipe/core/theme/app_theme.dart';
 
 /// Reusable dialog for confirming recipe unlock with carrot spend.
 /// Shows recipe preview, carrot balance, and unlock/cancel actions.
-class ConfirmUnlockDialog extends StatelessWidget {
+/// Includes a "Do not show again" option persisted by the caller.
+class ConfirmUnlockDialog extends StatefulWidget {
   final RecipePreview preview;
   final int currentCarrots;
   final int maxCarrots;
   final VoidCallback onCancel;
   final VoidCallback onUnlock;
+  final ValueChanged<bool>? onDoNotShowAgainChanged;
+  final bool initialDoNotShowAgain;
   final bool isLoading;
 
   const ConfirmUnlockDialog({
@@ -20,12 +23,27 @@ class ConfirmUnlockDialog extends StatelessWidget {
     required this.maxCarrots,
     required this.onCancel,
     required this.onUnlock,
+    this.onDoNotShowAgainChanged,
+    this.initialDoNotShowAgain = false,
     this.isLoading = false,
   });
 
   @override
+  State<ConfirmUnlockDialog> createState() => _ConfirmUnlockDialogState();
+}
+
+class _ConfirmUnlockDialogState extends State<ConfirmUnlockDialog> {
+  late bool _doNotShowAgain;
+
+  @override
+  void initState() {
+    super.initState();
+    _doNotShowAgain = widget.initialDoNotShowAgain;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final hasCarrots = currentCarrots > 0;
+    final hasCarrots = widget.currentCarrots > 0;
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -77,7 +95,7 @@ class ConfirmUnlockDialog extends StatelessWidget {
                 children: [
                   // Recipe title
                   Text(
-                    preview.title,
+                    widget.preview.title,
                     style: GoogleFonts.dmSerifDisplay(
                       fontSize: 20,
                       color: const Color(0xFF2D2621),
@@ -87,7 +105,7 @@ class ConfirmUnlockDialog extends StatelessWidget {
 
                   // Vibe description
                   Text(
-                    preview.vibeDescription,
+                    widget.preview.vibeDescription,
                     style: const TextStyle(
                       color: AppTheme.textSecondary,
                       height: 1.4,
@@ -96,11 +114,13 @@ class ConfirmUnlockDialog extends StatelessWidget {
                   const SizedBox(height: 16),
 
                   // Main ingredients preview
-                  if (preview.mainIngredients.isNotEmpty) ...[
+                  if (widget.preview.mainIngredients.isNotEmpty) ...[
                     Wrap(
                       spacing: 6,
                       runSpacing: 6,
-                      children: preview.mainIngredients.take(4).map((ing) {
+                      children: widget.preview.mainIngredients.take(4).map((
+                        ing,
+                      ) {
                         return Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 10,
@@ -141,7 +161,7 @@ class ConfirmUnlockDialog extends StatelessWidget {
                       children: [
                         Text(
                           hasCarrots
-                              ? 'This looks delicious!'
+                              ? 'Unlock Recipe? This uses 1 carrot.'
                               : 'Out of Carrots! 🥕',
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
@@ -154,7 +174,7 @@ class ConfirmUnlockDialog extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text(
                           hasCarrots
-                              ? 'Use 1 carrot to unlock the full recipe?'
+                              ? 'Confirm to unlock full instructions.'
                               : 'Wait for your weekly carrot refresh or upgrade to Premium.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
@@ -172,13 +192,39 @@ class ConfirmUnlockDialog extends StatelessWidget {
                             const Text('🥕', style: TextStyle(fontSize: 18)),
                             const SizedBox(width: 6),
                             Text(
-                              '$currentCarrots / $maxCarrots',
+                              '${widget.currentCarrots} / ${widget.maxCarrots}',
                               style: TextStyle(
                                 fontWeight: FontWeight.w800,
                                 fontSize: 18,
                                 color: hasCarrots
                                     ? Colors.orange[800]
                                     : Colors.red[800],
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        // Do not show again
+                        Row(
+                          children: [
+                            Checkbox(
+                              value: _doNotShowAgain,
+                              onChanged: widget.isLoading
+                                  ? null
+                                  : (v) {
+                                      final next = v ?? false;
+                                      setState(() => _doNotShowAgain = next);
+                                      widget.onDoNotShowAgainChanged?.call(
+                                        next,
+                                      );
+                                    },
+                            ),
+                            const Expanded(
+                              child: Text(
+                                'Do not show again',
+                                style: TextStyle(color: AppTheme.textSecondary),
                               ),
                             ),
                           ],
@@ -197,7 +243,7 @@ class ConfirmUnlockDialog extends StatelessWidget {
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: isLoading ? null : onCancel,
+                      onPressed: widget.isLoading ? null : widget.onCancel,
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         side: BorderSide(color: Colors.grey.shade300),
@@ -215,8 +261,10 @@ class ConfirmUnlockDialog extends StatelessWidget {
                   Expanded(
                     flex: 2,
                     child: ElevatedButton.icon(
-                      onPressed: hasCarrots && !isLoading ? onUnlock : null,
-                      icon: isLoading
+                      onPressed: hasCarrots && !widget.isLoading
+                          ? widget.onUnlock
+                          : null,
+                      icon: widget.isLoading
                           ? const SizedBox(
                               width: 18,
                               height: 18,
@@ -226,9 +274,7 @@ class ConfirmUnlockDialog extends StatelessWidget {
                               ),
                             )
                           : const Icon(Icons.lock_open_rounded, size: 20),
-                      label: Text(
-                        isLoading ? 'Unlocking...' : 'Unlock (-1 🥕)',
-                      ),
+                      label: Text(widget.isLoading ? 'Unlocking...' : 'Unlock'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: hasCarrots
                             ? AppTheme.primaryColor

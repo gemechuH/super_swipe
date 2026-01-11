@@ -55,7 +55,7 @@ final savedRecipeProvider = StreamProvider.family<Recipe?, String>((
       }
     },
     loading: () => const Stream.empty(),
-    error: (_, __) => Stream.value(null),
+    error: (error, stackTrace) => Stream.value(null),
   );
 });
 
