@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:appinio_swiper/appinio_swiper.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -82,6 +83,18 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     final last = _lastChefStatusAt;
     if (last != null && now.difference(last).inSeconds < 2) return;
     _lastChefStatusAt = now;
+
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) return;
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          duration: const Duration(seconds: 2),
+          backgroundColor: AppTheme.primaryColor,
+        ),
+      );
   }
 
   String _norm(String value) => value.toLowerCase().trim();
@@ -162,7 +175,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
       String cravings,
     })
     query,
-    required String deckKey,
+    required List<String> deckKeys,
   }) {
     final byEnergy = _partitionByEnergy(recipes);
     final visible = <Recipe>[];
@@ -185,7 +198,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
         ..addAll(buffer);
     });
 
-    _deckCache[deckKey] = List<Recipe>.from(visible);
+    _storeDeckCache(deckKeys, visible);
   }
 
   Future<
@@ -236,7 +249,46 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     );
   }
 
-  String _buildDeckKey({
+  // Legacy deck key format (backward compatible with existing caches).
+  String _buildDeckKeyLegacy({
+    required List<String> pantryNames,
+    required List<String> allergies,
+    required List<String> dietary,
+    required List<String> preferredCuisines,
+    required String? mealType,
+    required String cravings,
+  }) {
+    final p = [...pantryNames]..sort();
+    final a = [...allergies]..sort();
+    final d = [...dietary]..sort();
+    final pc = [...preferredCuisines]..sort();
+    final m = mealType ?? '';
+    final cr = cravings;
+
+    return 'p=${p.join(",")}|a=${a.join(",")}|d=${d.join(",")}|pc=${pc.join(",")}|m=$m|cr=$cr';
+  }
+
+  // Normalized variant (still uses legacy labels). Useful for future stability.
+  String _buildDeckKeyNormalized({
+    required List<String> pantryNames,
+    required List<String> allergies,
+    required List<String> dietary,
+    required List<String> preferredCuisines,
+    required String? mealType,
+    required String cravings,
+  }) {
+    final p = pantryNames.map(_norm).toList()..sort();
+    final a = allergies.map(_norm).toList()..sort();
+    final d = dietary.map(_norm).toList()..sort();
+    final pc = preferredCuisines.map(_norm).toList()..sort();
+    final m = mealType == null ? '' : _norm(mealType);
+    final cr = _norm(cravings);
+
+    return 'p=${p.join(",")}|a=${a.join(",")}|d=${d.join(",")}|pc=${pc.join(",")}|m=$m|cr=$cr';
+  }
+
+  // Short-lived format used previously (c/q labels). Kept for cache migration.
+  String _buildDeckKeyCqLabels({
     required List<String> pantryNames,
     required List<String> allergies,
     required List<String> dietary,
@@ -251,25 +303,70 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     final m = mealType == null ? '' : _norm(mealType);
     final q = _norm(cravings);
 
-    return 'p=${p.join(',')}|a=${a.join(',')}|d=${d.join(',')}|c=${c.join(',')}|m=$m|q=$q';
+    return 'p=${p.join(",")}|a=${a.join(",")}|d=${d.join(",")}|c=${c.join(",")}|m=$m|q=$q';
+  }
+
+  List<String> _deckCacheKeysForQuery({
+    required List<String> pantryNames,
+    required List<String> allergies,
+    required List<String> dietary,
+    required List<String> preferredCuisines,
+    required String? mealType,
+    required String cravings,
+  }) {
+    return <String>{
+      _buildDeckKeyLegacy(
+        pantryNames: pantryNames,
+        allergies: allergies,
+        dietary: dietary,
+        preferredCuisines: preferredCuisines,
+        mealType: mealType,
+        cravings: cravings,
+      ),
+      _buildDeckKeyNormalized(
+        pantryNames: pantryNames,
+        allergies: allergies,
+        dietary: dietary,
+        preferredCuisines: preferredCuisines,
+        mealType: mealType,
+        cravings: cravings,
+      ),
+      _buildDeckKeyCqLabels(
+        pantryNames: pantryNames,
+        allergies: allergies,
+        dietary: dietary,
+        preferredCuisines: preferredCuisines,
+        mealType: mealType,
+        cravings: cravings,
+      ),
+    }.toList(growable: false);
+  }
+
+  List<Recipe>? _getCachedDeck(List<String> keys) {
+    for (final key in keys) {
+      final cached = _deckCache[key];
+      if (cached != null && cached.isNotEmpty) return cached;
+    }
+    return null;
+  }
+
+  void _storeDeckCache(List<String> keys, List<Recipe> deck) {
+    final snapshot = List<Recipe>.from(deck);
+    for (final key in keys) {
+      _deckCache[key] = snapshot;
+    }
   }
 
   Future<void> _refreshDeck({bool forceRegenerate = false}) async {
+    if (_deckLoading) return;
     final requestToken = ++_deckRequestToken;
     final userId = _persistedUserIdOrNull();
 
-    setState(() {
-      _deckLoading = true;
-      _activeDeckQuery = null;
-      _consumedCardIds.clear();
-      _loadingMoreEnergy.clear();
-      _dbBufferByEnergy.clear();
-      _aiDeck = const <Recipe>[];
-    });
+    setState(() => _deckLoading = true);
 
     try {
       final query = await _computeDeckQuery();
-      final deckKey = _buildDeckKey(
+      final deckKeys = _deckCacheKeysForQuery(
         pantryNames: query.pantryNames,
         allergies: query.allergies,
         dietary: query.dietary,
@@ -281,31 +378,12 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
       if (!mounted || requestToken != _deckRequestToken) return;
       _activeDeckQuery = query;
 
-      if (!forceRegenerate) {
-        final cached = _deckCache[deckKey];
-        if (cached != null && cached.isNotEmpty) {
-          final byEnergy = _partitionByEnergy(cached);
-          setState(() {
-            _aiDeck = List<Recipe>.from(cached);
-            _dbBufferByEnergy
-              ..clear()
-              ..addAll({
-                0: List<Recipe>.from(byEnergy[0] ?? const <Recipe>[]),
-                1: List<Recipe>.from(byEnergy[1] ?? const <Recipe>[]),
-                2: List<Recipe>.from(byEnergy[2] ?? const <Recipe>[]),
-                3: List<Recipe>.from(byEnergy[3] ?? const <Recipe>[]),
-              });
-          });
-          return;
-        }
-      }
-
       // If user asked to regenerate, clear old persisted previews so we truly refresh.
       if (forceRegenerate && userId != null) {
         await ref.read(databaseServiceProvider).clearSwipeDeck(userId);
       }
 
-      // 1) Signed-in users: seed from DB first (until depleted).
+      // 1) Signed-in users: DB is the source of truth.
       if (!forceRegenerate && userId != null) {
         final previews = await ref
             .read(databaseServiceProvider)
@@ -316,13 +394,28 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
           _seedDeckFromDbRecipes(
             recipes: previews.map(_recipeFromPreview).toList(growable: false),
             query: query,
-            deckKey: deckKey,
+            deckKeys: deckKeys,
           );
           return;
         }
       }
 
-      // 2) DB depleted (or guest): generate 3 cards per energy (12 total).
+      // 2) Fallback to local cache (guest or DB depleted).
+      if (!forceRegenerate) {
+        final cached = _getCachedDeck(deckKeys);
+        if (cached != null) {
+          setState(() {
+            _consumedCardIds.clear();
+            _loadingMoreEnergy.clear();
+            _dbBufferByEnergy.clear();
+            _aiDeck = List<Recipe>.from(cached);
+          });
+          _storeDeckCache(deckKeys, cached);
+          return;
+        }
+      }
+
+      // 3) DB depleted (or guest): generate 3 cards per energy (12 total).
       final seenTitles = <String>{};
       final generatedRecipes = <Recipe>[];
       final persistPreviews = <RecipePreview>[];
@@ -379,7 +472,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
           });
       });
 
-      _deckCache[deckKey] = List<Recipe>.from(generatedRecipes);
+          _storeDeckCache(deckKeys, generatedRecipes);
 
       if (userId != null && persistPreviews.isNotEmpty) {
         unawaited(
@@ -388,8 +481,24 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
               .upsertSwipeCards(userId, persistPreviews),
         );
       }
-    } catch (_) {
-      // Best-effort; leave the screen usable.
+    } catch (e, st) {
+      if (!mounted || requestToken != _deckRequestToken) return;
+      if (kDebugMode) {
+        debugPrint('SwipeScreen _refreshDeck failed: $e');
+        debugPrint('$st');
+      }
+
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      messenger
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text(
+              "Couldn't load recipes right now. Please try again.",
+            ),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
     } finally {
       if (mounted && requestToken == _deckRequestToken) {
         setState(() => _deckLoading = false);

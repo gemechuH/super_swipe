@@ -1,5 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:super_swipe/core/widgets/loading/app_shimmer.dart';
 import 'package:super_swipe/core/widgets/loading/skeleton.dart';
 
@@ -53,12 +55,14 @@ class OptimizedImageService {
   Widget _defaultPlaceholder(BuildContext context, String url) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final height = constraints.hasBoundedHeight &&
+        final height =
+            constraints.hasBoundedHeight &&
                 constraints.maxHeight.isFinite &&
                 constraints.maxHeight > 0
             ? constraints.maxHeight
             : 160.0;
-        final width = constraints.hasBoundedWidth &&
+        final width =
+            constraints.hasBoundedWidth &&
                 constraints.maxWidth.isFinite &&
                 constraints.maxWidth > 0
             ? constraints.maxWidth
@@ -112,7 +116,9 @@ class OptimizedImageService {
       try {
         await precacheImage(CachedNetworkImageProvider(url), context);
       } catch (e) {
-  // debugPrint('Failed to precache image: $url, Error: $e');
+        if (kDebugMode) {
+          debugPrint('Failed to precache image: $url, Error: $e');
+        }
       }
     }
   }
@@ -121,8 +127,14 @@ class OptimizedImageService {
   ///
   /// Useful for memory management or when user signs out
   Future<void> clearCache() async {
-    await CachedNetworkImage.evictFromCache('');
-  // debugPrint('Image cache cleared');
+    await DefaultCacheManager().emptyCache();
+    PaintingBinding.instance.imageCache
+      ..clear()
+      ..clearLiveImages();
+
+    if (kDebugMode) {
+      debugPrint('Image cache cleared');
+    }
   }
 
   /// Clear specific image from cache

@@ -269,11 +269,11 @@ class _ConfirmUnlockDialogState extends State<ConfirmUnlockDialog> {
                           ? const SizedBox(
                               width: 18,
                               height: 18,
-                                    child: AppInlineLoading(
-                                      size: 18,
-                                      baseColor: Color(0xFFEFEFEF),
-                                      highlightColor: Color(0xFFFFFFFF),
-                                    ),
+                              child: AppInlineLoading(
+                                size: 18,
+                                baseColor: Color(0xFFEFEFEF),
+                                highlightColor: Color(0xFFFFFFFF),
+                              ),
                             )
                           : const Icon(Icons.lock_open_rounded, size: 20),
                       label: Text(widget.isLoading ? 'Unlocking...' : 'Unlock'),
