@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:super_swipe/core/models/recipe_preview.dart';
 import 'package:super_swipe/core/theme/app_theme.dart';
+import 'package:super_swipe/core/widgets/loading/app_loading.dart';
 
 /// Reusable dialog for confirming recipe unlock with carrot spend.
 /// Shows recipe preview, carrot balance, and unlock/cancel actions.
@@ -268,10 +269,11 @@ class _ConfirmUnlockDialogState extends State<ConfirmUnlockDialog> {
                           ? const SizedBox(
                               width: 18,
                               height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
+                                    child: AppInlineLoading(
+                                      size: 18,
+                                      baseColor: Color(0xFFEFEFEF),
+                                      highlightColor: Color(0xFFFFFFFF),
+                                    ),
                             )
                           : const Icon(Icons.lock_open_rounded, size: 20),
                       label: Text(widget.isLoading ? 'Unlocking...' : 'Unlock'),

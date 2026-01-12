@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:super_swipe/core/router/app_router.dart';
 import 'package:super_swipe/core/theme/app_theme.dart';
+import 'package:super_swipe/core/widgets/loading/app_loading.dart';
 import 'package:super_swipe/firebase_options.dart';
 
 void main() {
@@ -113,11 +114,7 @@ class _BootstrapLoadingScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
-      body: const Center(
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
-        ),
-      ),
+      body: const AppPageLoading(),
     );
   }
 }

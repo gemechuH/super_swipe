@@ -4,6 +4,7 @@ import 'package:super_swipe/core/config/pantry_constants.dart';
 import 'package:super_swipe/core/models/pantry_item.dart';
 import 'package:super_swipe/core/providers/user_data_providers.dart';
 import 'package:super_swipe/core/theme/app_theme.dart';
+import 'package:super_swipe/core/widgets/loading/app_loading.dart';
 
 /// Reusable 3-layer category selector for adding ingredients
 /// Fetches category configuration dynamically
@@ -37,7 +38,7 @@ class PantryCategorySelector extends ConsumerWidget {
       ),
       loading: () => SizedBox(
         height: MediaQuery.of(context).size.height * 0.5,
-        child: const Center(child: CircularProgressIndicator()),
+        child: const AppListLoading(itemCount: 6),
       ),
       error: (err, stack) => SizedBox(
         height: 200,
@@ -312,7 +313,11 @@ class _PantryCategorySelectorContentState
                       ? const SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child: AppInlineLoading(
+                            size: 18,
+                            baseColor: Color(0xFFEFEFEF),
+                            highlightColor: Color(0xFFFFFFFF),
+                          ),
                         )
                       : const Icon(Icons.check_rounded),
                   label: Text(_getButtonLabel()),

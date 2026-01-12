@@ -6,6 +6,7 @@ import 'package:super_swipe/core/providers/recipe_providers.dart';
 import 'package:super_swipe/core/providers/user_data_providers.dart';
 import 'package:super_swipe/core/router/app_router.dart';
 import 'package:super_swipe/core/theme/app_theme.dart';
+import 'package:super_swipe/core/widgets/loading/app_loading.dart';
 import 'package:super_swipe/features/auth/providers/auth_provider.dart';
 import 'package:super_swipe/services/database/database_provider.dart';
 
@@ -80,11 +81,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
           title: Text(widget.initialRecipe?.title ?? 'Recipe'),
           centerTitle: true,
         ),
-        body: const Center(
-          child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
-          ),
-        ),
+        body: const AppPageLoading(),
       ),
       error: (error, stack) => _buildError(context, error),
       data: (savedRecipe) {
@@ -199,13 +196,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
         centerTitle: true,
       ),
       body: safeRecipe == null
-          ? const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  AppTheme.primaryColor,
-                ),
-              ),
-            )
+          ? const AppPageLoading()
           : SingleChildScrollView(
               padding: const EdgeInsets.all(AppTheme.spacingL),
               child: Column(
@@ -293,7 +284,11 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                           const SizedBox(
                             width: 18,
                             height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                            child: AppInlineLoading(
+                              size: 18,
+                              baseColor: Color(0xFFE6E6E6),
+                              highlightColor: Color(0xFFF7F7F7),
+                            ),
                           ),
                       ],
                     ),
@@ -388,8 +383,10 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                                 ? const SizedBox(
                                     width: 18,
                                     height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
+                                    child: AppInlineLoading(
+                                      size: 18,
+                                      baseColor: Color(0xFFE6E6E6),
+                                      highlightColor: Color(0xFFF7F7F7),
                                     ),
                                   )
                                 : null,
@@ -411,9 +408,10 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                           ? const SizedBox(
                               width: 20,
                               height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
+                              child: AppInlineLoading(
+                                size: 20,
+                                baseColor: Color(0xFFEFEFEF),
+                                highlightColor: Color(0xFFFFFFFF),
                               ),
                             )
                           : const Icon(Icons.restaurant_menu_rounded),

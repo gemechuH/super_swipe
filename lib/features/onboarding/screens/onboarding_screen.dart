@@ -6,6 +6,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:super_swipe/core/providers/app_state_provider.dart';
 import 'package:super_swipe/core/router/app_router.dart';
 import 'package:super_swipe/core/theme/app_theme.dart';
+import 'package:super_swipe/core/widgets/loading/app_loading.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
@@ -134,9 +135,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                       ? const SizedBox(
                           height: 24,
                           width: 24,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2.5,
+                          child: AppInlineLoading(
+                            size: 24,
+                            baseColor: Color(0xFFEFEFEF),
+                            highlightColor: Color(0xFFFFFFFF),
                           ),
                         )
                       : const Text(
@@ -203,7 +205,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 placeholder: (context, url) => Container(
                   color: Colors.grey[100],
                   child: const Center(
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                    child: AppInlineLoading(
+                      size: 20,
+                      baseColor: Color(0xFFE6E6E6),
+                      highlightColor: Color(0xFFF7F7F7),
+                    ),
                   ),
                 ),
                 errorWidget: (context, url, error) {

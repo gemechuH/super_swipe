@@ -1,5 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:super_swipe/core/widgets/loading/app_shimmer.dart';
+import 'package:super_swipe/core/widgets/loading/skeleton.dart';
 
 class OptimizedImageService {
   OptimizedImageService._();
@@ -49,14 +51,30 @@ class OptimizedImageService {
 
   /// Default loading placeholder
   Widget _defaultPlaceholder(BuildContext context, String url) {
-    return Container(
-      color: Colors.grey[200],
-      child: const Center(
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          valueColor: AlwaysStoppedAnimation<Color>(Colors.grey),
-        ),
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final height = constraints.hasBoundedHeight &&
+                constraints.maxHeight.isFinite &&
+                constraints.maxHeight > 0
+            ? constraints.maxHeight
+            : 160.0;
+        final width = constraints.hasBoundedWidth &&
+                constraints.maxWidth.isFinite &&
+                constraints.maxWidth > 0
+            ? constraints.maxWidth
+            : null;
+
+        return AppShimmer(
+          baseColor: Colors.grey.shade200,
+          highlightColor: Colors.grey.shade100,
+          child: SkeletonBox(
+            width: width,
+            height: height,
+            borderRadius: BorderRadius.zero,
+            color: Colors.grey.shade200,
+          ),
+        );
+      },
     );
   }
 

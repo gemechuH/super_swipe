@@ -15,6 +15,7 @@ import 'package:super_swipe/core/router/app_router.dart';
 import 'package:super_swipe/core/theme/app_theme.dart';
 import 'package:super_swipe/core/models/recipe_preview.dart';
 import 'package:super_swipe/core/widgets/dialogs/confirm_unlock_dialog.dart';
+import 'package:super_swipe/core/widgets/loading/app_loading.dart';
 import 'package:super_swipe/features/auth/providers/auth_provider.dart';
 import 'package:super_swipe/services/database/database_provider.dart';
 import 'package:super_swipe/services/ai/ai_recipe_service.dart';
@@ -81,219 +82,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     final last = _lastChefStatusAt;
     if (last != null && now.difference(last).inSeconds < 2) return;
     _lastChefStatusAt = now;
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.removeCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
-    );
   }
-
-  String _buildDeckKey({
-    required List<String> pantryNames,
-    required List<String> allergies,
-    required List<String> dietary,
-    required List<String> preferredCuisines,
-    required String? mealType,
-    required String cravings,
-  }) {
-    final p = [...pantryNames]..sort();
-    final a = [...allergies]..sort();
-    final d = [...dietary]..sort();
-    final pc = [...preferredCuisines]..sort();
-    return <String>[
-      'p=${p.join(",")}',
-      'a=${a.join(",")}',
-      'd=${d.join(",")}',
-      'pc=${pc.join(",")}',
-      'm=${mealType ?? ""}',
-      'cr=${cravings.trim().toLowerCase()}',
-    ].join('|');
-  }
-
-  // Mock Recipes with real Unsplash images
-  // (Kept for reference; Swipe deck is AI-driven now.)
-  // ignore: unused_field
-  final List<Recipe> _recipes = [
-    Recipe(
-      id: '1',
-      title: 'Creamy Mushroom Pasta',
-      imageUrl:
-          'https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=800&q=80',
-      description:
-          'A rich and creamy pasta dish with fresh mushrooms and herbs.',
-      ingredients: [
-        '8 oz pasta',
-        '2 cups sliced mushrooms',
-        '1/2 cup cream',
-        '2 cloves garlic',
-        '1 tbsp parsley',
-      ],
-      instructions: [
-        'Boil pasta in salted water until al dente. Reserve a splash of pasta water.',
-        'Sauté sliced mushrooms in a pan until browned. Add minced garlic for 30 seconds.',
-        'Add cream and a splash of pasta water, then toss in pasta until glossy.',
-        'Finish with parsley, season to taste, and serve warm.',
-      ],
-      ingredientIds: const ['pasta', 'mushrooms', 'cream', 'garlic', 'parsley'],
-      energyLevel: 2,
-      timeMinutes: 25,
-      calories: 520,
-      equipment: ['Stovetop', 'Pot'],
-      mealType: 'dinner',
-      skillLevel: 'moderate',
-      cuisine: 'italian',
-      dietaryTags: const ['vegetarian'],
-      flavorProfiles: const ['savory', 'comfort food'],
-      prepTags: const ['minimal prep'],
-    ),
-    Recipe(
-      id: '2',
-      title: 'Avocado Toast',
-      imageUrl:
-          'https://images.unsplash.com/photo-1541519227354-08fa5d50c44d?w=800&q=80',
-      description: 'Simple, healthy, and delicious avocado toast.',
-      ingredients: [
-        '2 slices bread',
-        '1 ripe avocado',
-        'Pinch of salt',
-        'Pinch of pepper',
-        '1/2 lemon',
-      ],
-      instructions: [
-        'Toast the bread to your preferred crispness.',
-        'Mash avocado with salt, pepper, and a squeeze of lemon.',
-        'Spread on toast and serve immediately.',
-      ],
-      ingredientIds: const ['bread', 'avocado', 'lemon'],
-      energyLevel: 1,
-      timeMinutes: 8,
-      calories: 320,
-      equipment: ['Toaster', 'Knife'],
-      mealType: 'breakfast',
-      skillLevel: 'beginner',
-      cuisine: 'american',
-      dietaryTags: const ['vegetarian'],
-      flavorProfiles: const ['savory', 'fresh and light'],
-      prepTags: const ['minimal prep', 'no bake'],
-    ),
-    Recipe(
-      id: '3',
-      title: 'Spicy Chicken Curry',
-      imageUrl:
-          'https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=800&q=80',
-      description: 'Warming chicken curry with aromatic spices.',
-      ingredients: [
-        '1 lb chicken',
-        '2 tbsp curry paste',
-        '1 can coconut milk',
-        '1 cup rice',
-      ],
-      instructions: [
-        'Brown chicken pieces in a pan. Remove and set aside.',
-        'Cook curry paste briefly until fragrant, then add coconut milk.',
-        'Simmer chicken in sauce until cooked through. Serve with rice.',
-      ],
-      ingredientIds: const ['chicken', 'curry paste', 'coconut milk', 'rice'],
-      energyLevel: 3,
-      timeMinutes: 40,
-      calories: 640,
-      equipment: ['Stovetop', 'Pan'],
-      mealType: 'dinner',
-      skillLevel: 'advanced',
-      cuisine: 'indian',
-      dietaryTags: const ['gluten free', 'dairy free'],
-      flavorProfiles: const ['spicy', 'savory', 'comfort food'],
-      prepTags: const ['one pan'],
-    ),
-    Recipe(
-      id: '4',
-      title: 'Greek Salad',
-      imageUrl:
-          'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=800&q=80',
-      description: 'Fresh and crisp greek salad with feta cheese.',
-      ingredients: [
-        '1 cucumber',
-        '2 tomatoes',
-        '1/2 cup feta',
-        '1/4 cup olives',
-        '1 tsp oregano',
-      ],
-      instructions: [
-        'Chop cucumber and tomato and add to a bowl.',
-        'Add olives and crumbled feta.',
-        'Season with oregano and toss gently.',
-      ],
-      ingredientIds: const ['cucumber', 'tomato', 'feta', 'olives', 'oregano'],
-      energyLevel: 0,
-      timeMinutes: 12,
-      calories: 260,
-      equipment: ['Bowl', 'Knife'],
-      mealType: 'lunch',
-      skillLevel: 'beginner',
-      cuisine: 'mediterranean',
-      dietaryTags: const ['vegetarian', 'gluten free'],
-      flavorProfiles: const ['fresh and light', 'savory'],
-      prepTags: const ['no bake'],
-    ),
-    Recipe(
-      id: '5',
-      title: 'Berry Smoothie',
-      imageUrl:
-          'https://images.unsplash.com/photo-1505252585461-04db1eb84625?w=800&q=80',
-      description: 'Refreshing mixed berry smoothie.',
-      ingredients: [
-        '1 cup mixed berries',
-        '1/2 cup yogurt',
-        '1 tbsp honey',
-        '1/2 cup milk',
-      ],
-      instructions: [
-        'Add berries, yogurt, honey, and milk to a blender.',
-        'Blend until smooth. Add more milk to thin if needed.',
-        'Pour into a glass and enjoy.',
-      ],
-      ingredientIds: const ['berries', 'yogurt', 'honey', 'milk'],
-      energyLevel: 1,
-      timeMinutes: 6,
-      calories: 220,
-      equipment: ['Blender'],
-      mealType: 'drinks',
-      skillLevel: 'beginner',
-      cuisine: 'american',
-      dietaryTags: const ['vegetarian', 'gluten free'],
-      flavorProfiles: const ['sweet', 'fresh and light'],
-      prepTags: const ['minimal prep', 'no bake'],
-    ),
-    Recipe(
-      id: '6',
-      title: 'One-Pan Veggie Stir Fry',
-      imageUrl:
-          'https://images.unsplash.com/photo-1512058564366-18510be2db19?w=800&q=80',
-      description: 'Colorful veggies tossed in a tangy sauce.',
-      ingredients: [
-        '2 cups broccoli florets',
-        '1 bell pepper',
-        '2 tbsp soy sauce',
-        '8 oz noodles',
-      ],
-      instructions: [
-        'Stir-fry broccoli and peppers in a hot pan until crisp-tender.',
-        'Add cooked noodles and soy sauce, then toss to coat.',
-        'Serve immediately while hot.',
-      ],
-      ingredientIds: const ['broccoli', 'peppers', 'soy sauce', 'noodles'],
-      energyLevel: 2,
-      timeMinutes: 18,
-      calories: 410,
-      equipment: ['Stovetop', 'Pan'],
-      mealType: 'dinner',
-      skillLevel: 'moderate',
-      cuisine: 'chinese',
-      dietaryTags: const ['vegetarian'],
-      flavorProfiles: const ['savory', 'umami'],
-      prepTags: const ['one pan'],
-    ),
-  ];
 
   String _norm(String value) => value.toLowerCase().trim();
 
@@ -445,6 +234,167 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
       mealType: mealType,
       cravings: cravings,
     );
+  }
+
+  String _buildDeckKey({
+    required List<String> pantryNames,
+    required List<String> allergies,
+    required List<String> dietary,
+    required List<String> preferredCuisines,
+    required String? mealType,
+    required String cravings,
+  }) {
+    final p = pantryNames.map(_norm).toList()..sort();
+    final a = allergies.map(_norm).toList()..sort();
+    final d = dietary.map(_norm).toList()..sort();
+    final c = preferredCuisines.map(_norm).toList()..sort();
+    final m = mealType == null ? '' : _norm(mealType);
+    final q = _norm(cravings);
+
+    return 'p=${p.join(',')}|a=${a.join(',')}|d=${d.join(',')}|c=${c.join(',')}|m=$m|q=$q';
+  }
+
+  Future<void> _refreshDeck({bool forceRegenerate = false}) async {
+    final requestToken = ++_deckRequestToken;
+    final userId = _persistedUserIdOrNull();
+
+    setState(() {
+      _deckLoading = true;
+      _activeDeckQuery = null;
+      _consumedCardIds.clear();
+      _loadingMoreEnergy.clear();
+      _dbBufferByEnergy.clear();
+      _aiDeck = const <Recipe>[];
+    });
+
+    try {
+      final query = await _computeDeckQuery();
+      final deckKey = _buildDeckKey(
+        pantryNames: query.pantryNames,
+        allergies: query.allergies,
+        dietary: query.dietary,
+        preferredCuisines: query.preferredCuisines,
+        mealType: query.mealType,
+        cravings: query.cravings,
+      );
+
+      if (!mounted || requestToken != _deckRequestToken) return;
+      _activeDeckQuery = query;
+
+      if (!forceRegenerate) {
+        final cached = _deckCache[deckKey];
+        if (cached != null && cached.isNotEmpty) {
+          final byEnergy = _partitionByEnergy(cached);
+          setState(() {
+            _aiDeck = List<Recipe>.from(cached);
+            _dbBufferByEnergy
+              ..clear()
+              ..addAll({
+                0: List<Recipe>.from(byEnergy[0] ?? const <Recipe>[]),
+                1: List<Recipe>.from(byEnergy[1] ?? const <Recipe>[]),
+                2: List<Recipe>.from(byEnergy[2] ?? const <Recipe>[]),
+                3: List<Recipe>.from(byEnergy[3] ?? const <Recipe>[]),
+              });
+          });
+          return;
+        }
+      }
+
+      // If user asked to regenerate, clear old persisted previews so we truly refresh.
+      if (forceRegenerate && userId != null) {
+        await ref.read(databaseServiceProvider).clearSwipeDeck(userId);
+      }
+
+      // 1) Signed-in users: seed from DB first (until depleted).
+      if (!forceRegenerate && userId != null) {
+        final previews = await ref
+            .read(databaseServiceProvider)
+            .getUnconsumedSwipeCards(userId);
+        if (!mounted || requestToken != _deckRequestToken) return;
+
+        if (previews.isNotEmpty) {
+          _seedDeckFromDbRecipes(
+            recipes: previews.map(_recipeFromPreview).toList(growable: false),
+            query: query,
+            deckKey: deckKey,
+          );
+          return;
+        }
+      }
+
+      // 2) DB depleted (or guest): generate 3 cards per energy (12 total).
+      final seenTitles = <String>{};
+      final generatedRecipes = <Recipe>[];
+      final persistPreviews = <RecipePreview>[];
+
+      for (final energy in const [0, 1, 2, 3]) {
+        final previews = await _ai.generateRecipePreviewsBatch(
+          count: 3,
+          pantryItems: query.pantryNames,
+          allergies: query.allergies,
+          dietaryRestrictions: query.dietary,
+          cravings: query.inspiration,
+          energyLevel: energy,
+          preferredCuisines: query.preferredCuisines,
+          mealType: query.mealType,
+          strictPantryMatch: false,
+        );
+
+        if (!mounted || requestToken != _deckRequestToken) return;
+
+        for (final p in previews) {
+          if (!mounted || requestToken != _deckRequestToken) return;
+          final titleKey = _norm(p.title);
+          if (!seenTitles.add(titleKey)) continue;
+
+          final img = await _imageService.searchRecipeImage(
+            recipeTitle: p.title,
+            ingredients: p.ingredients.isNotEmpty
+                ? p.ingredients
+                : p.mainIngredients,
+          );
+          final imageUrl =
+              img?.imageUrl ??
+              p.imageUrl ??
+              ImageSearchService.getFallbackImage(p.mealType);
+          final persistedPreview = p.copyWith(imageUrl: imageUrl);
+          persistPreviews.add(persistedPreview);
+          generatedRecipes.add(_recipeFromPreview(persistedPreview));
+        }
+      }
+
+      if (!mounted || requestToken != _deckRequestToken) return;
+
+      final byEnergy = _partitionByEnergy(generatedRecipes);
+      setState(() {
+        _consumedCardIds.clear();
+        _aiDeck = generatedRecipes;
+        _dbBufferByEnergy
+          ..clear()
+          ..addAll({
+            0: List<Recipe>.from(byEnergy[0] ?? const <Recipe>[]),
+            1: List<Recipe>.from(byEnergy[1] ?? const <Recipe>[]),
+            2: List<Recipe>.from(byEnergy[2] ?? const <Recipe>[]),
+            3: List<Recipe>.from(byEnergy[3] ?? const <Recipe>[]),
+          });
+      });
+
+      _deckCache[deckKey] = List<Recipe>.from(generatedRecipes);
+
+      if (userId != null && persistPreviews.isNotEmpty) {
+        unawaited(
+          ref
+              .read(databaseServiceProvider)
+              .upsertSwipeCards(userId, persistPreviews),
+        );
+      }
+    } catch (_) {
+      // Best-effort; leave the screen usable.
+    } finally {
+      if (mounted && requestToken == _deckRequestToken) {
+        setState(() => _deckLoading = false);
+      }
+    }
   }
 
   Future<void> _loadMoreForEnergy(int energyLevel) async {
@@ -961,208 +911,6 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     }
   }
 
-  Future<void> _refreshDeck({bool forceRegenerate = false}) async {
-    if (_deckLoading) return;
-    final requestToken = ++_deckRequestToken;
-    setState(() => _deckLoading = true);
-
-    try {
-      final query = await _computeDeckQuery();
-      final deckKey = _buildDeckKey(
-        pantryNames: query.pantryNames,
-        allergies: query.allergies,
-        dietary: query.dietary,
-        preferredCuisines: query.preferredCuisines,
-        mealType: query.mealType,
-        cravings: query.cravings,
-      );
-
-      final userId = _persistedUserIdOrNull();
-
-      if (userId != null && forceRegenerate) {
-        await ref.read(databaseServiceProvider).clearSwipeDeck(userId);
-        _deckCache.remove(deckKey);
-        if (mounted && requestToken == _deckRequestToken) {
-          setState(() => _dbBufferByEnergy.clear());
-        }
-      }
-
-      // Prefer persisted deck for signed-in users.
-      if (userId != null && !forceRegenerate) {
-        final previews = await ref
-            .read(databaseServiceProvider)
-            .getUnconsumedSwipeCards(userId);
-        if (!mounted || requestToken != _deckRequestToken) return;
-
-        if (previews.isNotEmpty) {
-          final loaded = previews
-              .map(_recipeFromPreview)
-              .toList(growable: false);
-          _seedDeckFromDbRecipes(
-            recipes: loaded,
-            query: query,
-            deckKey: deckKey,
-          );
-          return;
-        }
-      }
-
-      // Local caching: if we already generated a deck for this pantry+filters,
-      // reuse it (no re-generation on back/return).
-      if (!forceRegenerate) {
-        final cached = _deckCache[deckKey];
-        if (cached != null && cached.isNotEmpty) {
-          if (mounted && requestToken == _deckRequestToken) {
-            setState(() {
-              _activeDeckQuery = (
-                pantryNames: query.pantryNames,
-                allergies: query.allergies,
-                dietary: query.dietary,
-                inspiration: query.inspiration,
-                preferredCuisines: query.preferredCuisines,
-                mealType: query.mealType,
-                cravings: query.cravings,
-              );
-              _consumedCardIds.clear();
-              _aiDeck = cached;
-            });
-          }
-          return;
-        }
-      }
-
-      if (mounted && requestToken == _deckRequestToken) {
-        setState(() {
-          _activeDeckQuery = (
-            pantryNames: query.pantryNames,
-            allergies: query.allergies,
-            dietary: query.dietary,
-            inspiration: query.inspiration,
-            preferredCuisines: query.preferredCuisines,
-            mealType: query.mealType,
-            cravings: query.cravings,
-          );
-          _consumedCardIds.clear();
-          _aiDeck = const <Recipe>[];
-          _dbBufferByEnergy.clear();
-        });
-      }
-
-      // Generate 3 cards for each energy level (0..3) => 12 total.
-      await _generateDeckAllEnergyLevels(
-        requestToken: requestToken,
-        deckKey: deckKey,
-        query: _activeDeckQuery!,
-      );
-    } catch (e) {
-      // If AI fails, keep existing deck (or empty).
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to load AI deck: $e'),
-            backgroundColor: AppTheme.errorColor,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _deckLoading = false);
-    }
-  }
-
-  Future<void> _generateDeckAllEnergyLevels({
-    required int requestToken,
-    required String deckKey,
-    required ({
-      List<String> pantryNames,
-      List<String> allergies,
-      List<String> dietary,
-      String inspiration,
-      List<String> preferredCuisines,
-      String? mealType,
-      String cravings,
-    })
-    query,
-  }) async {
-    final all = <Recipe>[];
-    final seen = <String>{};
-    final persisted = <RecipePreview>[];
-    final userId = _persistedUserIdOrNull();
-
-    for (final energy in const [0, 1, 2, 3]) {
-      if (!mounted || requestToken != _deckRequestToken) return;
-
-      final previews = await _ai.generateRecipePreviewsBatch(
-        count: 3,
-        pantryItems: query.pantryNames,
-        allergies: query.allergies,
-        dietaryRestrictions: query.dietary,
-        cravings: query.inspiration,
-        energyLevel: energy,
-        preferredCuisines: query.preferredCuisines,
-        mealType: query.mealType,
-        strictPantryMatch: false,
-      );
-
-      for (final p in previews) {
-        if (!mounted || requestToken != _deckRequestToken) return;
-        final titleKey = _norm(p.title);
-        if (!seen.add(titleKey)) continue;
-
-        final img = await _imageService.searchRecipeImage(
-          recipeTitle: p.title,
-          ingredients: p.ingredients.isNotEmpty
-              ? p.ingredients
-              : p.mainIngredients,
-        );
-
-        final imageUrl =
-            img?.imageUrl ??
-            p.imageUrl ??
-            ImageSearchService.getFallbackImage(p.mealType);
-
-        final persistedPreview = p.copyWith(imageUrl: imageUrl);
-        persisted.add(persistedPreview);
-
-        final ing = persistedPreview.ingredients.isNotEmpty
-            ? persistedPreview.ingredients
-            : persistedPreview.mainIngredients;
-        all.add(
-          Recipe(
-            id: persistedPreview.id,
-            title: persistedPreview.title,
-            imageUrl: imageUrl,
-            description: persistedPreview.vibeDescription,
-            ingredients: ing,
-            instructions: const <String>[],
-            ingredientIds: ing.map((e) => _norm(e)).toList(),
-            energyLevel: energy,
-            timeMinutes: persistedPreview.estimatedTimeMinutes,
-            calories: persistedPreview.calories,
-            equipment: persistedPreview.equipmentIcons,
-            mealType: persistedPreview.mealType,
-            cuisine: persistedPreview.cuisine,
-            skillLevel: persistedPreview.skillLevel,
-            dietaryTags: query.dietary,
-          ),
-        );
-      }
-
-      if (mounted && requestToken == _deckRequestToken) {
-        setState(() => _aiDeck = List<Recipe>.from(all));
-      }
-    }
-
-    if (mounted && requestToken == _deckRequestToken) {
-      _deckCache[deckKey] = List<Recipe>.from(all);
-    }
-
-    if (userId != null && persisted.isNotEmpty) {
-      unawaited(
-        ref.read(databaseServiceProvider).upsertSwipeCards(userId, persisted),
-      );
-    }
-  }
-
   void _showOutOfCarrots() {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -1234,11 +982,10 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                               const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    AppTheme.primaryColor,
-                                  ),
+                                child: AppInlineLoading(
+                                  size: 18,
+                                  baseColor: Color(0xFFE6E6E6),
+                                  highlightColor: Color(0xFFF7F7F7),
                                 ),
                               ),
                               const SizedBox(width: 10),
@@ -1356,7 +1103,13 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                     fit: BoxFit.cover,
                     placeholder: (context, url) => Container(
                       color: Colors.grey.shade200,
-                      child: const Center(child: CircularProgressIndicator()),
+                      child: const Center(
+                        child: AppInlineLoading(
+                          size: 28,
+                          baseColor: Color(0xFFE6E6E6),
+                          highlightColor: Color(0xFFF7F7F7),
+                        ),
+                      ),
                     ),
                     errorWidget: (context, url, error) => Container(
                       color: Colors.grey.shade200,

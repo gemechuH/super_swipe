@@ -7,6 +7,7 @@ import 'package:super_swipe/core/providers/recipe_providers.dart';
 import 'package:super_swipe/core/router/app_router.dart';
 import 'package:super_swipe/core/services/undo_service.dart';
 import 'package:super_swipe/core/theme/app_theme.dart';
+import 'package:super_swipe/core/widgets/loading/app_loading.dart';
 import 'package:super_swipe/features/auth/providers/auth_provider.dart';
 
 /// RecipesScreen - Displays user's saved recipes from Firestore
@@ -145,15 +146,7 @@ class _RecipesScreenState extends ConsumerState<RecipesScreen> {
 
             // Recipes List
             savedRecipesAsync.when(
-              loading: () => const SliverFillRemaining(
-                child: Center(
-                  child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      AppTheme.primaryColor,
-                    ),
-                  ),
-                ),
-              ),
+              loading: () => const SliverFillRemaining(child: AppListLoading()),
               error: (error, stack) => SliverFillRemaining(
                 child: Center(
                   child: Column(
@@ -364,7 +357,11 @@ class _RecipesScreenState extends ConsumerState<RecipesScreen> {
                             placeholder: (context, url) => Container(
                               color: Colors.grey.shade200,
                               child: const Center(
-                                child: CircularProgressIndicator(),
+                                child: AppInlineLoading(
+                                  size: 28,
+                                  baseColor: Color(0xFFE6E6E6),
+                                  highlightColor: Color(0xFFF7F7F7),
+                                ),
                               ),
                             ),
                             errorWidget: (context, url, error) => Container(

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:super_swipe/core/router/app_router.dart';
 import 'package:super_swipe/core/theme/app_theme.dart';
 import 'package:super_swipe/core/providers/guest_state_provider.dart';
+import 'package:super_swipe/core/widgets/loading/app_loading.dart';
 import 'package:super_swipe/features/auth/providers/auth_provider.dart';
 import 'package:super_swipe/features/auth/widgets/auth_text_field.dart';
 
@@ -217,9 +218,10 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                         ? const SizedBox(
                             width: 24,
                             height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppTheme.textOnPrimary,
+                            child: AppInlineLoading(
+                              size: 24,
+                              baseColor: Color(0xFFEFEFEF),
+                              highlightColor: Color(0xFFFFFFFF),
                             ),
                           )
                         : const Text('Create Account'),

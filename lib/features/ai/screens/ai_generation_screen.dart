@@ -8,6 +8,9 @@ import 'package:super_swipe/core/providers/firestore_providers.dart';
 import 'package:super_swipe/core/providers/selected_ingredients_provider.dart';
 import 'package:super_swipe/core/providers/user_data_providers.dart';
 import 'package:super_swipe/core/theme/app_theme.dart';
+import 'package:super_swipe/core/widgets/loading/app_loading.dart';
+import 'package:super_swipe/core/widgets/loading/app_shimmer.dart';
+import 'package:super_swipe/core/widgets/loading/skeleton.dart';
 import 'package:super_swipe/core/widgets/shared/shared_widgets.dart';
 import 'package:super_swipe/features/auth/providers/auth_provider.dart';
 import 'package:super_swipe/services/ai/ai_recipe_service.dart';
@@ -230,9 +233,10 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                           ? const SizedBox(
                               width: 24,
                               height: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
+                              child: AppInlineLoading(
+                                size: 24,
+                                baseColor: Color(0xFFEFEFEF),
+                                highlightColor: Color(0xFFFFFFFF),
                               ),
                             )
                           : const Icon(Icons.restaurant, size: 28),
@@ -630,9 +634,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                               ? const SizedBox(
                                   width: 16,
                                   height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
+                                  child: AppInlineLoading(size: 16),
                                 )
                               : const Icon(Icons.refresh),
                           label: Text(
@@ -671,9 +673,10 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                         ? const SizedBox(
                             width: 20,
                             height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
+                            child: AppInlineLoading(
+                              size: 20,
+                              baseColor: Color(0xFFEFEFEF),
+                              highlightColor: Color(0xFFFFFFFF),
                             ),
                           )
                         : const Icon(Icons.bookmark_add),
@@ -1182,7 +1185,15 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
           .getAiRecipeHistory(authState.user!.uid),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return AppShimmer(
+            baseColor: Colors.grey.shade200,
+            highlightColor: Colors.grey.shade100,
+            child: ListView.builder(
+              controller: scrollController,
+              itemCount: 8,
+              itemBuilder: (context, index) => const SkeletonListTile(),
+            ),
+          );
         }
 
         if (!snapshot.hasData || (snapshot.data as List).isEmpty) {

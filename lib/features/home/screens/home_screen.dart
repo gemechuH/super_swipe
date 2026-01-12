@@ -7,6 +7,7 @@ import 'package:super_swipe/core/providers/user_data_providers.dart';
 import 'package:super_swipe/core/providers/recipe_providers.dart';
 import 'package:super_swipe/core/router/app_router.dart';
 import 'package:super_swipe/core/theme/app_theme.dart';
+import 'package:super_swipe/core/widgets/loading/app_loading.dart';
 import 'package:super_swipe/features/auth/providers/auth_provider.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -571,11 +572,7 @@ class HomeScreen extends ConsumerWidget {
   }
 
   Widget _buildLoadingState() {
-    return const Center(
-      child: CircularProgressIndicator(
-        valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
-      ),
-    );
+    return const AppPageLoading();
   }
 
   Widget _buildErrorState(BuildContext context, Object error, WidgetRef ref) {

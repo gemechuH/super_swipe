@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:super_swipe/core/providers/firestore_providers.dart';
 import 'package:super_swipe/core/providers/user_data_providers.dart';
+import 'package:super_swipe/core/widgets/loading/app_loading.dart';
 import 'package:super_swipe/features/auth/providers/auth_provider.dart';
 
 /// Test screen to verify Firestore connection
@@ -30,7 +31,7 @@ class FirestoreTestScreen extends ConsumerWidget {
               future: _testFirestoreConnection(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const CircularProgressIndicator();
+                  return const Center(child: AppInlineLoading());
                 }
                 if (snapshot.hasError) {
                   return Text(
@@ -89,7 +90,7 @@ class FirestoreTestScreen extends ConsumerWidget {
                   ],
                 );
               },
-              loading: () => const CircularProgressIndicator(),
+              loading: () => const Center(child: AppInlineLoading()),
               error: (error, stack) => Text(
                 'Error: $error',
                 style: const TextStyle(color: Colors.red),
@@ -128,7 +129,7 @@ class FirestoreTestScreen extends ConsumerWidget {
                   ],
                 );
               },
-              loading: () => const CircularProgressIndicator(),
+              loading: () => const Center(child: AppInlineLoading()),
               error: (error, stack) => Text(
                 'Error: $error',
                 style: const TextStyle(color: Colors.red),

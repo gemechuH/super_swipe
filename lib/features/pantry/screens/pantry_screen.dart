@@ -9,6 +9,7 @@ import 'package:super_swipe/core/services/undo_service.dart';
 import 'package:super_swipe/features/auth/providers/auth_provider.dart';
 import 'package:super_swipe/core/router/app_router.dart';
 import 'package:super_swipe/core/theme/app_theme.dart';
+import 'package:super_swipe/core/widgets/loading/app_loading.dart';
 import 'package:super_swipe/features/pantry/widgets/pantry_category_selector.dart';
 
 class PantryScreen extends ConsumerStatefulWidget {
@@ -30,23 +31,7 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
     return pantryItemsAsync.when(
       loading: () => Scaffold(
         backgroundColor: AppTheme.backgroundColor,
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  AppTheme.primaryColor,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Loading your pantry...',
-                style: TextStyle(color: AppTheme.textSecondary, fontSize: 16),
-              ),
-            ],
-          ),
-        ),
+        body: const AppPageLoading(),
       ),
       error: (error, stack) => _buildErrorScreen(context, error, stack),
       data: (allItems) {
@@ -597,7 +582,11 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
                       ? const SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child: AppInlineLoading(
+                            size: 18,
+                            baseColor: Color(0xFFEFEFEF),
+                            highlightColor: Color(0xFFFFFFFF),
+                          ),
                         )
                       : const Text('Save'),
                 ),

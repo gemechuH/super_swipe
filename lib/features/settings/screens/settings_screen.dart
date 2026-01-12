@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:super_swipe/core/providers/user_data_providers.dart';
 import 'package:super_swipe/core/theme/app_theme.dart';
+import 'package:super_swipe/core/widgets/loading/app_loading.dart';
 import 'package:super_swipe/core/widgets/shared/shared_widgets.dart';
 import 'package:super_swipe/features/auth/providers/auth_provider.dart';
 import 'package:super_swipe/services/database/database_provider.dart';
@@ -88,13 +89,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               child: SizedBox(
                 width: 20,
                 height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
+                child: AppInlineLoading(size: 20),
               ),
             ),
         ],
       ),
       body: userProfileAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const AppPageLoading(),
         error: (e, _) => Center(child: Text('Error: $e')),
         data: (profile) => MasterScrollWrapper(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
@@ -267,9 +268,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ? const SizedBox(
                           width: 20,
                           height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
+                          child: AppInlineLoading(
+                            size: 20,
+                            baseColor: Color(0xFFEFEFEF),
+                            highlightColor: Color(0xFFFFFFFF),
                           ),
                         )
                       : const Icon(Icons.save_rounded),

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:super_swipe/core/providers/app_state_provider.dart';
 import 'package:super_swipe/core/router/app_router.dart';
 import 'package:super_swipe/core/theme/app_theme.dart';
+import 'package:super_swipe/core/widgets/loading/app_loading.dart';
 import 'package:super_swipe/features/auth/providers/auth_provider.dart';
 import 'package:super_swipe/features/auth/widgets/auth_text_field.dart';
 
@@ -138,9 +139,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ? const SizedBox(
                             width: 20,
                             height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
+                            child: AppInlineLoading(
+                              size: 20,
+                              baseColor: Color(0xFFEFEFEF),
+                              highlightColor: Color(0xFFFFFFFF),
                             ),
                           )
                         : const Text(
