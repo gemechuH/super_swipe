@@ -72,6 +72,18 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
   void initState() {
     super.initState();
     _ai = AiRecipeService(onStatus: _handleChefStatus);
+
+    ref.listen(authProvider, (previous, next) {
+      final prevUid = previous?.user?.uid;
+      final nextUid = next.user?.uid;
+      final prevAnon = previous?.user?.isAnonymous;
+      final nextAnon = next.user?.isAnonymous;
+
+      if (prevUid != nextUid || prevAnon != nextAnon) {
+        unawaited(_refreshDeck());
+      }
+    });
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_refreshDeck());
     });
@@ -83,7 +95,6 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     final last = _lastChefStatusAt;
     if (last != null && now.difference(last).inSeconds < 2) return;
     _lastChefStatusAt = now;
-
     final messenger = ScaffoldMessenger.maybeOf(context);
     if (messenger == null) return;
     messenger
@@ -97,159 +108,6 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
       );
   }
 
-  String _norm(String value) => value.toLowerCase().trim();
-
-  String? _persistedUserIdOrNull() {
-    final authUser = ref.read(authProvider).user;
-    final isGuest = ref.read(appStateProvider).isGuest;
-    if (authUser == null) return null;
-    if (isGuest || authUser.isAnonymous == true) return null;
-    return authUser.uid;
-  }
-
-  int _remainingForEnergy(int energyLevel) {
-    var count = 0;
-    for (final r in _aiDeck) {
-      if (r.energyLevel != energyLevel) continue;
-      if (_consumedCardIds.contains(r.id)) continue;
-      count++;
-    }
-    return count;
-  }
-
-  void _markCardConsumed(Recipe recipe) {
-    if (!_consumedCardIds.add(recipe.id)) return;
-    final userId = _persistedUserIdOrNull();
-    if (userId == null) return;
-    unawaited(
-      ref
-          .read(databaseServiceProvider)
-          .markSwipeCardConsumed(userId, recipe.id),
-    );
-  }
-
-  Recipe _recipeFromPreview(RecipePreview p) {
-    final ing = p.ingredients.isNotEmpty ? p.ingredients : p.mainIngredients;
-    return Recipe(
-      id: p.id,
-      title: p.title,
-      imageUrl: p.imageUrl ?? ImageSearchService.getFallbackImage(p.mealType),
-      description: p.vibeDescription,
-      ingredients: ing,
-      instructions: const <String>[],
-      ingredientIds: ing.map((e) => _norm(e)).toList(),
-      energyLevel: p.energyLevel,
-      timeMinutes: p.estimatedTimeMinutes,
-      calories: p.calories,
-      equipment: p.equipmentIcons,
-      mealType: p.mealType,
-      cuisine: p.cuisine,
-      skillLevel: p.skillLevel,
-      dietaryTags: const <String>[],
-    );
-  }
-
-  Map<int, List<Recipe>> _partitionByEnergy(List<Recipe> recipes) {
-    final map = <int, List<Recipe>>{
-      0: <Recipe>[],
-      1: <Recipe>[],
-      2: <Recipe>[],
-      3: <Recipe>[],
-    };
-    for (final r in recipes) {
-      final e = (r.energyLevel).clamp(0, 3);
-      map.putIfAbsent(e, () => <Recipe>[]).add(r);
-    }
-    return map;
-  }
-
-  void _seedDeckFromDbRecipes({
-    required List<Recipe> recipes,
-    required ({
-      List<String> pantryNames,
-      List<String> allergies,
-      List<String> dietary,
-      String inspiration,
-      List<String> preferredCuisines,
-      String? mealType,
-      String cravings,
-    })
-    query,
-    required List<String> deckKeys,
-  }) {
-    final byEnergy = _partitionByEnergy(recipes);
-    final visible = <Recipe>[];
-    final buffer = <int, List<Recipe>>{};
-
-    for (final energy in const [0, 1, 2, 3]) {
-      final list = byEnergy[energy] ?? const <Recipe>[];
-      final head = list.take(3).toList(growable: false);
-      final tail = list.length > 3 ? list.sublist(3) : const <Recipe>[];
-      visible.addAll(head);
-      buffer[energy] = List<Recipe>.from(tail);
-    }
-
-    setState(() {
-      _activeDeckQuery = query;
-      _consumedCardIds.clear();
-      _aiDeck = visible;
-      _dbBufferByEnergy
-        ..clear()
-        ..addAll(buffer);
-    });
-
-    _storeDeckCache(deckKeys, visible);
-  }
-
-  Future<
-    ({
-      List<String> pantryNames,
-      List<String> allergies,
-      List<String> dietary,
-      String inspiration,
-      List<String> preferredCuisines,
-      String? mealType,
-      String cravings,
-    })
-  >
-  _computeDeckQuery() async {
-    final pantryItems =
-        ref.read(pantryItemsProvider).value ?? const <PantryItem>[];
-    final profile = ref.read(userProfileProvider).value;
-
-    final pantryNames = pantryItems
-        .map((p) => p.normalizedName)
-        .where((e) => e.trim().isNotEmpty)
-        .toList();
-
-    final isZeroPantry = pantryNames.isEmpty;
-    final mealType = profile?.preferences.defaultMealType;
-
-    final cravings = _customPreferenceController.text.trim();
-    final inspiration = isZeroPantry
-        ? (cravings.isNotEmpty
-              ? cravings
-              : 'Inspiration: popular, highly-rated meals that match my preferences')
-        : cravings;
-
-    final allergies = profile?.preferences.allergies ?? const <String>[];
-    final dietary =
-        profile?.preferences.dietaryRestrictions ?? const <String>[];
-    final preferredCuisines =
-        profile?.preferences.preferredCuisines ?? const <String>[];
-
-    return (
-      pantryNames: pantryNames,
-      allergies: allergies,
-      dietary: dietary,
-      inspiration: inspiration,
-      preferredCuisines: preferredCuisines,
-      mealType: mealType,
-      cravings: cravings,
-    );
-  }
-
-  // Legacy deck key format (backward compatible with existing caches).
   String _buildDeckKeyLegacy({
     required List<String> pantryNames,
     required List<String> allergies,
@@ -355,6 +213,144 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     for (final key in keys) {
       _deckCache[key] = snapshot;
     }
+  }
+
+  String _norm(String value) => value.toLowerCase().trim();
+
+  String? _persistedUserIdOrNull() {
+    final authUser = ref.read(authProvider).user;
+    final isGuest = ref.read(appStateProvider).isGuest;
+    if (authUser == null) return null;
+    if (isGuest || authUser.isAnonymous == true) return null;
+    return authUser.uid;
+  }
+
+  int _remainingForEnergy(int energyLevel) {
+    var count = 0;
+    for (final r in _aiDeck) {
+      if (r.energyLevel != energyLevel) continue;
+      if (_consumedCardIds.contains(r.id)) continue;
+      count++;
+    }
+    return count;
+  }
+
+  void _markCardConsumed(Recipe recipe) {
+    if (!_consumedCardIds.add(recipe.id)) return;
+    final userId = _persistedUserIdOrNull();
+    if (userId == null) return;
+    unawaited(
+      ref
+          .read(databaseServiceProvider)
+          .markSwipeCardConsumed(userId, recipe.id),
+    );
+  }
+
+  Recipe _recipeFromPreview(RecipePreview p) {
+    final ing = p.ingredients.isNotEmpty ? p.ingredients : p.mainIngredients;
+    return Recipe(
+      id: p.id,
+      title: p.title,
+      imageUrl: p.imageUrl ?? ImageSearchService.getFallbackImage(p.mealType),
+      description: p.vibeDescription,
+      ingredients: ing,
+      instructions: const <String>[],
+      ingredientIds: ing.map((e) => _norm(e)).toList(),
+      energyLevel: p.energyLevel,
+      timeMinutes: p.estimatedTimeMinutes,
+      calories: p.calories,
+      equipment: p.equipmentIcons,
+      mealType: p.mealType,
+      cuisine: p.cuisine,
+      skillLevel: p.skillLevel,
+      dietaryTags: const <String>[],
+    );
+  }
+
+  Map<int, List<Recipe>> _partitionByEnergy(List<Recipe> recipes) {
+    final map = <int, List<Recipe>>{
+      0: <Recipe>[],
+      1: <Recipe>[],
+      2: <Recipe>[],
+      3: <Recipe>[],
+    };
+    for (final r in recipes) {
+      final e = (r.energyLevel).clamp(0, 3);
+      map.putIfAbsent(e, () => <Recipe>[]).add(r);
+    }
+    return map;
+  }
+
+  void _seedDeckFromDbRecipes({
+    required List<Recipe> recipes,
+    required ({
+      List<String> pantryNames,
+      List<String> allergies,
+      List<String> dietary,
+      String inspiration,
+      List<String> preferredCuisines,
+      String? mealType,
+      String cravings,
+    })
+    query,
+    required List<String> deckKeys,
+  }) {
+    setState(() {
+      _activeDeckQuery = query;
+      _consumedCardIds.clear();
+      _loadingMoreEnergy.clear();
+      _dbBufferByEnergy.clear();
+      _aiDeck = List<Recipe>.from(recipes);
+    });
+    _storeDeckCache(deckKeys, recipes);
+  }
+
+  Future<
+    ({
+      List<String> pantryNames,
+      List<String> allergies,
+      List<String> dietary,
+      String inspiration,
+      List<String> preferredCuisines,
+      String? mealType,
+      String cravings,
+    })
+  >
+  _computeDeckQuery() async {
+    final pantryItems =
+        ref.read(pantryItemsProvider).value ?? const <PantryItem>[];
+    final profile = ref.read(userProfileProvider).value;
+
+    final pantryNames = pantryItems
+        .map((p) => p.normalizedName)
+        .where((e) => e.trim().isNotEmpty)
+        .toList();
+
+    final isZeroPantry = pantryNames.isEmpty;
+    final mealType = profile?.preferences.defaultMealType;
+
+    final cravings = _customPreferenceController.text.trim();
+    final inspiration = isZeroPantry
+        ? (cravings.isNotEmpty
+              ? cravings
+              : 'Inspiration: popular, highly-rated meals that match my preferences')
+        : cravings;
+
+    final allergies = profile?.preferences.allergies ?? const <String>[];
+    final dietary =
+        profile?.preferences.dietaryRestrictions ?? const <String>[];
+    final preferredCuisines =
+        profile?.preferences.preferredCuisines ?? const <String>[];
+
+    return (
+      pantryNames: pantryNames,
+      allergies: allergies,
+      dietary: dietary,
+      inspiration: inspiration,
+      preferredCuisines: preferredCuisines,
+      mealType: mealType,
+      cravings: cravings,
+    );
   }
 
   Future<void> _refreshDeck({bool forceRegenerate = false}) async {
@@ -510,17 +506,9 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     if (_loadingMoreEnergy.contains(energyLevel)) return;
     if (_remainingForEnergy(energyLevel) > 0) return;
 
-    final buffered = _dbBufferByEnergy[energyLevel] ?? const <Recipe>[];
-    if (buffered.isNotEmpty) {
-      final take = buffered.length >= 3 ? 3 : buffered.length;
-      final next = buffered.take(take).toList(growable: false);
-      final rest = buffered.skip(take).toList(growable: false);
-      setState(() {
-        _aiDeck = [..._aiDeck, ...next];
-        _dbBufferByEnergy[energyLevel] = List<Recipe>.from(rest);
-      });
-      return;
-    }
+    // Only generate more when the *entire* deck is exhausted.
+    final totalRemaining = _aiDeck.where((r) => !_consumedCardIds.contains(r.id)).length;
+    if (totalRemaining > 0) return;
 
     final userId = _persistedUserIdOrNull();
     final requestToken = _deckRequestToken;
@@ -530,50 +518,14 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
       final query = _activeDeckQuery ?? await _computeDeckQuery();
       _activeDeckQuery ??= query;
 
-      final shownIds = <String>{};
-      for (final r in _aiDeck) {
-        shownIds.add(r.id);
-      }
-
-      // 1) Signed-in users: pull next 3 from DB first (until depleted).
-      if (userId != null) {
-        final previews = await ref
-            .read(databaseServiceProvider)
-            .getUnconsumedSwipeCards(userId);
-        if (!mounted || requestToken != _deckRequestToken) return;
-
-        final candidates = previews
-            .where(
-              (p) =>
-                  !_consumedCardIds.contains(p.id) && !shownIds.contains(p.id),
-            )
-            .map(_recipeFromPreview)
-            .toList(growable: false);
-
-        if (candidates.isNotEmpty) {
-          final byEnergy = _partitionByEnergy(candidates);
-          final newBuffers = <int, List<Recipe>>{};
-          for (final energy in const [0, 1, 2, 3]) {
-            newBuffers[energy] = List<Recipe>.from(
-              byEnergy[energy] ?? const <Recipe>[],
-            );
-          }
-
-          final list = newBuffers[energyLevel] ?? const <Recipe>[];
-          final take = list.length >= 3 ? 3 : list.length;
-          final next = list.take(take).toList(growable: false);
-          newBuffers[energyLevel] = list.skip(take).toList(growable: false);
-
-          setState(() {
-            _aiDeck = [..._aiDeck, ...next];
-            _dbBufferByEnergy
-              ..clear()
-              ..addAll(newBuffers);
-          });
-
-          if (next.isNotEmpty) return;
-        }
-      }
+      final deckKeys = _deckCacheKeysForQuery(
+        pantryNames: query.pantryNames,
+        allergies: query.allergies,
+        dietary: query.dietary,
+        preferredCuisines: query.preferredCuisines,
+        mealType: query.mealType,
+        cravings: query.cravings,
+      );
 
       final seenTitles = <String>{};
       for (final r in _aiDeck) {
@@ -619,6 +571,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
 
       if (added.isNotEmpty && mounted && requestToken == _deckRequestToken) {
         setState(() => _aiDeck = [..._aiDeck, ...added]);
+        _storeDeckCache(deckKeys, _aiDeck);
       }
 
       if (userId != null && persisted.isNotEmpty) {
@@ -626,8 +579,20 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
           ref.read(databaseServiceProvider).upsertSwipeCards(userId, persisted),
         );
       }
-    } catch (_) {
-      // Best-effort; avoid interrupting swipe UX.
+    } catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('SwipeScreen _loadMoreForEnergy failed: $e');
+        debugPrint('$st');
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.maybeOf(context)
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text("Couldn't load more recipes right now."),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
     } finally {
       if (mounted) setState(() => _loadingMoreEnergy.remove(energyLevel));
     }
@@ -932,15 +897,16 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
         shouldProceed = confirmed == true;
       }
 
-      if (!shouldProceed) {
+      if (!shouldProceed || !mounted) {
         await undoLastSwipe();
         return;
       }
 
       // Atomic spend (free users only) AFTER confirmation.
       if (!isPremium) {
-        final db = ref.read(databaseServiceProvider);
-        final success = await db.deductCarrot(userId);
+        final success = await ref
+            .read(databaseServiceProvider)
+            .deductCarrot(userId);
         if (!success) {
           if (!mounted) return;
           _showOutOfCarrots();
@@ -949,18 +915,25 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
         }
       }
 
-      // Generate full recipe ONLY after spend/premium bypass.
       final pantryItems =
           ref.read(pantryItemsProvider).value ?? const <PantryItem>[];
       final pantryNames = pantryItems.map((p) => p.normalizedName).toList();
 
       final full = await _ai.generateFullRecipe(
-        preview: preview.copyWith(
-          calories: preview.calories,
-          equipmentIcons: preview.equipmentIcons,
-          ingredients: preview.ingredients.isNotEmpty
-              ? preview.ingredients
-              : preview.mainIngredients,
+        preview: RecipePreview(
+          id: recipe.id,
+          title: recipe.title,
+          vibeDescription: recipe.description,
+          ingredients: recipe.ingredients,
+          mainIngredients: recipe.ingredients.take(5).toList(),
+          imageUrl: recipe.imageUrl,
+          estimatedTimeMinutes: recipe.timeMinutes,
+          calories: recipe.calories,
+          equipmentIcons: recipe.equipment,
+          mealType: recipe.mealType,
+          energyLevel: recipe.energyLevel,
+          cuisine: recipe.cuisine,
+          skillLevel: recipe.skillLevel,
         ),
         pantryItems: pantryNames,
         allergies: profile?.preferences.allergies ?? const <String>[],
@@ -973,46 +946,35 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
       final fullWithMeta = full.copyWith(
         id: recipe.id,
         imageUrl: recipe.imageUrl,
-        calories: full.calories > 0 ? full.calories : recipe.calories,
-        timeMinutes: full.timeMinutes > 0
-            ? full.timeMinutes
-            : recipe.timeMinutes,
-        equipment: full.equipment.isNotEmpty
-            ? full.equipment
-            : recipe.equipment,
         mealType: recipe.mealType,
         cuisine: recipe.cuisine,
         skillLevel: recipe.skillLevel,
         ingredientIds: recipe.ingredientIds,
+        calories: full.calories > 0 ? full.calories : recipe.calories,
+        timeMinutes: full.timeMinutes > 0 ? full.timeMinutes : recipe.timeMinutes,
+        equipment: full.equipment.isNotEmpty ? full.equipment : recipe.equipment,
       );
 
       await ref.read(recipeServiceProvider).saveRecipe(userId, fullWithMeta);
 
+      _markCardConsumed(recipe);
+      if (_remainingForEnergy(recipe.energyLevel) == 0) {
+        unawaited(_loadMoreForEnergy(recipe.energyLevel));
+      }
+
+      if (mounted) _openRecipeDetail(fullWithMeta);
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('SwipeScreen unlock failed: $e');
+      }
       if (mounted) {
-        _markCardConsumed(recipe);
-        if (_remainingForEnergy(recipe.energyLevel) == 0) {
-          unawaited(_loadMoreForEnergy(recipe.energyLevel));
-        }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              isPremium
-                  ? 'Recipe Unlocked & Saved!'
-                  : 'Recipe Unlocked & Saved! -1 Carrot',
-            ),
-            backgroundColor: AppTheme.primaryColor,
-            duration: const Duration(seconds: 2),
+          const SnackBar(
+            content: Text('Could not unlock that recipe. Please try again.'),
           ),
         );
-        _openRecipeDetail(fullWithMeta);
       }
-    } catch (e) {
       await undoLastSwipe();
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to unlock: $e')));
-      }
     } finally {
       if (mounted) {
         setState(() => _unlockFlowInProgress = false);
