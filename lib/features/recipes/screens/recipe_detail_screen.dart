@@ -13,11 +13,15 @@ import 'package:super_swipe/services/database/database_provider.dart';
 class RecipeDetailScreen extends ConsumerStatefulWidget {
   final String recipeId;
   final Recipe? initialRecipe;
+  final bool assumeUnlocked;
+  final bool openDirections;
 
   const RecipeDetailScreen({
     super.key,
     required this.recipeId,
     this.initialRecipe,
+    this.assumeUnlocked = false,
+    this.openDirections = false,
   });
 
   @override
@@ -25,7 +29,35 @@ class RecipeDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _directionsKey = GlobalKey();
+  bool _didAutoScrollToDirections = false;
+
   bool _isUpdatingProgress = false;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _maybeAutoScrollToDirections() {
+    if (_didAutoScrollToDirections) return;
+    if (!widget.openDirections) return;
+    _didAutoScrollToDirections = true;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final ctx = _directionsKey.currentContext;
+      if (ctx == null) return;
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+        alignment: 0.1,
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -72,22 +104,35 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
     final subscription =
         userProfile?.subscriptionStatus.toLowerCase() ?? 'free';
     final isPremium = subscription == 'premium';
+    final treatAsUnlocked = isPremium || widget.assumeUnlocked;
 
     return savedRecipeAsync.when(
       // CRITICAL FIX: Loading state shows spinner only, not recipe content
-      loading: () => Scaffold(
-        backgroundColor: AppTheme.backgroundColor,
-        appBar: AppBar(
-          title: Text(widget.initialRecipe?.title ?? 'Recipe'),
-          centerTitle: true,
-        ),
-        body: const AppPageLoading(),
-      ),
+      loading: () {
+        if (treatAsUnlocked && widget.initialRecipe != null) {
+          _maybeAutoScrollToDirections();
+          return _buildScaffoldForRecipe(
+            context,
+            widget.initialRecipe,
+            isLoading: true,
+            openDirections: widget.openDirections,
+          );
+        }
+
+        return Scaffold(
+          backgroundColor: AppTheme.backgroundColor,
+          appBar: AppBar(
+            title: Text(widget.initialRecipe?.title ?? 'Recipe'),
+            centerTitle: true,
+          ),
+          body: const AppPageLoading(),
+        );
+      },
       error: (error, stack) => _buildError(context, error),
       data: (savedRecipe) {
         // CRITICAL FIX: Free users MUST have recipe in savedRecipes (unlocked via carrot)
         // Premium users can use initialRecipe as fallback
-        final recipe = isPremium
+        final recipe = treatAsUnlocked
             ? (savedRecipe ?? widget.initialRecipe)
             : savedRecipe;
 
@@ -136,7 +181,12 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
           );
         }
 
-        return _buildScaffoldForRecipe(context, recipe);
+        _maybeAutoScrollToDirections();
+        return _buildScaffoldForRecipe(
+          context,
+          recipe,
+          openDirections: widget.openDirections,
+        );
       },
     );
   }
@@ -183,7 +233,12 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
     BuildContext context,
     Recipe? recipe, {
     bool isLoading = false,
+    bool openDirections = false,
   }) {
+    if (openDirections) {
+      _maybeAutoScrollToDirections();
+    }
+
     final safeRecipe = recipe;
     final instructions = safeRecipe?.instructions ?? const <String>[];
     final currentStep = safeRecipe?.currentStep ?? 0;
@@ -198,6 +253,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
       body: safeRecipe == null
           ? const AppPageLoading()
           : SingleChildScrollView(
+              controller: _scrollController,
               padding: const EdgeInsets.all(AppTheme.spacingL),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -325,6 +381,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                   // Directions
                   Text(
                     'Directions',
+                    key: _directionsKey,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w800,
                     ),

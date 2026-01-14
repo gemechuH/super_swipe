@@ -116,9 +116,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final recipeId = state.pathParameters['recipeId'] ?? '';
           final extra = state.extra;
+
+          Recipe? initialRecipe;
+          var assumeUnlocked = false;
+          var openDirections = false;
+
+          if (extra is Recipe) {
+            initialRecipe = extra;
+          } else if (extra is Map) {
+            final candidate = extra['recipe'];
+            if (candidate is Recipe) {
+              initialRecipe = candidate;
+            }
+            assumeUnlocked = extra['assumeUnlocked'] == true;
+            openDirections = extra['openDirections'] == true;
+          }
           return RecipeDetailScreen(
             recipeId: recipeId,
-            initialRecipe: extra is Recipe ? extra : null,
+            initialRecipe: initialRecipe,
+            assumeUnlocked: assumeUnlocked,
+            openDirections: openDirections,
           );
         },
       ),

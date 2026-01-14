@@ -45,14 +45,34 @@ class _ConfirmUnlockDialogState extends State<ConfirmUnlockDialog> {
   @override
   Widget build(BuildContext context) {
     final hasCarrots = widget.currentCarrots > 0;
+    final maxDialogHeight = MediaQuery.of(context).size.height * 0.85;
+
+    final headerGradient = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        AppTheme.primaryColor.withValues(alpha: 0.95),
+        AppTheme.primaryColor.withValues(alpha: 0.75),
+      ],
+    );
+
+    final cardBg = hasCarrots
+        ? const Color(0xFFFFF6EB)
+        : const Color(0xFFFFECEC);
+    final cardBorder = hasCarrots
+        ? const Color(0xFFFFD8A8)
+        : const Color(0xFFFFBDBD);
+    final accent = hasCarrots
+        ? const Color(0xFFB45309)
+        : const Color(0xFFB91C1C);
 
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 360),
+        constraints: BoxConstraints(maxWidth: 400, maxHeight: maxDialogHeight),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(28),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -60,26 +80,34 @@ class _ConfirmUnlockDialogState extends State<ConfirmUnlockDialog> {
             // Header with gradient
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    AppTheme.primaryColor,
-                    AppTheme.primaryColor.withValues(alpha: 0.8),
-                  ],
-                ),
+                gradient: headerGradient,
                 borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(24),
+                  top: Radius.circular(28),
                 ),
               ),
               child: Column(
                 children: [
-                  const Text('🥕', style: TextStyle(fontSize: 40)),
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.18),
+                      ),
+                    ),
+                    child: const Center(
+                      child: Text('🥕', style: TextStyle(fontSize: 18)),
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     'Unlock Recipe',
                     style: GoogleFonts.dmSerifDisplay(
-                      fontSize: 24,
+                      fontSize: 20,
                       color: Colors.white,
                       fontWeight: FontWeight.w600,
                     ),
@@ -89,178 +117,178 @@ class _ConfirmUnlockDialogState extends State<ConfirmUnlockDialog> {
             ),
 
             // Content
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Recipe title
-                  Text(
-                    widget.preview.title,
-                    style: GoogleFonts.dmSerifDisplay(
-                      fontSize: 20,
-                      color: const Color(0xFF2D2621),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Vibe description
-                  Text(
-                    widget.preview.vibeDescription,
-                    style: const TextStyle(
-                      color: AppTheme.textSecondary,
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Main ingredients preview
-                  if (widget.preview.mainIngredients.isNotEmpty) ...[
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: widget.preview.mainIngredients.take(4).map((
-                        ing,
-                      ) {
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            ing,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppTheme.primaryColor,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 20),
-                  ],
-
-                  // Unlock prompt
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: hasCarrots ? Colors.orange[50] : Colors.red[50],
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: hasCarrots
-                            ? Colors.orange[200]!
-                            : Colors.red[200]!,
+            Flexible(
+              fit: FlexFit.loose,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(22, 20, 22, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Recipe title
+                    Text(
+                      widget.preview.title,
+                      style: GoogleFonts.dmSerifDisplay(
+                        fontSize: 22,
+                        height: 1.1,
+                        color: const Color(0xFF1F2937),
                       ),
                     ),
-                    child: Column(
-                      children: [
-                        Text(
-                          hasCarrots
-                              ? 'Unlock Recipe? This uses 1 carrot.'
-                              : 'Out of Carrots! 🥕',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 16,
-                            color: hasCarrots
-                                ? Colors.orange[800]
-                                : Colors.red[800],
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          hasCarrots
-                              ? 'Confirm to unlock full instructions.'
-                              : 'Wait for your weekly carrot refresh or upgrade to Premium.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: hasCarrots
-                                ? Colors.orange[700]
-                                : Colors.red[700],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
+                    const SizedBox(height: 18),
 
-                        // Carrot balance indicator
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Text('🥕', style: TextStyle(fontSize: 18)),
-                            const SizedBox(width: 6),
-                            Text(
-                              '${widget.currentCarrots} / ${widget.maxCarrots}',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 18,
-                                color: hasCarrots
-                                    ? Colors.orange[800]
-                                    : Colors.red[800],
+                    // Unlock prompt
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: cardBorder),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                width: 28,
+                                height: 28,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: cardBorder),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    '🥕',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      color: accent,
+                                    ),
+                                  ),
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 10),
-
-                        // Do not show again
-                        Row(
-                          children: [
-                            Checkbox(
-                              value: _doNotShowAgain,
-                              onChanged: widget.isLoading
-                                  ? null
-                                  : (v) {
-                                      final next = v ?? false;
-                                      setState(() => _doNotShowAgain = next);
-                                      widget.onDoNotShowAgainChanged?.call(
-                                        next,
-                                      );
-                                    },
-                            ),
-                            const Expanded(
-                              child: Text(
-                                'Do not show again',
-                                style: TextStyle(color: AppTheme.textSecondary),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  hasCarrots
+                                      ? 'Unlock for 1 carrot'
+                                      : 'No carrots remaining',
+                                  style: GoogleFonts.inter(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 15,
+                                    color: accent,
+                                  ),
+                                ),
                               ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            hasCarrots
+                                ? 'Confirm to unlock full instructions and save this recipe to My Recipes.'
+                                : 'Weekly carrots reset automatically. You can try again after the next reset.',
+                            textAlign: TextAlign.left,
+                            style: GoogleFonts.inter(
+                              color: const Color(0xFF374151),
+                              height: 1.35,
+                              fontSize: 13.5,
                             ),
-                          ],
-                        ),
-                      ],
+                          ),
+                          const SizedBox(height: 14),
+
+                          // Carrot balance indicator
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: cardBorder),
+                            ),
+                            child: Row(
+                              children: [
+                                Text(
+                                  '🥕',
+                                  style: TextStyle(fontSize: 16, color: accent),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'This week',
+                                    style: GoogleFonts.inter(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13,
+                                      color: const Color(0xFF6B7280),
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  '${widget.currentCarrots} / ${widget.maxCarrots}',
+                                  style: GoogleFonts.inter(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 16,
+                                    color: accent,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 12),
+
+                          // Do not show again
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: Checkbox(
+                                  value: _doNotShowAgain,
+                                  onChanged: widget.isLoading
+                                      ? null
+                                      : (v) {
+                                          final next = v ?? false;
+                                          setState(
+                                            () => _doNotShowAgain = next,
+                                          );
+                                          widget.onDoNotShowAgainChanged?.call(
+                                            next,
+                                          );
+                                        },
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Do not show again',
+                                  softWrap: true,
+                                  style: GoogleFonts.inter(
+                                    color: const Color(0xFF6B7280),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
 
             // Actions
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: widget.isLoading ? null : widget.onCancel,
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        side: BorderSide(color: Colors.grey.shade300),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text(
-                        'Cancel',
-                        style: TextStyle(color: AppTheme.textSecondary),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
+                  SizedBox(
+                    height: 52,
                     child: ElevatedButton.icon(
                       onPressed: hasCarrots && !widget.isLoading
                           ? widget.onUnlock
@@ -275,16 +303,39 @@ class _ConfirmUnlockDialogState extends State<ConfirmUnlockDialog> {
                                 highlightColor: Color(0xFFFFFFFF),
                               ),
                             )
-                          : const Icon(Icons.lock_open_rounded, size: 20),
-                      label: Text(widget.isLoading ? 'Unlocking...' : 'Unlock'),
+                          : const Icon(Icons.lock_rounded, size: 20),
+                      label: Text(
+                        widget.isLoading ? 'Unlocking…' : 'Unlock',
+                        style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+                      ),
                       style: ElevatedButton.styleFrom(
+                        elevation: 0,
                         backgroundColor: hasCarrots
                             ? AppTheme.primaryColor
                             : Colors.grey.shade400,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 52,
+                    child: OutlinedButton(
+                      onPressed: widget.isLoading ? null : widget.onCancel,
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: Colors.grey.shade300),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: Text(
+                        'Cancel',
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF6B7280),
                         ),
                       ),
                     ),
