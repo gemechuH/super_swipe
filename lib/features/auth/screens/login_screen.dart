@@ -20,19 +20,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  ProviderSubscription<AuthState>? _authSubscription;
 
   @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final authState = ref.watch(authProvider);
-
-    ref.listen(authProvider, (previous, next) {
+  void initState() {
+    super.initState();
+    _authSubscription = ref.listenManual(authProvider, (previous, next) {
+      if (!mounted) return;
       if (next.error != null && previous?.error != next.error) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -43,6 +37,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ref.read(authProvider.notifier).clearError();
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.close();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final authState = ref.watch(authProvider);
 
     return Scaffold(
       body: SafeArea(

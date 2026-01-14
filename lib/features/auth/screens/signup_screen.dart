@@ -24,21 +24,13 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _agreeToTerms = false;
+  ProviderSubscription<AuthState>? _authSubscription;
 
   @override
-  void dispose() {
-    _nameController.dispose();
-    _emailController.dispose();
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final authState = ref.watch(authProvider);
-
-    ref.listen(authProvider, (previous, next) {
+  void initState() {
+    super.initState();
+    _authSubscription = ref.listenManual(authProvider, (previous, next) {
+      if (!mounted) return;
       if (next.error != null && previous?.error != next.error) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -49,6 +41,21 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
         ref.read(authProvider.notifier).clearError();
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.close();
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final authState = ref.watch(authProvider);
 
     return Scaffold(
       appBar: AppBar(

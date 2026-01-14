@@ -118,41 +118,41 @@ lib/
 
 ### 3.1 Core Technologies
 
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| Flutter | 3.10.3+ | Cross-platform framework |
-| Dart | 3.0+ | Programming language |
-| Firebase Core | ^3.6.0 | Firebase SDK |
-| Cloud Firestore | ^5.6.12 | NoSQL database |
-| Firebase Auth | ^5.3.1 | Authentication |
+| Technology      | Version | Purpose                  |
+| --------------- | ------- | ------------------------ |
+| Flutter         | 3.10.3+ | Cross-platform framework |
+| Dart            | 3.0+    | Programming language     |
+| Firebase Core   | ^3.6.0  | Firebase SDK             |
+| Cloud Firestore | ^5.6.12 | NoSQL database           |
+| Firebase Auth   | ^5.3.1  | Authentication           |
 
 ### 3.2 State Management
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| flutter_riverpod | ^2.5.1 | State management |
-| Providers | Custom | Data providers |
-| Notifiers | Custom | State notifiers |
+| Package          | Version | Purpose          |
+| ---------------- | ------- | ---------------- |
+| flutter_riverpod | ^2.5.1  | State management |
+| Providers        | Custom  | Data providers   |
+| Notifiers        | Custom  | State notifiers  |
 
 ### 3.3 UI/UX Packages
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| go_router | ^14.3.0 | Navigation |
-| google_fonts | ^6.2.1 | Typography |
-| cached_network_image | ^3.4.1 | Image caching |
-| appinio_swiper | ^2.1.1 | Swipe cards |
+| Package              | Version | Purpose       |
+| -------------------- | ------- | ------------- |
+| go_router            | ^14.3.0 | Navigation    |
+| google_fonts         | ^6.2.1  | Typography    |
+| cached_network_image | ^3.4.1  | Image caching |
+| appinio_swiper       | ^2.1.1  | Swipe cards   |
 
 ### 3.4 AI Vision & Camera
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| google_mlkit_image_labeling | ^0.14.0 | On-device food detection |
-| google_mlkit_object_detection | ^0.15.0 | Multi-item detection |
-| http | ^1.2.2 | Cloud Vision API calls |
-| camera | ^0.11.3 | Camera access |
-| image_picker | ^1.2.1 | Image selection |
-| permission_handler | ^12.0.1 | Permissions |
+| Package                       | Version | Purpose                  |
+| ----------------------------- | ------- | ------------------------ |
+| google_mlkit_image_labeling   | ^0.14.0 | On-device food detection |
+| google_mlkit_object_detection | ^0.15.0 | Multi-item detection     |
+| http                          | ^1.2.2  | Cloud Vision API calls   |
+| camera                        | ^0.11.3 | Camera access            |
+| image_picker                  | ^1.2.1  | Image selection          |
+| permission_handler            | ^12.0.1 | Permissions              |
 
 ---
 
@@ -170,14 +170,14 @@ lib/
   displayName: string,
   isAnonymous: boolean,
   photoURL: string?,
-  
+
   // Carrot System
   carrots: {
     current: number,          // Current carrots available
     max: number,              // Maximum (5 for free, 999 for premium)
     lastResetAt: timestamp    // Last weekly reset
   },
-  
+
   // User Preferences
   preferences: {
     dietaryRestrictions: string[],  // ["vegetarian", "gluten-free"]
@@ -185,14 +185,14 @@ lib/
     defaultEnergyLevel: number,     // 0-3
     preferredCuisines: string[]
   },
-  
+
   // App State
   appState: {
     hasSeenOnboarding: boolean,
     hasSeenTutorials: map,
     lastActiveAt: timestamp
   },
-  
+
   // Statistics
   stats: {
     recipesUnlocked: number,
@@ -201,11 +201,11 @@ lib/
     accountCreatedAt: timestamp,
     lastLoginAt: timestamp
   },
-  
+
   // Subscription
   subscriptionStatus: string,       // "free" | "premium"
   subscriptionExpiresAt: timestamp?,
-  
+
   // Timestamps
   accountCreatedAt: timestamp,
   lastLoginAt: timestamp,
@@ -220,21 +220,21 @@ lib/
   // Identity
   id: string,
   userId: string,
-  
+
   // Item Details
   name: string,                 // "Whole Milk"
   normalizedName: string,       // "milk" (for search)
   category: string,             // "dairy", "produce", "protein"
   quantity: number,
   unit: string,                 // "pieces", "cups", "lbs"
-  
+
   // Metadata
   source: string,               // "manual", "ml-kit", "cloud-vision"
   detectionConfidence: number?, // 0.0-1.0 (if scanned)
-  
+
   // Expiration
   expiresAt: timestamp?,
-  
+
   // Timestamps
   addedAt: timestamp,
   createdAt: timestamp,
@@ -248,7 +248,7 @@ lib/
 {
   // Recipe Reference
   recipeId: string,
-  
+
   // Cached Data (for offline access)
   title: string,
   imageUrl: string,
@@ -256,7 +256,7 @@ lib/
   servings: string,
   difficulty: string,
   calories: number,
-  
+
   // Timestamps
   savedAt: timestamp
 }
@@ -269,39 +269,39 @@ lib/
   // Identity
   id: string,
   title: string,
-  
+
   // Content
   description: string,
   imageUrl: string,
   ingredients: string[],        // ["2 cups milk", "1 egg"]
   ingredientIds: string[],      // ["milk", "eggs"] (for matching)
   instructions: string[],
-  
+
   // Classification
   energyLevel: number,          // 0: Sleepy, 1: Low, 2: Okay, 3: High
   timeMinutes: number,
   calories: number,
   servings: number?,
   difficulty: string,           // "easy", "medium", "hard"
-  
+
   // Metadata
   equipment: string[],          // ["stovetop", "pot", "whisk"]
   cuisine: string,              // "italian", "mexican", "american"
   dietaryTags: string[],        // ["vegetarian", "gluten-free"]
   allergens: string[],          // ["dairy", "eggs", "nuts"]
-  
+
   // System
   timeTier: string,             // "quick", "medium", "long"
   isPremium: boolean,
   isActive: boolean,
-  
+
   // Statistics
   stats: {
     likes: number,
     unlocks: number,
     popularityScore: number     // Calculated score for ranking
   },
-  
+
   // Timestamps
   createdAt: timestamp,
   updatedAt: timestamp,
@@ -315,44 +315,44 @@ lib/
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+
     // Helper Functions
     function isSignedIn() {
       return request.auth != null;
     }
-    
+
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
-    
+
     // USERS COLLECTION
     match /users/{userId} {
       allow read: if isOwner(userId);
       allow write: if isOwner(userId);
-      
+
       // PANTRY SUB-COLLECTION
       match /pantry/{itemId} {
         allow read, write: if isOwner(userId);
       }
-      
+
       // SAVED RECIPES SUB-COLLECTION
       match /savedRecipes/{recipeId} {
         allow read, write: if isOwner(userId);
       }
     }
-    
+
     // RECIPES COLLECTION (Read-only for users)
     match /recipes/{recipeId} {
       allow read: if isSignedIn();
       allow write: if false;  // Admin only
     }
-    
+
     // HYBRID VISION QUOTA & USAGE TRACKING
     match /vision_usage/{usageId} {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
     }
-    
+
     match /user_quotas/{userId} {
       allow read: if isOwner(userId);
       allow create, update: if isOwner(userId);
@@ -370,7 +370,7 @@ Collection: recipes
 Fields: (isActive, energyLevel, stats.popularityScore DESC)
 Query Scope: Collection
 
-Collection: recipes  
+Collection: recipes
 Fields: (isActive, dietaryTags ARRAY, stats.popularityScore DESC)
 Query Scope: Collection
 
@@ -390,11 +390,11 @@ Query Scope: Collection
 ```dart
 class FirestoreService {
   final FirebaseFirestore instance;
-  
+
   // Collection References
   CollectionReference get users => instance.collection('users');
   CollectionReference get recipes => instance.collection('recipes');
-  
+
   // Sub-collection Access
   CollectionReference userPantry(String userId);
   CollectionReference userSavedRecipes(String userId);
@@ -407,6 +407,7 @@ class FirestoreService {
 **Purpose**: User profile and carrot management
 
 **Methods**:
+
 - `createUserProfile(User)` - Create initial profile on signup
 - `getUserProfile(userId)` - Fetch user profile
 - `watchUserProfile(userId)` - Real-time profile stream
@@ -421,6 +422,7 @@ class FirestoreService {
 **Purpose**: Pantry item CRUD operations
 
 **Methods**:
+
 - `addPantryItem(userId, item)` - Add single item
 - `batchAddPantryItems(userId, items)` - Batch add (for scanning)
 - `getUserPantry(userId)` - One-time fetch
@@ -436,6 +438,7 @@ class FirestoreService {
 **Purpose**: Recipe discovery and saved recipes management
 
 **Methods**:
+
 - `saveRecipe(userId, recipe)` - Save unlocked recipe
 - `getSavedRecipes(userId)` - Fetch all saved
 - `watchSavedRecipes(userId)` - Real-time saved recipes
@@ -450,12 +453,14 @@ class FirestoreService {
 **Purpose**: High-performance image loading with caching
 
 **Features**:
+
 - Smart caching with size limits
 - Automatic compression
 - Progressive loading
 - Memory optimization
 
 **Usage**:
+
 ```dart
 // Simple usage
 RecipeImage(
@@ -473,6 +478,7 @@ recipe.imageUrl.toOptimizedImage(fit: BoxFit.cover)
 **Purpose**: Orchestrates ML Kit and Cloud Vision usage with cost controls
 
 **Methods**:
+
 - `init()` - Initialize service and user quotas
 - `detectFood(image, userId, forceCloudVision)` - Smart food detection
 - `_shouldUpgradeToCloudVision()` - Decision logic for API usage
@@ -482,6 +488,7 @@ recipe.imageUrl.toOptimizedImage(fit: BoxFit.cover)
 **Purpose**: Manages Cloud Vision API usage and enforces limits
 
 **Methods**:
+
 - `checkQuota(userId)` - Check current usage status
 - `recordUsage(userId, details)` - Log scan analytics
 - `_getUserLimits(userId)` - Fetch user-specific quotas
@@ -492,6 +499,7 @@ recipe.imageUrl.toOptimizedImage(fit: BoxFit.cover)
 **Purpose**: On-device food detection with ML Kit
 
 **Methods**:
+
 - `detectFood(image)` - Process image with ML Kit
 - `isConfidentEnough(result)` - Evaluate if ML Kit is sufficient
 
@@ -500,6 +508,7 @@ recipe.imageUrl.toOptimizedImage(fit: BoxFit.cover)
 **Purpose**: High-accuracy food detection via Google Cloud Vision API
 
 **Methods**:
+
 - `detectFood(image)` - Process image with Cloud Vision
 - `_parseResponse()` - Advanced filtering and normalization
 - `_findBestQuantity()` - Priority-based quantity matching
@@ -511,6 +520,7 @@ recipe.imageUrl.toOptimizedImage(fit: BoxFit.cover)
 ### 6.1 Riverpod Providers
 
 #### **Auth Provider**
+
 ```dart
 final authProvider = ChangeNotifierProvider<AuthNotifier>((ref) {
   return AuthNotifier(ref.read(authServiceProvider));
@@ -518,6 +528,7 @@ final authProvider = ChangeNotifierProvider<AuthNotifier>((ref) {
 ```
 
 #### **User Data Providers**
+
 ```dart
 // Real-time user profile
 final userProfileProvider = StreamProvider<UserProfile?>((ref) {
@@ -535,6 +546,7 @@ final pantryItemsProvider = StreamProvider<List<PantryItem>>((ref) {
 ```
 
 #### **Recipe Providers**
+
 ```dart
 // Saved recipes stream
 final savedRecipesProvider = StreamProvider<List<Recipe>>((ref) {
@@ -554,14 +566,15 @@ final isRecipeSavedProvider = FutureProvider.family<bool, String>((ref, recipeId
 ### 6.2 State Flow Examples
 
 #### **Recipe Unlock Flow**
+
 ```
 1. User swipes right on SwipeScreen
 2. UI shows unlock confirmation
 3. User confirms
 4. SwipeScreen calls:
-   - userService.spendCarrots(1)
-   - recipeService.saveRecipe()
-   - userService.incrementRecipesUnlocked()
+  - databaseService.deductCarrot(userId) (free users only)
+  - recipeService.getRecipeById(recipeId) (fetch from global `recipes`)
+  - recipeService.saveRecipe(userId, recipe) (save to `users/{uid}/savedRecipes`)
 5. Providers auto-update:
    - userProfileProvider (carrot count)
    - savedRecipesProvider (new recipe)
@@ -569,6 +582,7 @@ final isRecipeSavedProvider = FutureProvider.family<bool, String>((ref, recipeId
 ```
 
 #### **Pantry Scan Flow**
+
 ```
 1. User opens ScanScreen
 2. Takes photo with camera
@@ -642,12 +656,14 @@ final isRecipeSavedProvider = FutureProvider.family<bool, String>((ref, recipeId
 **Purpose**: Gamification & monetization
 
 **Rules**:
+
 - Free users: 5 carrots/week
 - Premium users: Unlimited
 - Cost per recipe unlock: 1 carrot
 - Weekly reset: Every Monday 00:00 UTC
 
 **Implementation**:
+
 ```dart
 // Check if user can unlock
 if (userProfile.carrots.current >= 1) {
@@ -664,11 +680,14 @@ if (userProfile.carrots.current >= 1) {
 **Component**: `SwipeScreen`
 
 **Flow**:
-1. Recipes filtered by energy level
-2. AppinioSwiper displays cards
-3. Left swipe → Dismiss
+
+1. SwipeScreen loads recipes from the global `recipes` collection (shared pool)
+2. AppinioSwiper displays cards filtered by energy level
+3. Left swipe → Dismiss (session-only; not stored per-user)
 4. Right swipe → Trigger unlock prompt
-5. User confirms → Spend carrot → Save recipe
+5. User confirms → Spend carrot (free only) → Fetch full recipe from global → Save to user's cookbook
+
+**Note**: Recipe generation does NOT happen on SwipeScreen. Any recipe generated elsewhere is published into the global pool and becomes swipeable for everyone.
 
 **Energy Levels**:
 | Level | Icon | Name | Time Range | Use Case |
@@ -683,10 +702,12 @@ if (userProfile.carrots.current >= 1) {
 **Architecture**: Smart ML Kit + Cloud Vision combination
 
 **Strategy**: Cost-optimized graduated approach
+
 - **ML Kit First**: Fast, free on-device processing
 - **Cloud Vision Upgrade**: High-accuracy API used selectively
 
 **Decision Logic**:
+
 ```
 IF 1 item detected AND confidence > 50%
   → Use ML Kit (fast, free)
@@ -699,12 +720,14 @@ ELSE (low confidence OR 4+ items)
 ```
 
 **Cost Controls**:
+
 - **Free Users**: 10 Cloud Vision requests/day
 - **Premium Users**: 50 Cloud Vision requests/day
 - **Graceful Degradation**: Falls back to ML Kit when quota reached
 - **Real-time Tracking**: Firestore-based usage monitoring
 
 **Process Flow**:
+
 ```
 1. User takes photo
 2. ML Kit processes image (on-device)
@@ -719,6 +742,7 @@ ELSE (low confidence OR 4+ items)
 ```
 
 **Advanced Features**:
+
 - **Food Filtering**: Removes generic labels (e.g., "natural foods")
 - **Smart Normalization**: Consolidates similar items
 - **Quantity Accuracy**: Priority-based matching with position deduplication
@@ -746,23 +770,27 @@ stream = firestoreService
 ### 9.1 Image Optimization
 
 **Strategy**:
+
 - CachedNetworkImage for all network images
 - Max dimensions: 1024x1024 (recipes), 200x200 (thumbnails)
 - 7-day cache expiration
 - LRU cache (200 images max)
 
 **Impact**:
+
 - 60-70% faster loading
 - 50% less memory usage
 
 ### 9.2 Firestore Optimization
 
 **Queries**:
+
 - Pagination with cursor-based loading
 - Indexed queries for performance
 - Offline persistence enabled
 
 **Best Practices**:
+
 ```dart
 // ❌ Bad: Load all pantry items
 collection.get()
@@ -774,6 +802,7 @@ collection.limit(20).get()
 ### 9.3 Build Optimization
 
 **Techniques**:
+
 - `const` constructors everywhere
 - `RepaintBoundary` for expensive widgets
 - Riverpod `.select()` for granular rebuilds
@@ -782,6 +811,7 @@ collection.limit(20).get()
 ### 9.4 Memory Management
 
 **Disposal**:
+
 - Controllers disposed in `dispose()`
 - Streams canceled properly
 - Riverpod `autoDispose` providers
@@ -804,6 +834,7 @@ collection.limit(20).get()
 ### 10.2 Build for Production
 
 **Android**:
+
 ```bash
 flutter build apk --release
 # Output: build/app/outputs/flutter-apk/app-release.apk
@@ -813,6 +844,7 @@ flutter build appbundle --release
 ```
 
 **iOS**:
+
 ```bash
 flutter build ios --release
 # Then use Xcode to archive and upload
@@ -821,11 +853,13 @@ flutter build ios --release
 ### 10.3 Environment Configuration
 
 **Development**:
+
 ```dart
 const bool isDevelopment = bool.fromEnvironment('DEV', defaultValue: true);
 ```
 
 **Production**:
+
 ```bash
 flutter run --dart-define=DEV=false
 flutter build apk --dart-define=DEV=false
@@ -842,6 +876,7 @@ flutter build apk --dart-define=DEV=false
 **Error**: `[cloud_firestore/permission-denied]`
 
 **Fix**:
+
 1. Check security rules deployed
 2. Verify user is signed in
 3. Confirm userId matches document path
@@ -851,6 +886,7 @@ flutter build apk --dart-define=DEV=false
 **Issue**: <70% accuracy
 
 **Solutions**:
+
 - Ensure good lighting
 - Clear, focused images
 - One item per scan
@@ -859,6 +895,7 @@ flutter build apk --dart-define=DEV=false
 #### **Images Not Loading**
 
 **Check**:
+
 1. Internet connection
 2. Image URLs valid
 3. Cache cleared: `CachedNetworkImage.evictFromCache(url)`
@@ -887,6 +924,7 @@ flutter pub get
 ### ✅ Milestone 1: UI + Auth (Complete - 98/100)
 
 **Deliverables**:
+
 - [x] Onboarding screens (3 slides)
 - [x] Authentication (Email, Google, Anonymous)
 - [x] Navigation (10 screens)
@@ -900,6 +938,7 @@ flutter pub get
 ### ✅ Milestone 2: Pantry System (Complete - 100/100)
 
 **Deliverables**:
+
 - [x] Firestore database setup
 - [x] Add/Edit/Delete ingredients
 - [x] Real-time synchronization
@@ -913,6 +952,7 @@ flutter pub get
 ### ✅ Milestone 3: Hybrid AI Vision (Complete - 98/100)
 
 **Deliverables**:
+
 - [x] Camera integration
 - [x] ML Kit on-device detection
 - [x] Cloud Vision API integration
@@ -931,6 +971,7 @@ flutter pub get
 ### 🚧 Milestone 4: AI Recipe Engine (In Progress)
 
 **Requirements**:
+
 - [ ] OpenAI API integration
 - [ ] Ingredient-based generation
 - [ ] Diet/allergy filtering
@@ -944,6 +985,7 @@ flutter pub get
 ### 📅 Milestone 5: Polish & Special Modes (Planned)
 
 **Requirements**:
+
 - [ ] Texture Fix AI mode
 - [ ] Leftover Repurpose mode
 - [ ] UI polish & animations
@@ -957,18 +999,21 @@ flutter pub get
 ## 📊 FINAL METRICS
 
 ### Code Quality
+
 - **Grade**: A+ (97.7/100)
 - **Warnings**: 0
 - **Null Safety**: 100%
 - **Architecture**: Clean
 
 ### Performance
+
 - **Startup**: <1.0s
 - **Frame Rate**: 60fps
 - **Memory**: ~80MB
 - **APK Size**: ~35MB
 
 ### Features
+
 - **Screens**: 10/10 (100%)
 - **Database**: Fully integrated
 - **Offline**: Full support
@@ -979,12 +1024,14 @@ flutter pub get
 ## 🎯 QUICK REFERENCE
 
 ### Important Files
+
 - `lib/main.dart` - App entry point
 - `lib/core/config/constants.dart` - All constants
 - `lib/core/router/app_router.dart` - Navigation
 - `firestore.rules` - Security rules
 
 ### Key Commands
+
 ```bash
 # Run app
 flutter run
@@ -1000,6 +1047,7 @@ flutter analyze
 ```
 
 ### Useful Links
+
 - Firebase Console: https://console.firebase.google.com
 - Flutter Docs: https://docs.flutter.dev
 - Riverpod Docs: https://riverpod.dev
@@ -1012,4 +1060,4 @@ flutter analyze
 
 ---
 
-*For additional support or questions, contact the development team.*
+_For additional support or questions, contact the development team._

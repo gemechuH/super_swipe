@@ -2,25 +2,24 @@ import 'dart:async';
 
 import 'package:appinio_swiper/appinio_swiper.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:super_swipe/core/models/pantry_item.dart';
 import 'package:super_swipe/core/models/recipe.dart';
+import 'package:super_swipe/core/models/recipe_preview.dart';
 import 'package:super_swipe/core/providers/app_state_provider.dart';
 import 'package:super_swipe/core/providers/recipe_providers.dart';
 import 'package:super_swipe/core/providers/user_data_providers.dart';
-
 import 'package:super_swipe/core/router/app_router.dart';
 import 'package:super_swipe/core/theme/app_theme.dart';
-import 'package:super_swipe/core/models/recipe_preview.dart';
+import 'package:super_swipe/core/widgets/shared/master_energy_slider.dart';
 import 'package:super_swipe/core/widgets/dialogs/confirm_unlock_dialog.dart';
 import 'package:super_swipe/core/widgets/loading/app_loading.dart';
 import 'package:super_swipe/features/auth/providers/auth_provider.dart';
 import 'package:super_swipe/services/database/database_provider.dart';
-import 'package:super_swipe/services/ai/ai_recipe_service.dart';
-import 'package:super_swipe/services/image/image_search_service.dart';
 
 class SwipeScreen extends ConsumerStatefulWidget {
   const SwipeScreen({super.key});
@@ -29,559 +28,70 @@ class SwipeScreen extends ConsumerStatefulWidget {
   ConsumerState<SwipeScreen> createState() => _SwipeScreenState();
 }
 
+/// Swipe = browse global recipes.
+/// - Reads from global `recipes` collection (paged by energy)
+/// - No AI generation happens here
+/// - No per-user swipe-state is stored (dismiss is session-only)
+/// - Unlock saves recipe into `users/{uid}/savedRecipes/{recipeId}`
 class _SwipeScreenState extends ConsumerState<SwipeScreen> {
   final AppinioSwiperController _swiperController = AppinioSwiperController();
-  int _selectedEnergyLevel = 2; // Default to 'Okay'
+
+  int _selectedEnergyLevel = 2;
   bool _unlockFlowInProgress = false;
 
   bool _deckLoading = false;
-  int _deckRequestToken = 0;
-  DateTime? _lastChefStatusAt;
-  List<Recipe> _aiDeck = const <Recipe>[];
-  final Set<String> _consumedCardIds = <String>{};
+  int _swiperRebuildToken = 0;
+  final Set<String> _dismissedCardIds = <String>{};
+
+  final Map<int, List<Recipe>> _recipesByEnergy = <int, List<Recipe>>{};
+  final Map<int, DocumentSnapshot?> _lastDocByEnergy =
+      <int, DocumentSnapshot?>{};
   final Set<int> _loadingMoreEnergy = <int>{};
-  final Map<int, List<Recipe>> _dbBufferByEnergy = <int, List<Recipe>>{};
-  late final AiRecipeService _ai;
-  final ImageSearchService _imageService = ImageSearchService();
-  static final Map<String, List<Recipe>> _deckCache = <String, List<Recipe>>{};
-
-  ({
-    List<String> pantryNames,
-    List<String> allergies,
-    List<String> dietary,
-    String inspiration,
-    List<String> preferredCuisines,
-    String? mealType,
-    String cravings,
-  })?
-  _activeDeckQuery;
-
-  // Filter Panel state (PDF spec)
-  final TextEditingController _customPreferenceController =
-      TextEditingController();
-  // Filters are intentionally disabled for now per request.
 
   @override
   void dispose() {
     _swiperController.dispose();
-    _customPreferenceController.dispose();
     super.dispose();
   }
 
   @override
   void initState() {
     super.initState();
-    _ai = AiRecipeService(onStatus: _handleChefStatus);
-
-    ref.listen(authProvider, (previous, next) {
-      final prevUid = previous?.user?.uid;
-      final nextUid = next.user?.uid;
-      final prevAnon = previous?.user?.isAnonymous;
-      final nextAnon = next.user?.isAnonymous;
-
-      if (prevUid != nextUid || prevAnon != nextAnon) {
-        unawaited(_refreshDeck());
-      }
-    });
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_refreshDeck());
+      unawaited(_refreshEnergy(energyLevel: _selectedEnergyLevel));
     });
-  }
-
-  void _handleChefStatus(String message) {
-    if (!mounted) return;
-    final now = DateTime.now();
-    final last = _lastChefStatusAt;
-    if (last != null && now.difference(last).inSeconds < 2) return;
-    _lastChefStatusAt = now;
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    if (messenger == null) return;
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          duration: const Duration(seconds: 2),
-          backgroundColor: AppTheme.primaryColor,
-        ),
-      );
-  }
-
-  String _buildDeckKeyLegacy({
-    required List<String> pantryNames,
-    required List<String> allergies,
-    required List<String> dietary,
-    required List<String> preferredCuisines,
-    required String? mealType,
-    required String cravings,
-  }) {
-    final p = [...pantryNames]..sort();
-    final a = [...allergies]..sort();
-    final d = [...dietary]..sort();
-    final pc = [...preferredCuisines]..sort();
-    final m = mealType ?? '';
-    final cr = cravings;
-
-    return 'p=${p.join(",")}|a=${a.join(",")}|d=${d.join(",")}|pc=${pc.join(",")}|m=$m|cr=$cr';
-  }
-
-  // Normalized variant (still uses legacy labels). Useful for future stability.
-  String _buildDeckKeyNormalized({
-    required List<String> pantryNames,
-    required List<String> allergies,
-    required List<String> dietary,
-    required List<String> preferredCuisines,
-    required String? mealType,
-    required String cravings,
-  }) {
-    final p = pantryNames.map(_norm).toList()..sort();
-    final a = allergies.map(_norm).toList()..sort();
-    final d = dietary.map(_norm).toList()..sort();
-    final pc = preferredCuisines.map(_norm).toList()..sort();
-    final m = mealType == null ? '' : _norm(mealType);
-    final cr = _norm(cravings);
-
-    return 'p=${p.join(",")}|a=${a.join(",")}|d=${d.join(",")}|pc=${pc.join(",")}|m=$m|cr=$cr';
-  }
-
-  // Short-lived format used previously (c/q labels). Kept for cache migration.
-  String _buildDeckKeyCqLabels({
-    required List<String> pantryNames,
-    required List<String> allergies,
-    required List<String> dietary,
-    required List<String> preferredCuisines,
-    required String? mealType,
-    required String cravings,
-  }) {
-    final p = pantryNames.map(_norm).toList()..sort();
-    final a = allergies.map(_norm).toList()..sort();
-    final d = dietary.map(_norm).toList()..sort();
-    final c = preferredCuisines.map(_norm).toList()..sort();
-    final m = mealType == null ? '' : _norm(mealType);
-    final q = _norm(cravings);
-
-    return 'p=${p.join(",")}|a=${a.join(",")}|d=${d.join(",")}|c=${c.join(",")}|m=$m|q=$q';
-  }
-
-  List<String> _deckCacheKeysForQuery({
-    required List<String> pantryNames,
-    required List<String> allergies,
-    required List<String> dietary,
-    required List<String> preferredCuisines,
-    required String? mealType,
-    required String cravings,
-  }) {
-    return <String>{
-      _buildDeckKeyLegacy(
-        pantryNames: pantryNames,
-        allergies: allergies,
-        dietary: dietary,
-        preferredCuisines: preferredCuisines,
-        mealType: mealType,
-        cravings: cravings,
-      ),
-      _buildDeckKeyNormalized(
-        pantryNames: pantryNames,
-        allergies: allergies,
-        dietary: dietary,
-        preferredCuisines: preferredCuisines,
-        mealType: mealType,
-        cravings: cravings,
-      ),
-      _buildDeckKeyCqLabels(
-        pantryNames: pantryNames,
-        allergies: allergies,
-        dietary: dietary,
-        preferredCuisines: preferredCuisines,
-        mealType: mealType,
-        cravings: cravings,
-      ),
-    }.toList(growable: false);
-  }
-
-  List<Recipe>? _getCachedDeck(List<String> keys) {
-    for (final key in keys) {
-      final cached = _deckCache[key];
-      if (cached != null && cached.isNotEmpty) return cached;
-    }
-    return null;
-  }
-
-  void _storeDeckCache(List<String> keys, List<Recipe> deck) {
-    final snapshot = List<Recipe>.from(deck);
-    for (final key in keys) {
-      _deckCache[key] = snapshot;
-    }
   }
 
   String _norm(String value) => value.toLowerCase().trim();
 
-  String? _persistedUserIdOrNull() {
-    final authUser = ref.read(authProvider).user;
-    final isGuest = ref.read(appStateProvider).isGuest;
-    if (authUser == null) return null;
-    if (isGuest || authUser.isAnonymous == true) return null;
-    return authUser.uid;
+  List<Recipe> _deckForEnergy(int energyLevel) {
+    return _recipesByEnergy[energyLevel] ?? const <Recipe>[];
   }
 
-  int _remainingForEnergy(int energyLevel) {
-    var count = 0;
-    for (final r in _aiDeck) {
-      if (r.energyLevel != energyLevel) continue;
-      if (_consumedCardIds.contains(r.id)) continue;
-      count++;
-    }
-    return count;
+  Future<void> _ensureEnergyLoaded(int energyLevel) async {
+    if (_deckForEnergy(energyLevel).isNotEmpty) return;
+    await _refreshEnergy(energyLevel: energyLevel);
   }
 
-  void _markCardConsumed(Recipe recipe) {
-    if (!_consumedCardIds.add(recipe.id)) return;
-    final userId = _persistedUserIdOrNull();
-    if (userId == null) return;
-    unawaited(
-      ref
-          .read(databaseServiceProvider)
-          .markSwipeCardConsumed(userId, recipe.id),
-    );
-  }
-
-  Recipe _recipeFromPreview(RecipePreview p) {
-    final ing = p.ingredients.isNotEmpty ? p.ingredients : p.mainIngredients;
-    return Recipe(
-      id: p.id,
-      title: p.title,
-      imageUrl: p.imageUrl ?? ImageSearchService.getFallbackImage(p.mealType),
-      description: p.vibeDescription,
-      ingredients: ing,
-      instructions: const <String>[],
-      ingredientIds: ing.map((e) => _norm(e)).toList(),
-      energyLevel: p.energyLevel,
-      timeMinutes: p.estimatedTimeMinutes,
-      calories: p.calories,
-      equipment: p.equipmentIcons,
-      mealType: p.mealType,
-      cuisine: p.cuisine,
-      skillLevel: p.skillLevel,
-      dietaryTags: const <String>[],
-    );
-  }
-
-  Map<int, List<Recipe>> _partitionByEnergy(List<Recipe> recipes) {
-    final map = <int, List<Recipe>>{
-      0: <Recipe>[],
-      1: <Recipe>[],
-      2: <Recipe>[],
-      3: <Recipe>[],
-    };
-    for (final r in recipes) {
-      final e = (r.energyLevel).clamp(0, 3);
-      map.putIfAbsent(e, () => <Recipe>[]).add(r);
-    }
-    return map;
-  }
-
-  void _seedDeckFromDbRecipes({
-    required List<Recipe> recipes,
-    required ({
-      List<String> pantryNames,
-      List<String> allergies,
-      List<String> dietary,
-      String inspiration,
-      List<String> preferredCuisines,
-      String? mealType,
-      String cravings,
-    })
-    query,
-    required List<String> deckKeys,
-  }) {
-    setState(() {
-      _activeDeckQuery = query;
-      _consumedCardIds.clear();
-      _loadingMoreEnergy.clear();
-      _dbBufferByEnergy.clear();
-      _aiDeck = List<Recipe>.from(recipes);
-    });
-    _storeDeckCache(deckKeys, recipes);
-  }
-
-  Future<
-    ({
-      List<String> pantryNames,
-      List<String> allergies,
-      List<String> dietary,
-      String inspiration,
-      List<String> preferredCuisines,
-      String? mealType,
-      String cravings,
-    })
-  >
-  _computeDeckQuery() async {
-    final pantryItems =
-        ref.read(pantryItemsProvider).value ?? const <PantryItem>[];
-    final profile = ref.read(userProfileProvider).value;
-
-    final pantryNames = pantryItems
-        .map((p) => p.normalizedName)
-        .where((e) => e.trim().isNotEmpty)
-        .toList();
-
-    final isZeroPantry = pantryNames.isEmpty;
-    final mealType = profile?.preferences.defaultMealType;
-
-    final cravings = _customPreferenceController.text.trim();
-    final inspiration = isZeroPantry
-        ? (cravings.isNotEmpty
-              ? cravings
-              : 'Inspiration: popular, highly-rated meals that match my preferences')
-        : cravings;
-
-    final allergies = profile?.preferences.allergies ?? const <String>[];
-    final dietary =
-        profile?.preferences.dietaryRestrictions ?? const <String>[];
-    final preferredCuisines =
-        profile?.preferences.preferredCuisines ?? const <String>[];
-
-    return (
-      pantryNames: pantryNames,
-      allergies: allergies,
-      dietary: dietary,
-      inspiration: inspiration,
-      preferredCuisines: preferredCuisines,
-      mealType: mealType,
-      cravings: cravings,
-    );
-  }
-
-  Future<void> _refreshDeck({bool forceRegenerate = false}) async {
+  Future<void> _refreshEnergy({required int energyLevel}) async {
     if (_deckLoading) return;
-    final requestToken = ++_deckRequestToken;
-    final userId = _persistedUserIdOrNull();
-
     setState(() => _deckLoading = true);
 
     try {
-      final query = await _computeDeckQuery();
-      final deckKeys = _deckCacheKeysForQuery(
-        pantryNames: query.pantryNames,
-        allergies: query.allergies,
-        dietary: query.dietary,
-        preferredCuisines: query.preferredCuisines,
-        mealType: query.mealType,
-        cravings: query.cravings,
-      );
+      final page = await ref
+          .read(recipeServiceProvider)
+          .getRecipesPageByEnergyLevel(energyLevel: energyLevel, limit: 30);
 
-      if (!mounted || requestToken != _deckRequestToken) return;
-      _activeDeckQuery = query;
-
-      // If user asked to regenerate, clear old persisted previews so we truly refresh.
-      if (forceRegenerate && userId != null) {
-        await ref.read(databaseServiceProvider).clearSwipeDeck(userId);
-      }
-
-      // 1) Signed-in users: DB is the source of truth.
-      if (!forceRegenerate && userId != null) {
-        final previews = await ref
-            .read(databaseServiceProvider)
-            .getUnconsumedSwipeCards(userId);
-        if (!mounted || requestToken != _deckRequestToken) return;
-
-        if (previews.isNotEmpty) {
-          _seedDeckFromDbRecipes(
-            recipes: previews.map(_recipeFromPreview).toList(growable: false),
-            query: query,
-            deckKeys: deckKeys,
-          );
-          return;
-        }
-      }
-
-      // 2) Fallback to local cache (guest or DB depleted).
-      if (!forceRegenerate) {
-        final cached = _getCachedDeck(deckKeys);
-        if (cached != null) {
-          setState(() {
-            _consumedCardIds.clear();
-            _loadingMoreEnergy.clear();
-            _dbBufferByEnergy.clear();
-            _aiDeck = List<Recipe>.from(cached);
-          });
-          _storeDeckCache(deckKeys, cached);
-          return;
-        }
-      }
-
-      // 3) DB depleted (or guest): generate 3 cards per energy (12 total).
-      final seenTitles = <String>{};
-      final generatedRecipes = <Recipe>[];
-      final persistPreviews = <RecipePreview>[];
-
-      for (final energy in const [0, 1, 2, 3]) {
-        final previews = await _ai.generateRecipePreviewsBatch(
-          count: 3,
-          pantryItems: query.pantryNames,
-          allergies: query.allergies,
-          dietaryRestrictions: query.dietary,
-          cravings: query.inspiration,
-          energyLevel: energy,
-          preferredCuisines: query.preferredCuisines,
-          mealType: query.mealType,
-          strictPantryMatch: false,
-        );
-
-        if (!mounted || requestToken != _deckRequestToken) return;
-
-        for (final p in previews) {
-          if (!mounted || requestToken != _deckRequestToken) return;
-          final titleKey = _norm(p.title);
-          if (!seenTitles.add(titleKey)) continue;
-
-          final img = await _imageService.searchRecipeImage(
-            recipeTitle: p.title,
-            ingredients: p.ingredients.isNotEmpty
-                ? p.ingredients
-                : p.mainIngredients,
-          );
-          final imageUrl =
-              img?.imageUrl ??
-              p.imageUrl ??
-              ImageSearchService.getFallbackImage(p.mealType);
-          final persistedPreview = p.copyWith(imageUrl: imageUrl);
-          persistPreviews.add(persistedPreview);
-          generatedRecipes.add(_recipeFromPreview(persistedPreview));
-        }
-      }
-
-      if (!mounted || requestToken != _deckRequestToken) return;
-
-      final byEnergy = _partitionByEnergy(generatedRecipes);
+      if (!mounted) return;
       setState(() {
-        _consumedCardIds.clear();
-        _aiDeck = generatedRecipes;
-        _dbBufferByEnergy
-          ..clear()
-          ..addAll({
-            0: List<Recipe>.from(byEnergy[0] ?? const <Recipe>[]),
-            1: List<Recipe>.from(byEnergy[1] ?? const <Recipe>[]),
-            2: List<Recipe>.from(byEnergy[2] ?? const <Recipe>[]),
-            3: List<Recipe>.from(byEnergy[3] ?? const <Recipe>[]),
-          });
+        _recipesByEnergy[energyLevel] = page.recipes;
+        _lastDocByEnergy[energyLevel] = page.lastDoc;
+        _dismissedCardIds.clear();
+        _swiperRebuildToken++;
       });
-
-      _storeDeckCache(deckKeys, generatedRecipes);
-
-      if (userId != null && persistPreviews.isNotEmpty) {
-        unawaited(
-          ref
-              .read(databaseServiceProvider)
-              .upsertSwipeCards(userId, persistPreviews),
-        );
-      }
-    } catch (e, st) {
-      if (!mounted || requestToken != _deckRequestToken) return;
-      if (kDebugMode) {
-        debugPrint('SwipeScreen _refreshDeck failed: $e');
-        debugPrint('$st');
-      }
-
-      final messenger = ScaffoldMessenger.maybeOf(context);
-      messenger
-        ?..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text(
-              "Couldn't load recipes right now. Please try again.",
-            ),
-            backgroundColor: AppTheme.errorColor,
-          ),
-        );
-    } finally {
-      if (mounted && requestToken == _deckRequestToken) {
-        setState(() => _deckLoading = false);
-      }
-    }
-  }
-
-  Future<void> _loadMoreForEnergy(int energyLevel) async {
-    if (_loadingMoreEnergy.contains(energyLevel)) return;
-    if (_remainingForEnergy(energyLevel) > 0) return;
-
-    // Only generate more when the *entire* deck is exhausted.
-    final totalRemaining = _aiDeck.where((r) => !_consumedCardIds.contains(r.id)).length;
-    if (totalRemaining > 0) return;
-
-    final userId = _persistedUserIdOrNull();
-    final requestToken = _deckRequestToken;
-
-    setState(() => _loadingMoreEnergy.add(energyLevel));
-    try {
-      final query = _activeDeckQuery ?? await _computeDeckQuery();
-      _activeDeckQuery ??= query;
-
-      final deckKeys = _deckCacheKeysForQuery(
-        pantryNames: query.pantryNames,
-        allergies: query.allergies,
-        dietary: query.dietary,
-        preferredCuisines: query.preferredCuisines,
-        mealType: query.mealType,
-        cravings: query.cravings,
-      );
-
-      final seenTitles = <String>{};
-      for (final r in _aiDeck) {
-        if (_consumedCardIds.contains(r.id)) continue;
-        seenTitles.add(_norm(r.title));
-      }
-
-      final previews = await _ai.generateRecipePreviewsBatch(
-        count: 3,
-        pantryItems: query.pantryNames,
-        allergies: query.allergies,
-        dietaryRestrictions: query.dietary,
-        cravings: query.inspiration,
-        energyLevel: energyLevel,
-        preferredCuisines: query.preferredCuisines,
-        mealType: query.mealType,
-        strictPantryMatch: false,
-      );
-
-      if (!mounted || requestToken != _deckRequestToken) return;
-
-      final persisted = <RecipePreview>[];
-      final added = <Recipe>[];
-      for (final p in previews) {
-        if (!mounted || requestToken != _deckRequestToken) return;
-        final titleKey = _norm(p.title);
-        if (!seenTitles.add(titleKey)) continue;
-
-        final img = await _imageService.searchRecipeImage(
-          recipeTitle: p.title,
-          ingredients: p.ingredients.isNotEmpty
-              ? p.ingredients
-              : p.mainIngredients,
-        );
-        final imageUrl =
-            img?.imageUrl ??
-            p.imageUrl ??
-            ImageSearchService.getFallbackImage(p.mealType);
-        final persistedPreview = p.copyWith(imageUrl: imageUrl);
-        persisted.add(persistedPreview);
-        added.add(_recipeFromPreview(persistedPreview));
-      }
-
-      if (added.isNotEmpty && mounted && requestToken == _deckRequestToken) {
-        setState(() => _aiDeck = [..._aiDeck, ...added]);
-        _storeDeckCache(deckKeys, _aiDeck);
-      }
-
-      if (userId != null && persisted.isNotEmpty) {
-        unawaited(
-          ref.read(databaseServiceProvider).upsertSwipeCards(userId, persisted),
-        );
-      }
     } catch (e, st) {
       if (kDebugMode) {
-        debugPrint('SwipeScreen _loadMoreForEnergy failed: $e');
+        debugPrint('SwipeScreen global refresh failed: $e');
         debugPrint('$st');
       }
       if (!mounted) return;
@@ -589,10 +99,50 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
         ?..hideCurrentSnackBar()
         ..showSnackBar(
           const SnackBar(
-            content: Text("Couldn't load more recipes right now."),
+            content: Text("Couldn't load recipes right now. Please try again."),
             backgroundColor: AppTheme.errorColor,
           ),
         );
+    } finally {
+      if (mounted) setState(() => _deckLoading = false);
+    }
+  }
+
+  Future<void> _loadMoreForEnergy(int energyLevel) async {
+    if (_loadingMoreEnergy.contains(energyLevel)) return;
+
+    final cursor = _lastDocByEnergy[energyLevel];
+    if (cursor == null) return;
+
+    setState(() => _loadingMoreEnergy.add(energyLevel));
+    try {
+      final page = await ref
+          .read(recipeServiceProvider)
+          .getRecipesPageByEnergyLevel(
+            energyLevel: energyLevel,
+            limit: 30,
+            startAfterDoc: cursor,
+          );
+
+      if (!mounted) return;
+
+      if (page.recipes.isEmpty) {
+        setState(() => _lastDocByEnergy[energyLevel] = null);
+        return;
+      }
+
+      setState(() {
+        _recipesByEnergy[energyLevel] = <Recipe>[
+          ..._deckForEnergy(energyLevel),
+          ...page.recipes,
+        ];
+        _lastDocByEnergy[energyLevel] = page.lastDoc;
+      });
+    } catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('SwipeScreen global load-more failed: $e');
+        debugPrint('$st');
+      }
     } finally {
       if (mounted) setState(() => _loadingMoreEnergy.remove(energyLevel));
     }
@@ -609,8 +159,6 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     final needle = _norm(ingredientId);
     if (needle.isEmpty) return true;
     if (pantry.contains(needle)) return true;
-
-    // Fuzzy contains match (helps “tomato” vs “cherry tomato”)
     for (final item in pantry) {
       if (item.contains(needle) || needle.contains(item)) return true;
     }
@@ -623,19 +171,18 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     int targetIndex,
     SwiperActivity activity,
   ) {
-    if (activity is Swipe) {
-      if (previousIndex < deck.length) {
-        final swipedRecipe = deck[previousIndex];
-        if (activity.direction == AxisDirection.right) {
-          unawaited(_handleRightSwipe(swipedRecipe));
-        } else {
-          // Left swipe - dismiss & consume.
-          _markCardConsumed(swipedRecipe);
-          if (_remainingForEnergy(swipedRecipe.energyLevel) == 0) {
-            unawaited(_loadMoreForEnergy(swipedRecipe.energyLevel));
-          }
-        }
-      }
+    if (activity is! Swipe) return;
+    if (previousIndex >= deck.length) return;
+
+    final swipedRecipe = deck[previousIndex];
+    _dismissedCardIds.add(swipedRecipe.id);
+
+    if (activity.direction == AxisDirection.right) {
+      unawaited(_handleRightSwipe(swipedRecipe));
+    }
+
+    if (deck.length <= 1) {
+      unawaited(_loadMoreForEnergy(_selectedEnergyLevel));
     }
   }
 
@@ -653,18 +200,16 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
         lastResetAt == null ||
         DateTime.now().difference(lastResetAt).inDays >= 7;
     final availableCarrots = needsReset ? maxCarrots : currentCarrots;
-
     final canUnlock = isPremium || availableCarrots > 0;
-    final visibleDeck = _aiDeck
-        .where(
-          (r) =>
-              r.energyLevel == _selectedEnergyLevel &&
-              !_consumedCardIds.contains(r.id),
-        )
-        .toList(growable: false);
 
+    final deckForEnergy = _deckForEnergy(_selectedEnergyLevel);
+    final visibleDeck = deckForEnergy
+        // Do NOT filter out already-saved recipes.
+        // Otherwise, a user who just generated+saved a recipe won't see it in swipe.
+        .where((r) => !_dismissedCardIds.contains(r.id))
+        .toList(growable: false);
     final showLoading =
-        (_deckLoading && _aiDeck.isEmpty) ||
+        (_deckLoading && deckForEnergy.isEmpty) ||
         _loadingMoreEnergy.contains(_selectedEnergyLevel);
 
     Widget deckWidget;
@@ -675,9 +220,9 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Text(
-            _aiDeck.isEmpty
-                ? 'No recipes yet. Tap refresh to generate.'
-                : 'No recipes for this energy level. Try another level.',
+            deckForEnergy.isEmpty
+                ? 'No recipes yet. Tap refresh to load.'
+                : 'No more recipes right now. Try another energy level.',
             textAlign: TextAlign.center,
             style: Theme.of(
               context,
@@ -687,6 +232,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
       );
     } else {
       deckWidget = AppinioSwiper(
+        key: ValueKey('swiper_${_selectedEnergyLevel}_$_swiperRebuildToken'),
         controller: _swiperController,
         cardCount: visibleDeck.length,
         onSwipeEnd: (previousIndex, targetIndex, activity) =>
@@ -706,7 +252,9 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
             tooltip: 'Refresh deck',
             onPressed: _deckLoading
                 ? null
-                : () => unawaited(_refreshDeck(forceRegenerate: true)),
+                : () => unawaited(
+                    _refreshEnergy(energyLevel: _selectedEnergyLevel),
+                  ),
             icon: const Icon(Icons.refresh_rounded),
           ),
         ],
@@ -716,7 +264,18 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: _buildEnergySlider(),
+              child: MasterEnergySlider(
+                value: _selectedEnergyLevel,
+                onChanged: (next) {
+                  if (next == _selectedEnergyLevel) return;
+                  setState(() {
+                    _selectedEnergyLevel = next;
+                    _dismissedCardIds.clear();
+                    _swiperRebuildToken++;
+                  });
+                  unawaited(_ensureEnergyLoaded(next));
+                },
+              ),
             ),
             Expanded(
               child: Padding(
@@ -762,7 +321,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                           ? null
                           : () {
                               final authUser = ref.read(authProvider).user;
-                              if (authUser == null) {
+                              if (authUser == null || authUser.isAnonymous) {
                                 context.go(AppRoutes.login);
                                 return;
                               }
@@ -792,41 +351,29 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     if (_unlockFlowInProgress) return;
     setState(() => _unlockFlowInProgress = true);
 
-    Future<void> undoLastSwipe() async {
+    Future<void> undoLastSwipeAndRestore() async {
+      _dismissedCardIds.remove(recipe.id);
       try {
         await _swiperController.unswipe();
       } catch (_) {
-        // If there's no swipe history yet, unswipe is a no-op.
+        // no-op
       }
     }
 
     try {
       final authUser = ref.read(authProvider).user;
       final userId = authUser?.uid;
-      final isGuest = ref.read(appStateProvider).isGuest;
 
-      if (userId == null) {
+      if (userId == null || authUser?.isAnonymous == true) {
         if (mounted) context.go(AppRoutes.login);
-        await undoLastSwipe();
+        await undoLastSwipeAndRestore();
         return;
       }
 
-      // Guests can swipe, but cannot unlock (must authenticate).
-      if (isGuest || authUser?.isAnonymous == true) {
-        if (mounted) context.go(AppRoutes.login);
-        await undoLastSwipe();
-        return;
-      }
-
-      // If already saved/unlocked, just open.
       final alreadySaved = await ref
           .read(recipeServiceProvider)
           .isRecipeSaved(userId, recipe.id);
       if (alreadySaved) {
-        _markCardConsumed(recipe);
-        if (_remainingForEnergy(recipe.energyLevel) == 0) {
-          unawaited(_loadMoreForEnergy(recipe.energyLevel));
-        }
         if (mounted) _openRecipeDetail(recipe);
         return;
       }
@@ -835,10 +382,8 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
       final subscription = profile?.subscriptionStatus.toLowerCase() ?? 'free';
       final isPremium = subscription == 'premium' || subscription == 'pro';
 
-      // Persisted via SharedPreferences; requirement calls this hideUnlockReminder.
       final hideUnlockReminder = ref.read(appStateProvider).skipUnlockReminder;
 
-      // Build RecipePreview from existing recipe for dialog
       final preview = RecipePreview(
         id: recipe.id,
         title: recipe.title,
@@ -863,10 +408,8 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
 
       if (!mounted) return;
 
-      // Show ConfirmUnlockDialog immediately on swipe right
       bool shouldProceed;
       if (isPremium) {
-        // Premium users bypass modal and cost.
         shouldProceed = true;
       } else if (hideUnlockReminder) {
         shouldProceed = await _showReducedUnlockDialog(
@@ -898,11 +441,10 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
       }
 
       if (!shouldProceed || !mounted) {
-        await undoLastSwipe();
+        await undoLastSwipeAndRestore();
         return;
       }
 
-      // Atomic spend (free users only) AFTER confirmation.
       if (!isPremium) {
         final success = await ref
             .read(databaseServiceProvider)
@@ -910,59 +452,26 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
         if (!success) {
           if (!mounted) return;
           _showOutOfCarrots();
-          await undoLastSwipe();
+          await undoLastSwipeAndRestore();
           return;
         }
       }
 
-      final pantryItems =
-          ref.read(pantryItemsProvider).value ?? const <PantryItem>[];
-      final pantryNames = pantryItems.map((p) => p.normalizedName).toList();
-
-      final full = await _ai.generateFullRecipe(
-        preview: RecipePreview(
-          id: recipe.id,
-          title: recipe.title,
-          vibeDescription: recipe.description,
-          ingredients: recipe.ingredients,
-          mainIngredients: recipe.ingredients.take(5).toList(),
-          imageUrl: recipe.imageUrl,
-          estimatedTimeMinutes: recipe.timeMinutes,
-          calories: recipe.calories,
-          equipmentIcons: recipe.equipment,
-          mealType: recipe.mealType,
-          energyLevel: recipe.energyLevel,
-          cuisine: recipe.cuisine,
-          skillLevel: recipe.skillLevel,
-        ),
-        pantryItems: pantryNames,
-        allergies: profile?.preferences.allergies ?? const <String>[],
-        dietaryRestrictions:
-            profile?.preferences.dietaryRestrictions ?? const <String>[],
-        showCalories: true,
-        strictPantryMatch: false,
-      );
-
-      final fullWithMeta = full.copyWith(
-        id: recipe.id,
-        imageUrl: recipe.imageUrl,
-        mealType: recipe.mealType,
-        cuisine: recipe.cuisine,
-        skillLevel: recipe.skillLevel,
-        ingredientIds: recipe.ingredientIds,
-        calories: full.calories > 0 ? full.calories : recipe.calories,
-        timeMinutes: full.timeMinutes > 0 ? full.timeMinutes : recipe.timeMinutes,
-        equipment: full.equipment.isNotEmpty ? full.equipment : recipe.equipment,
-      );
-
-      await ref.read(recipeServiceProvider).saveRecipe(userId, fullWithMeta);
-
-      _markCardConsumed(recipe);
-      if (_remainingForEnergy(recipe.energyLevel) == 0) {
-        unawaited(_loadMoreForEnergy(recipe.energyLevel));
+      final global = await ref
+          .read(recipeServiceProvider)
+          .getRecipeById(recipe.id);
+      if (global == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Recipe is unavailable right now.')),
+          );
+        }
+        await undoLastSwipeAndRestore();
+        return;
       }
 
-      if (mounted) _openRecipeDetail(fullWithMeta);
+      await ref.read(recipeServiceProvider).saveRecipe(userId, global);
+      if (mounted) _openRecipeDetail(global);
     } catch (e) {
       if (kDebugMode) {
         debugPrint('SwipeScreen unlock failed: $e');
@@ -974,11 +483,9 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
           ),
         );
       }
-      await undoLastSwipe();
+      await undoLastSwipeAndRestore();
     } finally {
-      if (mounted) {
-        setState(() => _unlockFlowInProgress = false);
-      }
+      if (mounted) setState(() => _unlockFlowInProgress = false);
     }
   }
 
@@ -1061,7 +568,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                               ),
                               const SizedBox(width: 10),
                               Text(
-                                'Cooking up ideas… just a few seconds',
+                                'Loading recipes…',
                                 style: textTheme.bodyMedium?.copyWith(
                                   fontWeight: FontWeight.w700,
                                   color: AppTheme.textPrimary,
@@ -1076,83 +583,24 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 18),
-            Text(
-              'Generating 3 meals for each energy level.',
-              textAlign: TextAlign.center,
-              style: textTheme.bodyMedium?.copyWith(
-                color: AppTheme.textSecondary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildEnergySlider() {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Energy Level',
-                style: Theme.of(
-                  context,
-                ).textTheme.labelLarge?.copyWith(color: AppTheme.textSecondary),
-              ),
-              Text(
-                _getEnergyLabel(_selectedEnergyLevel),
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.primaryColor,
-                ),
-              ),
-            ],
-          ),
-        ),
-        SliderTheme(
-          data: SliderTheme.of(context).copyWith(
-            trackHeight: 6,
-            activeTrackColor: AppTheme.primaryColor,
-            inactiveTrackColor: Colors.grey.shade200,
-            thumbColor: AppTheme.primaryColor,
-            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
-            overlayShape: const RoundSliderOverlayShape(overlayRadius: 20),
-          ),
-          child: Slider(
-            value: _selectedEnergyLevel.toDouble(),
-            min: 0,
-            max: 3,
-            divisions: 3,
-            onChanged: (value) =>
-                setState(() => _selectedEnergyLevel = value.round()),
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _getEnergyLabel(int level) {
-    switch (level) {
-      case 0:
-        return 'Sleepy 💤';
-      case 1:
-        return 'Low 🔋';
-      case 2:
-        return 'Okay ⚡';
-      case 3:
-        return 'High 🔥';
-      default:
-        return '';
-    }
-  }
-
   Widget _buildRecipeCard(Recipe recipe) {
+    final pantryItems =
+        ref.watch(pantryItemsProvider).value ?? const <PantryItem>[];
+    final pantry = _pantryKeySet(pantryItems);
+
+    final ingredientCount = recipe.ingredientIds.isNotEmpty
+        ? recipe.ingredientIds.length
+        : recipe.ingredients.length;
+    final equipment = recipe.equipment
+        .where((e) => e.trim().isNotEmpty)
+        .toList(growable: false);
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1162,7 +610,6 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // Image
           ClipRRect(
             borderRadius: BorderRadius.circular(24),
             child: Stack(
@@ -1193,7 +640,6 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                   )
                 else
                   Image.network(
-                    // Fallback to an Unsplash-hosted image to avoid local placeholders.
                     'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?q=80&w=1200&auto=format&fit=crop',
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) => Container(
@@ -1205,7 +651,6 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                       ),
                     ),
                   ),
-                // Gradient Overlay
                 Positioned.fill(
                   child: Container(
                     decoration: BoxDecoration(
@@ -1214,9 +659,9 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                         end: Alignment.bottomCenter,
                         colors: [
                           Colors.transparent,
-                          Colors.black.withValues(alpha: 0.8),
+                          Colors.black.withValues(alpha: 0.75),
                         ],
-                        stops: const [0.6, 1.0],
+                        stops: const [0.55, 1.0],
                       ),
                     ),
                   ),
@@ -1225,190 +670,177 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
             ),
           ),
 
-          // Content
+          // Stat pills (time / items / calories)
           Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        _buildTag(
-                          '${recipe.timeMinutes} min',
-                          Icons.access_time,
-                        ),
-                        const SizedBox(width: 8),
-                        _buildTag(
-                          '${recipe.ingredients.length} items',
-                          Icons.list,
-                        ),
-                        const SizedBox(width: 8),
-                        _buildTag(
-                          '${recipe.calories} cal',
-                          Icons.local_fire_department,
-                        ),
-                      ],
-                    ),
+            left: 16,
+            right: 16,
+            bottom: 230,
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _statPill(Icons.timer_outlined, '${recipe.timeMinutes} min'),
+                _statPill(
+                  Icons.format_list_bulleted_rounded,
+                  '$ingredientCount items',
+                ),
+                _statPill(
+                  Icons.local_fire_department_outlined,
+                  '${recipe.calories} cal',
+                ),
+              ],
+            ),
+          ),
+
+          Positioned(
+            left: 18,
+            right: 18,
+            bottom: 18,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  recipe.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    recipe.title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  recipe.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    recipe.description,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.9),
-                      fontSize: 14,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                ),
+                const SizedBox(height: 16),
+                if (equipment.isNotEmpty) ...[
+                  _equipmentPill(equipment[0]),
+                  if (equipment.length > 1) ...[
+                    const SizedBox(height: 10),
+                    _equipmentPill(equipment[1]),
+                  ],
                   const SizedBox(height: 16),
-                  if (recipe.equipment.isNotEmpty)
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: recipe.equipment.map((label) {
-                        return Tooltip(
-                          message: label,
-                          child: Container(
-                            width: 34,
-                            height: 34,
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.45),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.12),
-                              ),
-                            ),
-                            child: Icon(
-                              _equipmentIcon(label),
-                              color: Colors.white,
-                              size: 18,
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        final pantryItems =
-                            ref.read(pantryItemsProvider).value ??
-                            const <PantryItem>[];
-                        final pantry = _pantryKeySet(pantryItems);
-                        showModalBottomSheet(
-                          context: context,
-                          backgroundColor: Colors.transparent,
-                          builder: (context) =>
-                              _buildIngredientsModal(recipe, pantry),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primaryColor,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        elevation: 0,
-                      ),
-                      child: const Text('Show Ingredients Needed'),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () => _handleShowDirections(recipe),
-                      icon: const Icon(
-                        Icons.menu_book_outlined,
-                        size: 18,
-                        color: Colors.white,
-                      ),
-                      label: const Text(
-                        'Show Directions',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.6),
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      elevation: 0,
+                    ),
+                    onPressed: () {
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.vertical(
+                            top: Radius.circular(24),
+                          ),
+                        ),
+                        builder: (_) => _buildIngredientsModal(recipe, pantry),
+                      );
+                    },
+                    child: const Text(
+                      'View Ingredients',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.55),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    onPressed: () => _handleShowDirections(recipe),
+                    icon: const Icon(Icons.menu_book_rounded, size: 18),
+                    label: const Text(
+                      'Show Directions',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statPill(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: Colors.white),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _equipmentPill(String label) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.30),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.kitchen_outlined, size: 18, color: Colors.white),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ),
         ],
       ),
     );
-  }
-
-  Widget _buildTag(String label, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: Colors.white, size: 12),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  IconData _equipmentIcon(String raw) {
-    final v = _norm(raw);
-    if (v.contains('microwave')) return Icons.microwave_outlined;
-    if (v.contains('oven')) return Icons.kitchen_outlined;
-    if (v.contains('air fryer') || v.contains('airfryer')) {
-      return Icons.local_fire_department_outlined;
-    }
-    if (v.contains('stove') || v.contains('stovetop') || v.contains('burner')) {
-      return Icons.local_fire_department_outlined;
-    }
-    if (v.contains('grill')) return Icons.outdoor_grill_outlined;
-    if (v.contains('pot') || v.contains('pan') || v.contains('skillet')) {
-      return Icons.soup_kitchen_outlined;
-    }
-    if (v.contains('knife') || v.contains('cutting')) {
-      return Icons.restaurant_outlined;
-    }
-    if (v.contains('blender') || v.contains('food processor')) {
-      return Icons.blender_outlined;
-    }
-    if (v.contains('bowl')) return Icons.ramen_dining_outlined;
-    if (v.contains('toaster')) return Icons.breakfast_dining_outlined;
-    return Icons.kitchen_outlined;
   }
 
   Future<bool> _showReducedUnlockDialog({
@@ -1476,7 +908,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
         : recipe.ingredients.map(_norm).toList();
 
     String pretty(String raw) {
-      final parts = raw.split(RegExp(r'\\s+')).where((p) => p.isNotEmpty);
+      final parts = raw.split(RegExp(r'\s+')).where((p) => p.isNotEmpty);
       return parts
           .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
           .join(' ');
@@ -1485,7 +917,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     String stripQuantity(String value) {
       final v = value.trim();
       final stripped = v.replaceFirst(
-        RegExp(r'^(?:\\d+(?:\\.\\d+)?|\\d+\\/\\d+)\\s+[^A-Za-z]*'),
+        RegExp(r'^(?:\d+(?:\.\d+)?|\d+\/\d+)\s+[^A-Za-z]*'),
         '',
       );
       return stripped.isEmpty ? v : stripped.trim();
@@ -1520,8 +952,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
             final display = (index < ids.length)
                 ? pretty(ids[index])
                 : pretty(stripQuantity(recipe.ingredients[index]));
-            final key = rawKey;
-            final hasIt = _pantryHas(pantry, key);
+            final hasIt = _pantryHas(pantry, rawKey);
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: Container(
@@ -1581,20 +1012,12 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
   Future<void> _handleShowDirections(Recipe recipe) async {
     final authUser = ref.read(authProvider).user;
     final userId = authUser?.uid;
-    final isGuest = ref.read(appStateProvider).isGuest;
 
-    if (userId == null) {
+    if (userId == null || authUser?.isAnonymous == true) {
       if (mounted) context.go(AppRoutes.login);
       return;
     }
 
-    // Guests must authenticate before unlocking directions (spec)
-    if (isGuest || authUser?.isAnonymous == true) {
-      if (mounted) context.go(AppRoutes.login);
-      return;
-    }
-
-    // If already saved/unlocked, open immediately.
     final alreadySaved = await ref
         .read(recipeServiceProvider)
         .isRecipeSaved(userId, recipe.id);
@@ -1608,11 +1031,8 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     final profile = ref.read(userProfileProvider).value;
     final subscription = profile?.subscriptionStatus.toLowerCase() ?? 'free';
     final isPremium = subscription == 'premium' || subscription == 'pro';
-
-    // Persisted via SharedPreferences; requirement calls this hideUnlockReminder.
     final hideUnlockReminder = ref.read(appStateProvider).skipUnlockReminder;
 
-    // Build preview for AI full generation.
     final preview = RecipePreview(
       id: recipe.id,
       title: recipe.title,
@@ -1629,34 +1049,25 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
       skillLevel: recipe.skillLevel,
     );
 
+    final carrotsObj = profile?.carrots;
+    final maxCarrots = carrotsObj?.max ?? 5;
+    final currentCarrots = carrotsObj?.current ?? 0;
+    final lastResetAt = carrotsObj?.lastResetAt;
+    final needsReset =
+        lastResetAt == null ||
+        DateTime.now().difference(lastResetAt).inDays >= 7;
+    final availableCarrots = needsReset ? maxCarrots : currentCarrots;
+
     bool shouldProceed;
     if (isPremium) {
       shouldProceed = true;
     } else if (hideUnlockReminder) {
-      final carrotsObj = profile?.carrots;
-      final maxCarrots = carrotsObj?.max ?? 5;
-      final currentCarrots = carrotsObj?.current ?? 0;
-      final lastResetAt = carrotsObj?.lastResetAt;
-      final needsReset =
-          lastResetAt == null ||
-          DateTime.now().difference(lastResetAt).inDays >= 7;
-      final availableCarrots = needsReset ? maxCarrots : currentCarrots;
-
       shouldProceed = await _showReducedUnlockDialog(
         preview: preview,
         currentCarrots: availableCarrots,
         maxCarrots: maxCarrots,
       );
     } else {
-      final carrotsObj = profile?.carrots;
-      final maxCarrots = carrotsObj?.max ?? 5;
-      final currentCarrots = carrotsObj?.current ?? 0;
-      final lastResetAt = carrotsObj?.lastResetAt;
-      final needsReset =
-          lastResetAt == null ||
-          DateTime.now().difference(lastResetAt).inDays >= 7;
-      final availableCarrots = needsReset ? maxCarrots : currentCarrots;
-
       final confirmed = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
@@ -1681,7 +1092,6 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
 
     if (!shouldProceed || !mounted) return;
 
-    // Atomic spend (free users only) AFTER confirmation.
     if (!isPremium) {
       final success = await ref
           .read(databaseServiceProvider)
@@ -1693,33 +1103,18 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
       }
     }
 
-    final pantryItems =
-        ref.read(pantryItemsProvider).value ?? const <PantryItem>[];
-    final pantryNames = pantryItems.map((p) => p.normalizedName).toList();
+    final global = await ref
+        .read(recipeServiceProvider)
+        .getRecipeById(recipe.id);
+    if (global == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Recipe is unavailable right now.')),
+      );
+      return;
+    }
 
-    final full = await _ai.generateFullRecipe(
-      preview: preview,
-      pantryItems: pantryNames,
-      allergies: profile?.preferences.allergies ?? const <String>[],
-      dietaryRestrictions:
-          profile?.preferences.dietaryRestrictions ?? const <String>[],
-      showCalories: true,
-      strictPantryMatch: false,
-    );
-
-    final fullWithMeta = full.copyWith(
-      id: recipe.id,
-      imageUrl: recipe.imageUrl,
-      mealType: recipe.mealType,
-      cuisine: recipe.cuisine,
-      skillLevel: recipe.skillLevel,
-      ingredientIds: recipe.ingredientIds,
-      calories: full.calories > 0 ? full.calories : recipe.calories,
-      timeMinutes: full.timeMinutes > 0 ? full.timeMinutes : recipe.timeMinutes,
-      equipment: full.equipment.isNotEmpty ? full.equipment : recipe.equipment,
-    );
-
-    await ref.read(recipeServiceProvider).saveRecipe(userId, fullWithMeta);
-    if (mounted) _openRecipeDetail(fullWithMeta);
+    await ref.read(recipeServiceProvider).saveRecipe(userId, global);
+    if (mounted) _openRecipeDetail(global);
   }
 }

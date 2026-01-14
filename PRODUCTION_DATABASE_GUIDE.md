@@ -2,27 +2,26 @@
 
 ## Single Source of Truth for Supper Swipe Firestore Schema
 
-**Version:** 2.1 | **Last Updated:** December 28, 2024
+**Version:** 3.0 | **Last Updated:** January 14, 2026
 
 ---
 
 ## 1. Collections Overview
 
-| Collection                  | Type | Document ID Strategy     | Purpose                             |
-| --------------------------- | ---- | ------------------------ | ----------------------------------- |
-| `users`                     | Root | Firebase Auth UID        | User profiles, carrots, preferences |
-| `users/{uid}/pantry`        | Sub  | Auto-generated           | User's pantry items                 |
-| `users/{uid}/savedRecipes`  | Sub  | Recipe ID (mirror)       | Unlocked/saved recipes              |
-| `users/{uid}/transactions`  | Sub  | Auto-generated           | Carrot economy ledger               |
-| `users/{uid}/pantry_logs`   | Sub  | Auto-generated           | Consumption audit trail             |
-| `users/{uid}/swipeDeck`     | Sub  | Recipe preview ID        | Persisted swipe cards (previews)    |
-| `users/{uid}/meal_plans`    | Sub  | Date string (YYYY-MM-DD) | Meal planning                       |
-| `users/{uid}/shoppingLists` | Sub  | Auto-generated           | Shopping lists                      |
-| `recipes`                   | Root | Auto-generated           | Public recipe previews              |
-| `recipe_secrets`            | Root | Same as `recipes/{id}`   | Protected instructions              |
-| `ingredients`               | Root | Normalized name          | Master ingredient database          |
-| `ai_recipe_requests`        | Root | Auto-generated           | AI generation requests              |
-| `user_quotas`               | Root | Firebase Auth UID        | Vision API quotas                   |
+| Collection                  | Type | Document ID Strategy              | Purpose                             |
+| --------------------------- | ---- | --------------------------------- | ----------------------------------- |
+| `users`                     | Root | Firebase Auth UID                 | User profiles, carrots, preferences |
+| `users/{uid}/pantry`        | Sub  | Auto-generated                    | User's pantry items                 |
+| `users/{uid}/savedRecipes`  | Sub  | Recipe ID (mirror)                | Unlocked/saved recipes              |
+| `users/{uid}/transactions`  | Sub  | Auto-generated                    | Carrot economy ledger               |
+| `users/{uid}/pantry_logs`   | Sub  | Auto-generated                    | Consumption audit trail             |
+| `users/{uid}/meal_plans`    | Sub  | Date string (YYYY-MM-DD)          | Meal planning                       |
+| `users/{uid}/shoppingLists` | Sub  | Auto-generated                    | Shopping lists                      |
+| `recipes`                   | Root | Auto-generated / client-generated | Global recipe pool (swipe feed)     |
+| `recipe_secrets`            | Root | Same as `recipes/{id}`            | Protected instructions              |
+| `ingredients`               | Root | Normalized name                   | Master ingredient database          |
+| `ai_recipe_requests`        | Root | Auto-generated                    | AI generation requests              |
+| `user_quotas`               | Root | Firebase Auth UID                 | Vision API quotas                   |
 
 ---
 
@@ -107,29 +106,7 @@
 | `description`  | String    | ❌       | Human-readable description                 |
 | `timestamp`    | Timestamp | ✅       | Transaction time                           |
 
-### 2.5 `users/{uid}/swipeDeck/{cardId}`
-
-Lightweight preview cards persisted per user so the swipe deck is stable across sessions.
-
-| Field                  | Type            | Required | Description                                   |
-| ---------------------- | --------------- | -------- | --------------------------------------------- |
-| `title`                | String          | ✅       | Recipe title                                  |
-| `vibeDescription`      | String          | ✅       | Short “vibe”/description                      |
-| `ingredients`          | Array\<String\> | ❌       | Ingredient list (no quantities)               |
-| `mainIngredients`      | Array\<String\> | ✅       | Short list for UI chips                       |
-| `imageUrl`             | String          | ❌       | Unsplash-only URL (resolved at save time)     |
-| `estimatedTimeMinutes` | Number          | ✅       | Estimated cook time                           |
-| `calories`             | Number          | ❌       | Calorie estimate                              |
-| `equipmentIcons`       | Array\<String\> | ❌       | Icon tokens (e.g. "pan", "oven")              |
-| `mealType`             | String          | ✅       | `breakfast` \| `lunch` \| `dinner` \| `snack` |
-| `energyLevel`          | Number          | ✅       | 0-3                                           |
-| `cuisine`              | String          | ❌       | Cuisine label                                 |
-| `skillLevel`           | String          | ❌       | Skill label                                   |
-| `isConsumed`           | Boolean         | ✅       | True after swipe left/right                   |
-| `createdAt`            | Timestamp       | ✅       | When card was created                         |
-| `consumedAt`           | Timestamp       | ❌       | When card was swiped away                     |
-
-### 2.6 `recipes/{recipeId}` (Public Preview)
+### 2.5 `recipes/{recipeId}` (Global Recipe Pool)
 
 | Field                   | Type            | Required | Description                                   |
 | ----------------------- | --------------- | -------- | --------------------------------------------- |
@@ -141,10 +118,11 @@ Lightweight preview cards persisted per user so the swipe deck is stable across 
 | `ingredients`           | Array\<String\> | ✅       | Ingredient names (FREE to view)               |
 | `ingredientIds`         | Array\<String\> | ✅       | Normalized IDs for matching                   |
 | `visibility`            | String          | ✅       | `public` \| `private`                         |
-| `ownerId`               | String          | ❌       | Owner UID (for private recipes)               |
+| `createdBy`             | String          | ❌       | Creator UID (for user-published recipes)      |
+| `source`                | String          | ❌       | e.g. `seed` \| `ai_user`                      |
 | `isActive`              | Boolean         | ✅       | Soft delete flag                              |
 | `isPremium`             | Boolean         | ✅       | Premium-only recipe                           |
-| `isAIGenerated`         | Boolean         | ✅       | AI-created flag                               |
+| `instructions`          | Array\<String\> | ✅       | Full steps (stored directly for global swipe) |
 | `energyLevel`           | Number          | ✅       | 0 (Sleepy) to 3 (High)                        |
 | `mealType`              | String          | ✅       | `breakfast` \| `lunch` \| `dinner` \| `snack` |
 | `skillLevel`            | String          | ✅       | `beginner` \| `moderate` \| `advanced`        |
@@ -166,7 +144,11 @@ Lightweight preview cards persisted per user so the swipe deck is stable across 
 | `createdAt`             | Timestamp       | ✅       | Creation time                                 |
 | `updatedAt`             | Timestamp       | ✅       | Last update                                   |
 
-### 2.7 `recipe_secrets/{recipeId}` (Protected)
+### 2.6 `recipe_secrets/{recipeId}` (Protected - Optional)
+
+This collection is optional if you keep all instructions public in `recipes`.
+If you enforce a paywall with a split-collection pattern, store sensitive/full
+instructions here and keep `recipes` as preview-only.
 
 | Field                  | Type            | Required | Description              |
 | ---------------------- | --------------- | -------- | ------------------------ |

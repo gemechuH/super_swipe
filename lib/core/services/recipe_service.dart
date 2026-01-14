@@ -148,6 +148,33 @@ class RecipeService {
     return snapshot.docs.map((doc) => Recipe.fromFirestore(doc)).toList();
   }
 
+  /// Get recipes by energy level along with pagination cursor.
+  ///
+  /// Keeps the existing `getRecipesByEnergyLevel` API intact while allowing
+  /// callers (like Swipe) to efficiently paginate.
+  Future<({List<Recipe> recipes, DocumentSnapshot? lastDoc})>
+  getRecipesPageByEnergyLevel({
+    required int energyLevel,
+    int limit = 20,
+    DocumentSnapshot? startAfterDoc,
+  }) async {
+    Query query = _firestoreService.recipes
+        .where('isActive', isEqualTo: true)
+        .where('energyLevel', isEqualTo: energyLevel)
+        .orderBy('stats.popularityScore', descending: true)
+        .limit(limit);
+
+    if (startAfterDoc != null) {
+      query = query.startAfterDocument(startAfterDoc);
+    }
+
+    final snapshot = await query.get();
+    return (
+      recipes: snapshot.docs.map((doc) => Recipe.fromFirestore(doc)).toList(),
+      lastDoc: snapshot.docs.isNotEmpty ? snapshot.docs.last : null,
+    );
+  }
+
   /// Stream recipes by energy level (real-time, first page only)
   Stream<List<Recipe>> watchRecipesByEnergyLevel({
     required int energyLevel,

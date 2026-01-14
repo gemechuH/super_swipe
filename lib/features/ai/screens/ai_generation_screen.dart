@@ -1,12 +1,17 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
+import 'package:super_swipe/core/models/pantry_item.dart';
 import 'package:super_swipe/core/models/recipe.dart';
 import 'package:super_swipe/core/providers/draft_recipe_provider.dart';
 import 'package:super_swipe/core/providers/firestore_providers.dart';
 import 'package:super_swipe/core/providers/selected_ingredients_provider.dart';
 import 'package:super_swipe/core/providers/user_data_providers.dart';
+import 'package:super_swipe/core/router/app_router.dart';
 import 'package:super_swipe/core/theme/app_theme.dart';
 import 'package:super_swipe/core/widgets/loading/app_loading.dart';
 import 'package:super_swipe/core/widgets/loading/app_shimmer.dart';
@@ -1027,6 +1032,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
   }
 
   Future<void> _saveToMyCookbook() async {
+    if (_isSaving) return;
     final currentDraft = ref.read(draftRecipeProvider);
     if (currentDraft == null) return;
 
@@ -1048,7 +1054,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
               ElevatedButton(
                 onPressed: () {
                   Navigator.pop(context);
-                  context.go('/login');
+                  context.go(AppRoutes.login);
                 },
                 child: const Text('Sign In'),
               ),
@@ -1060,49 +1066,92 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
     }
 
     final userId = authState.user!.uid;
+    final recipeToSave = currentDraft.recipe;
 
     setState(() => _isSaving = true);
 
     try {
       // Save using DatabaseService
       final db = ref.read(databaseServiceProvider);
-      await db.saveAiGeneratedRecipe(userId, currentDraft.recipe);
+      await db.saveAiGeneratedRecipe(userId, recipeToSave);
 
-      // Auto-deplete used pantry ingredients
-      await _depleteUsedIngredients(userId, currentDraft.recipe.ingredients);
+      // Navigate immediately after the critical save.
+      if (!mounted) return;
+      context.push(
+        '${AppRoutes.recipes}/${recipeToSave.id}',
+        extra: recipeToSave,
+      );
 
-      // Clear draft after successful save
+      // Clear draft so returning to this screen doesn't show stale data.
       ref.read(draftRecipeProvider.notifier).clearDraft();
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('🎉 Recipe saved! Pantry updated.'),
-            backgroundColor: AppTheme.successColor,
-          ),
-        );
-
-        // Navigate back or to recipes
-        context.pop();
-      }
+      // Run slower post-save tasks in the background.
+      final pantryService = ref.read(pantryServiceProvider);
+      final pantryItemsSnapshot =
+          ref.read(pantryItemsProvider).value ?? const <PantryItem>[];
+      unawaited(
+        _runPostSaveTasks(
+          db: db,
+          pantryService: pantryService,
+          pantryItemsSnapshot: pantryItemsSnapshot,
+          userId: userId,
+          recipe: recipeToSave,
+        ),
+      );
     } catch (e) {
       setState(
         () => _errorMessage = 'Failed to save recipe. Please try again.',
       );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to save recipe. Please try again.'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
   }
 
-  /// Delete pantry items that were used in the recipe
-  Future<void> _depleteUsedIngredients(
-    String userId,
-    List<String> recipeIngredients,
-  ) async {
-    final pantryItems = ref.read(pantryItemsProvider).value ?? [];
-    final pantryService = ref.read(pantryServiceProvider);
+  Future<void> _runPostSaveTasks({
+    required dynamic db,
+    required dynamic pantryService,
+    required List<PantryItem> pantryItemsSnapshot,
+    required String userId,
+    required Recipe recipe,
+  }) async {
+    try {
+      await db.publishRecipeToGlobal(userId: userId, recipe: recipe);
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('Publish to global failed: $e');
+      }
+    }
 
-    for (final pantryItem in pantryItems) {
+    try {
+      await _depleteUsedIngredientsSnapshot(
+        pantryService: pantryService,
+        pantryItemsSnapshot: pantryItemsSnapshot,
+        userId: userId,
+        recipeIngredients: recipe.ingredients,
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('Deplete pantry failed: $e');
+      }
+    }
+  }
+
+  /// Delete pantry items that were used in the recipe
+  Future<void> _depleteUsedIngredientsSnapshot({
+    required dynamic pantryService,
+    required List<PantryItem> pantryItemsSnapshot,
+    required String userId,
+    required List<String> recipeIngredients,
+  }) async {
+    for (final pantryItem in pantryItemsSnapshot) {
       final pantryName = pantryItem.name.toLowerCase();
 
       // Check if any recipe ingredient matches this pantry item
