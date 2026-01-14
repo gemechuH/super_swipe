@@ -11,6 +11,7 @@ import 'package:super_swipe/core/router/app_router.dart';
 import 'package:super_swipe/core/theme/app_theme.dart';
 import 'package:super_swipe/core/widgets/loading/app_loading.dart';
 import 'package:super_swipe/features/pantry/widgets/pantry_category_selector.dart';
+import 'package:super_swipe/core/providers/guest_state_provider.dart';
 
 class PantryScreen extends ConsumerStatefulWidget {
   const PantryScreen({super.key});
@@ -168,9 +169,40 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
                         key: Key(item.id),
                         direction: DismissDirection.endToStart,
                         confirmDismiss: (_) async {
-                          if (_requireAuth() || _isGuest()) return false;
+                          if (_requireAuth()) return false;
                           final authState = ref.read(authProvider);
                           if (authState.user == null) return false;
+
+                          if (authState.user!.isAnonymous) {
+                            final deletedItem = item;
+
+                            ref
+                                .read(guestStateProvider.notifier)
+                                .removePantryItem(item.id);
+
+                            if (context.mounted) {
+                              ref
+                                  .read(undoServiceProvider.notifier)
+                                  .registerUndo(
+                                    id: 'delete_pantry_${item.id}',
+                                    description:
+                                        '${item.name} removed from pantry',
+                                    context: context,
+                                    undoAction: () async {
+                                      ref
+                                          .read(guestStateProvider.notifier)
+                                          .addPantryItem(
+                                            name: deletedItem.name,
+                                            category: deletedItem.category,
+                                            quantity: deletedItem.quantity,
+                                            unit: deletedItem.unit,
+                                          );
+                                    },
+                                  );
+                            }
+
+                            return true;
+                          }
 
                           // Store item data for undo
                           final deletedItem = item;
@@ -229,7 +261,7 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
                         ),
                         child: InkWell(
                           onTap: () {
-                            if (_requireAuth() || _isGuest()) return;
+                            if (_requireAuth()) return;
                             _showQuantityEditor(item);
                           },
                           child: Container(
@@ -370,7 +402,7 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
                 FloatingActionButton.extended(
                   heroTag: 'pantryAddButton',
                   onPressed: () {
-                    if (_requireAuth() || _isGuest()) return;
+                    if (_requireAuth()) return;
                     _showIngredientSelector();
                   },
                   icon: const Icon(Icons.playlist_add_rounded),
@@ -415,40 +447,6 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
     return false;
   }
 
-  bool _isGuest() {
-    final authState = ref.read(authProvider);
-    if (authState.user?.isAnonymous == true) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Guest Mode Restriction'),
-          content: const Text(
-            'Guest users can view the pantry but cannot save changes.\n\n'
-            'Create a free account to:\n• Save your pantry inventory\n• Get personalized recipe suggestions\n• Track your cooking progress\n\nSign up now?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                GoRouter.of(context).go(AppRoutes.signup);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primaryColor,
-              ),
-              child: const Text('Sign Up'),
-            ),
-          ],
-        ),
-      );
-      return true;
-    }
-    return false;
-  }
-
   Widget _buildIconForItem(String name) {
     IconData icon = Icons.local_grocery_store;
     Color color = Colors.orange;
@@ -481,7 +479,7 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
   }
 
   Future<void> _showQuantityEditor(PantryItem item) async {
-    if (_requireAuth() || _isGuest()) return;
+    if (_requireAuth()) return;
     final authState = ref.read(authProvider);
     final user = authState.user;
     if (user == null) return;
@@ -554,13 +552,19 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
                           setDialogState(() => isSaving = true);
                           final messenger = ScaffoldMessenger.of(context);
                           try {
-                            await ref
-                                .read(pantryServiceProvider)
-                                .updatePantryItem(
-                                  user.uid,
-                                  item.id,
-                                  quantity: qty,
-                                );
+                            if (user.isAnonymous) {
+                              ref
+                                  .read(guestStateProvider.notifier)
+                                  .updatePantryItem(item.id, quantity: qty);
+                            } else {
+                              await ref
+                                  .read(pantryServiceProvider)
+                                  .updatePantryItem(
+                                    user.uid,
+                                    item.id,
+                                    quantity: qty,
+                                  );
+                            }
                             if (dialogContext.mounted) {
                               Navigator.pop(dialogContext);
                             }
@@ -599,7 +603,7 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
   }
 
   Future<void> _showIngredientSelector() async {
-    if (_requireAuth() || _isGuest()) return;
+    if (_requireAuth()) return;
     final authState = ref.read(authProvider);
     final user = authState.user;
     if (user == null) return;
@@ -623,58 +627,95 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
             final navigator = Navigator.of(context);
             final messenger = ScaffoldMessenger.of(context);
             try {
-              // We need to read the providers from the parent context,
-              // or ensure the sheet has access to them.
-              // Since we are in a closure, we can capture 'ref' from valid scope if this is ConsumerState.
-              // Using 'ref.read' here is fine as long as we are in ConsumerState.
-              final pantryService = ref.read(pantryServiceProvider);
-              final userId = user.uid;
+              if (user.isAnonymous) {
+                final guest = ref.read(guestStateProvider.notifier);
 
-              // Handle Removals
-              for (final key in toRemove) {
-                final normKey = key.toLowerCase().trim();
-                final itemsToDelete = pantryItems.where(
-                  (i) =>
-                      i.normalizedName.toLowerCase().trim() == normKey &&
-                      i.quantity > 0,
-                );
-                for (final item in itemsToDelete) {
-                  await pantryService.deletePantryItem(userId, item.id);
-                }
-              }
-
-              // Handle Adds
-              final batchPayload = <Map<String, dynamic>>[];
-              for (final key in toAdd) {
-                final normKey = key.toLowerCase().trim();
-                final depletedItem = pantryItems
-                    .where(
-                      (i) =>
-                          i.normalizedName.toLowerCase().trim() == normKey &&
-                          i.quantity == 0,
-                    )
-                    .firstOrNull;
-
-                if (depletedItem != null) {
-                  await pantryService.updatePantryItem(
-                    userId,
-                    depletedItem.id,
-                    name: key, // Keep original casing logic or map if available
-                    category: categoryMap[key] ?? 'other',
-                    quantity: 1,
+                for (final key in toRemove) {
+                  final normKey = key.toLowerCase().trim();
+                  final itemsToDelete = pantryItems.where(
+                    (i) =>
+                        i.normalizedName.toLowerCase().trim() == normKey &&
+                        i.quantity > 0,
                   );
-                } else {
-                  batchPayload.add({
-                    'name': key,
-                    'quantity': 1,
-                    'category': categoryMap[key] ?? 'other',
-                    'source': 'manual',
-                  });
+                  for (final item in itemsToDelete) {
+                    guest.removePantryItem(item.id);
+                  }
                 }
-              }
 
-              if (batchPayload.isNotEmpty) {
-                await pantryService.batchAddPantryItems(userId, batchPayload);
+                for (final key in toAdd) {
+                  final normKey = key.toLowerCase().trim();
+                  final depletedItem = pantryItems
+                      .where(
+                        (i) =>
+                            i.normalizedName.toLowerCase().trim() == normKey &&
+                            i.quantity == 0,
+                      )
+                      .firstOrNull;
+
+                  if (depletedItem != null) {
+                    guest.updatePantryItem(
+                      depletedItem.id,
+                      name: key,
+                      quantity: 1,
+                    );
+                  } else {
+                    guest.addPantryItem(
+                      name: key,
+                      category: categoryMap[key] ?? 'other',
+                      quantity: 1,
+                    );
+                  }
+                }
+              } else {
+                final pantryService = ref.read(pantryServiceProvider);
+                final userId = user.uid;
+
+                // Handle Removals
+                for (final key in toRemove) {
+                  final normKey = key.toLowerCase().trim();
+                  final itemsToDelete = pantryItems.where(
+                    (i) =>
+                        i.normalizedName.toLowerCase().trim() == normKey &&
+                        i.quantity > 0,
+                  );
+                  for (final item in itemsToDelete) {
+                    await pantryService.deletePantryItem(userId, item.id);
+                  }
+                }
+
+                // Handle Adds
+                final batchPayload = <Map<String, dynamic>>[];
+                for (final key in toAdd) {
+                  final normKey = key.toLowerCase().trim();
+                  final depletedItem = pantryItems
+                      .where(
+                        (i) =>
+                            i.normalizedName.toLowerCase().trim() == normKey &&
+                            i.quantity == 0,
+                      )
+                      .firstOrNull;
+
+                  if (depletedItem != null) {
+                    await pantryService.updatePantryItem(
+                      userId,
+                      depletedItem.id,
+                      name: key,
+                      category: categoryMap[key] ?? 'other',
+                      quantity: 1,
+                    );
+                  } else {
+                    batchPayload.add({
+                      'name': key,
+                      'quantity': 1,
+                      'category': categoryMap[key] ?? 'other',
+                      'source': 'manual',
+                    });
+                  }
+                }
+
+                if (batchPayload.isNotEmpty) {
+                  await pantryService.batchAddPantryItems(userId, batchPayload);
+                }
               }
 
               if (!mounted) return;

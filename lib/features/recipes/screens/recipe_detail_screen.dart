@@ -71,7 +71,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
     final userProfile = userProfileAsync.value;
     final subscription =
         userProfile?.subscriptionStatus.toLowerCase() ?? 'free';
-    final isPremium = subscription == 'premium' || subscription == 'pro';
+    final isPremium = subscription == 'premium';
 
     return savedRecipeAsync.when(
       // CRITICAL FIX: Loading state shows spinner only, not recipe content

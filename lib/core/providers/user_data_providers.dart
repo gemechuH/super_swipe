@@ -6,6 +6,7 @@ import 'package:super_swipe/core/config/pantry_constants.dart';
 import 'package:super_swipe/core/providers/firestore_providers.dart';
 import 'package:super_swipe/core/services/user_service.dart';
 import 'package:super_swipe/features/auth/providers/auth_provider.dart';
+import 'package:super_swipe/core/providers/guest_state_provider.dart';
 
 /// Stream user profile (real-time updates)
 /// Implements graceful loading for new accounts:
@@ -61,6 +62,24 @@ final pantryItemsProvider = StreamProvider<List<PantryItem>>((ref) {
 
   if (authState.user == null) {
     return Stream.value([]);
+  }
+
+  if (authState.user!.isAnonymous) {
+    // Stream guest pantry updates from local state.
+    final controller = StreamController<List<PantryItem>>(sync: true);
+
+    controller.add(ref.read(guestPantryProvider));
+    final sub = ref.listen<List<PantryItem>>(
+      guestPantryProvider,
+      (_, next) => controller.add(next),
+    );
+
+    ref.onDispose(() {
+      sub.close();
+      controller.close();
+    });
+
+    return controller.stream;
   }
 
   return pantryService.watchUserPantry(authState.user!.uid);

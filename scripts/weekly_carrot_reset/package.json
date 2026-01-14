@@ -1,0 +1,13 @@
+{
+  "name": "weekly-carrot-reset",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "description": "Weekly carrot reset (Monday 00:00 UTC) for free users",
+  "scripts": {
+    "reset": "node reset_weekly_carrots.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0"
+  }
+}

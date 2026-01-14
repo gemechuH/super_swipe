@@ -39,21 +39,8 @@ service cloud.firestore {
       // Exception: Premium users bypass carrot restrictions
       allow update: if isOwner(userId) && (
         isPremium() ||
-        // Normal spending/decrement
-        request.resource.data.carrots.current <= resource.data.carrots.current ||
-        // Weekly reset: allow setting current back to max only after 7 days.
-        (
-          resource.data.carrots.lastResetAt != null &&
-          request.resource.data.carrots.current == resource.data.carrots.max &&
-          request.resource.data.carrots.lastResetAt == request.time &&
-          request.time > resource.data.carrots.lastResetAt + duration.value(7, 'd')
-        ) ||
-        // First-time initialization when lastResetAt is null
-        (
-          resource.data.carrots.lastResetAt == null &&
-          request.resource.data.carrots.current == resource.data.carrots.max &&
-          request.resource.data.carrots.lastResetAt == request.time
-        )
+        // Normal spending/decrement only (weekly resets handled by admin/cron)
+        request.resource.data.carrots.current <= resource.data.carrots.current
       );
 
       // ----------------------------------------

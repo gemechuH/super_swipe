@@ -63,64 +63,7 @@ class UserService {
   Stream<UserProfile?> watchUserProfile(String userId) {
     return _firestoreService.users.doc(userId).snapshots().map((doc) {
       if (!doc.exists) return null;
-
-      final profile = UserProfile.fromFirestore(doc);
-
-      // SPEC: Free users get 5 unlocks per week. This reset must happen even if
-      // the user never attempts to unlock (otherwise they can get stuck at 0).
-      final subscription = profile.subscriptionStatus.toLowerCase();
-      final isPremium = subscription == 'premium' || subscription == 'pro';
-
-      if (!isPremium && _needsWeeklyCarrotReset(profile.carrots.lastResetAt)) {
-        // Fire-and-forget a transaction reset in Firestore (source of truth).
-        unawaited(_resetWeeklyCarrotsIfNeeded(userId));
-
-        // Optimistic UI: immediately show the refreshed carrots.
-        return profile.copyWith(
-          carrots: profile.carrots.copyWith(
-            current: profile.carrots.max,
-            lastResetAt: DateTime.now(),
-          ),
-        );
-      }
-
-      return profile;
-    });
-  }
-
-  bool _needsWeeklyCarrotReset(DateTime? lastResetAt) {
-    if (lastResetAt == null) return true;
-    return DateTime.now().difference(lastResetAt).inDays >= 7;
-  }
-
-  Future<void> _resetWeeklyCarrotsIfNeeded(String userId) async {
-    final userRef = _firestoreService.users.doc(userId);
-
-    await _firestoreService.instance.runTransaction((transaction) async {
-      final snapshot = await transaction.get(userRef);
-      if (!snapshot.exists) return;
-
-      final data = snapshot.data() as Map<String, dynamic>? ?? {};
-      final subscriptionStatus =
-          (data['subscriptionStatus'] as String?)?.toLowerCase() ?? 'free';
-      final isPremium =
-          subscriptionStatus == 'premium' || subscriptionStatus == 'pro';
-      if (isPremium) return;
-
-      final carrots = (data['carrots'] as Map<String, dynamic>?) ?? {};
-      final maxCarrots = (carrots['max'] as num?)?.toInt() ?? 5;
-      final lastResetAt = (carrots['lastResetAt'] as Timestamp?)?.toDate();
-
-      final needsReset =
-          lastResetAt == null ||
-          DateTime.now().difference(lastResetAt).inDays >= 7;
-      if (!needsReset) return;
-
-      transaction.update(userRef, {
-        'carrots.current': maxCarrots,
-        'carrots.lastResetAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      return UserProfile.fromFirestore(doc);
     });
   }
 
@@ -200,28 +143,10 @@ class UserService {
 
       final data = userSnapshot.data() as Map<String, dynamic>?;
       final carrots = (data?['carrots'] as Map<String, dynamic>?) ?? {};
-      final maxCarrots = (carrots['max'] as num?)?.toInt() ?? 5;
       var currentCarrots = (carrots['current'] as num?)?.toInt() ?? 0;
       final subscriptionStatus =
           (data?['subscriptionStatus'] as String?)?.toLowerCase() ?? 'free';
-      final isPremium =
-          subscriptionStatus == 'premium' || subscriptionStatus == 'pro';
-
-      // Weekly reset (simple 7-day window). This keeps the “5 unlocks per week” promise.
-      if (!isPremium) {
-        final lastResetAt = (carrots['lastResetAt'] as Timestamp?)?.toDate();
-        final needsReset =
-            lastResetAt == null ||
-            DateTime.now().difference(lastResetAt).inDays >= 7;
-        if (needsReset) {
-          currentCarrots = maxCarrots;
-          transaction.update(userRef, {
-            'carrots.current': currentCarrots,
-            'carrots.lastResetAt': FieldValue.serverTimestamp(),
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
-        }
-      }
+      final isPremium = subscriptionStatus == 'premium';
 
       if (!isPremium && currentCarrots < 1) return false;
 

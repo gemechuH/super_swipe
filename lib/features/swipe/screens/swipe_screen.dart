@@ -190,17 +190,11 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
   Widget build(BuildContext context) {
     final profile = ref.watch(userProfileProvider).value;
     final subscription = profile?.subscriptionStatus.toLowerCase() ?? 'free';
-    final isPremium = subscription == 'premium' || subscription == 'pro';
+    final isPremium = subscription == 'premium';
 
     final carrotsObj = profile?.carrots;
-    final maxCarrots = carrotsObj?.max ?? 5;
     final currentCarrots = carrotsObj?.current ?? 0;
-    final lastResetAt = carrotsObj?.lastResetAt;
-    final needsReset =
-        lastResetAt == null ||
-        DateTime.now().difference(lastResetAt).inDays >= 7;
-    final availableCarrots = needsReset ? maxCarrots : currentCarrots;
-    final canUnlock = isPremium || availableCarrots > 0;
+    final canUnlock = isPremium || currentCarrots > 0;
 
     final deckForEnergy = _deckForEnergy(_selectedEnergyLevel);
     final visibleDeck = deckForEnergy
@@ -380,7 +374,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
 
       final profile = ref.read(userProfileProvider).value;
       final subscription = profile?.subscriptionStatus.toLowerCase() ?? 'free';
-      final isPremium = subscription == 'premium' || subscription == 'pro';
+      final isPremium = subscription == 'premium';
 
       final hideUnlockReminder = ref.read(appStateProvider).skipUnlockReminder;
 
@@ -400,11 +394,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
       final carrotsObj = profile?.carrots;
       final maxCarrots = carrotsObj?.max ?? 5;
       final currentCarrots = carrotsObj?.current ?? 0;
-      final lastResetAt = carrotsObj?.lastResetAt;
-      final needsReset =
-          lastResetAt == null ||
-          DateTime.now().difference(lastResetAt).inDays >= 7;
-      final availableCarrots = needsReset ? maxCarrots : currentCarrots;
+      final availableCarrots = currentCarrots;
 
       if (!mounted) return;
 
@@ -1030,7 +1020,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
 
     final profile = ref.read(userProfileProvider).value;
     final subscription = profile?.subscriptionStatus.toLowerCase() ?? 'free';
-    final isPremium = subscription == 'premium' || subscription == 'pro';
+    final isPremium = subscription == 'premium';
     final hideUnlockReminder = ref.read(appStateProvider).skipUnlockReminder;
 
     final preview = RecipePreview(
@@ -1052,11 +1042,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     final carrotsObj = profile?.carrots;
     final maxCarrots = carrotsObj?.max ?? 5;
     final currentCarrots = carrotsObj?.current ?? 0;
-    final lastResetAt = carrotsObj?.lastResetAt;
-    final needsReset =
-        lastResetAt == null ||
-        DateTime.now().difference(lastResetAt).inDays >= 7;
-    final availableCarrots = needsReset ? maxCarrots : currentCarrots;
+    final availableCarrots = currentCarrots;
 
     bool shouldProceed;
     if (isPremium) {

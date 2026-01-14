@@ -46,56 +46,8 @@ class DatabaseService {
       _users.doc(userId).collection('swipeDeck');
 
   // ============================================================
-  // 1. CARROT ECONOMY - LAZY WEEKLY RESET
+  // 1. CARROT ECONOMY
   // ============================================================
-
-  /// Checks if carrots need weekly reset and applies if needed.
-  /// Returns the current (possibly reset) carrot balance.
-  Future<int> _ensureCarrotReset(
-    DocumentReference<Map<String, dynamic>> userRef,
-    Transaction transaction,
-  ) async {
-    final userSnap = await transaction.get(userRef);
-    if (!userSnap.exists) throw Exception('User not found');
-
-    final data = userSnap.data()!;
-    final carrots = data['carrots'] as Map<String, dynamic>? ?? {};
-    final subscriptionStatus = data['subscriptionStatus'] as String? ?? 'free';
-    final isPremium = subscriptionStatus == 'premium';
-
-    int current = (carrots['current'] as num?)?.toInt() ?? 5;
-    final max = (carrots['max'] as num?)?.toInt() ?? 5;
-    final lastResetAt = (carrots['lastResetAt'] as Timestamp?)?.toDate();
-
-    // Premium users don't need reset logic
-    if (isPremium) return current;
-
-    // Check if 7+ days since last reset
-    final needsReset =
-        lastResetAt == null ||
-        DateTime.now().difference(lastResetAt).inDays >= 7;
-
-    if (needsReset) {
-      current = max;
-      transaction.update(userRef, {
-        'carrots.current': max,
-        'carrots.lastResetAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-
-      // Log the reset transaction for audit trail
-      final txRef = _transactions(userRef.id).doc();
-      transaction.set(txRef, {
-        'type': 'reset',
-        'amount': max,
-        'balanceAfter': max,
-        'description': 'Weekly carrot refresh',
-        'timestamp': FieldValue.serverTimestamp(),
-      });
-    }
-
-    return current;
-  }
 
   // ============================================================
   // 1.1 ATOMIC CARROT DEDUCTION (for two-step unlock flow)
@@ -109,18 +61,16 @@ class DatabaseService {
     final txRef = _transactions(userId).doc();
 
     return await _firestore.runTransaction<bool>((transaction) async {
-      // Apply lazy reset and get current balance
-      final currentCarrots = await _ensureCarrotReset(userRef, transaction);
-
-      // Check subscription status
       final userSnap = await transaction.get(userRef);
       if (!userSnap.exists) throw Exception('User not found');
 
       final data = userSnap.data()!;
       final subscriptionStatus =
           data['subscriptionStatus'] as String? ?? 'free';
-      final isPremium =
-          subscriptionStatus == 'premium' || subscriptionStatus == 'pro';
+      final isPremium = subscriptionStatus == 'premium';
+
+      final carrots = data['carrots'] as Map<String, dynamic>? ?? {};
+      final currentCarrots = (carrots['current'] as num?)?.toInt() ?? 0;
 
       // Premium users don't spend carrots
       if (isPremium) return true;
@@ -182,8 +132,8 @@ class DatabaseService {
           userData['subscriptionStatus'] as String? ?? 'free';
       final isPremium = subscriptionStatus == 'premium';
 
-      // Apply lazy reset and get current balance
-      int currentCarrots = await _ensureCarrotReset(userRef, transaction);
+      final carrots = userData['carrots'] as Map<String, dynamic>? ?? {};
+      final currentCarrots = (carrots['current'] as num?)?.toInt() ?? 0;
 
       // Check balance (free users need >= 1 carrot)
       if (!isPremium && currentCarrots < 1) {
