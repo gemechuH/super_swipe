@@ -32,7 +32,9 @@ function parseJsonEnv(name) {
         return JSON.parse(decoded);
       } catch (e2) {
         throw new Error(
-          `Invalid JSON in env var ${name} (base64 decode attempted): ${e2?.message || e2}`
+          `Invalid JSON in env var ${name} (base64 decode attempted): ${
+            e2?.message || e2
+          }`
         );
       }
     }
@@ -78,7 +80,11 @@ function validateServiceAccount(sa, expectedProjectId) {
     );
   }
 
-  if (expectedProjectId && sa.project_id && sa.project_id !== expectedProjectId) {
+  if (
+    expectedProjectId &&
+    sa.project_id &&
+    sa.project_id !== expectedProjectId
+  ) {
     throw new Error(
       `Project mismatch: FIREBASE_PROJECT_ID=${expectedProjectId} but service account project_id=${sa.project_id}. Use a key from the same project, or fix FIREBASE_PROJECT_ID.`
     );

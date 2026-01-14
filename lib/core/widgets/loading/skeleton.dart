@@ -128,28 +128,40 @@ class SkeletonRecipeCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
                       children: const [
                         SkeletonLine(width: 80, height: 14),
-                        SizedBox(width: 10),
                         SkeletonLine(width: 60, height: 14),
-                        SizedBox(width: 10),
                         SkeletonLine(width: 70, height: 14),
                       ],
                     ),
                     const SizedBox(height: 14),
-                    const SkeletonLine(width: 260, height: 20),
+                    const FractionallySizedBox(
+                      widthFactor: 0.78,
+                      alignment: Alignment.centerLeft,
+                      child: SkeletonLine(height: 20),
+                    ),
                     const SizedBox(height: 10),
-                    const SkeletonLine(width: 320, height: 12),
+                    const FractionallySizedBox(
+                      widthFactor: 0.95,
+                      alignment: Alignment.centerLeft,
+                      child: SkeletonLine(height: 12),
+                    ),
                     const SizedBox(height: 8),
-                    const SkeletonLine(width: 280, height: 12),
+                    const FractionallySizedBox(
+                      widthFactor: 0.82,
+                      alignment: Alignment.centerLeft,
+                      child: SkeletonLine(height: 12),
+                    ),
                     const SizedBox(height: 16),
-                    Row(
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
                       children: const [
                         SkeletonLine(width: 90, height: 16),
-                        SizedBox(width: 12),
                         SkeletonLine(width: 90, height: 16),
-                        SizedBox(width: 12),
                         SkeletonLine(width: 90, height: 16),
                       ],
                     ),

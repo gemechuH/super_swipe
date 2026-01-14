@@ -188,6 +188,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final authUser = ref.watch(authProvider).user;
     final profile = ref.watch(userProfileProvider).value;
     final subscription = profile?.subscriptionStatus.toLowerCase() ?? 'free';
     final isPremium = subscription == 'premium';
@@ -196,15 +197,29 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     final currentCarrots = carrotsObj?.current ?? 0;
     final canUnlock = isPremium || currentCarrots > 0;
 
+    // Hide recipes the user already has in their cookbook.
+    // This covers:
+    // - AI-generated recipes (saved directly to user's cookbook)
+    // - Recipes unlocked by swiping right / “Show Directions”
+    final savedRecipesAsync = ref.watch(savedRecipesProvider);
+    final shouldFilterSaved = authUser != null && authUser.isAnonymous != true;
+    final savedIds = savedRecipesAsync.maybeWhen(
+      data: (recipes) => recipes.map((r) => r.id).toSet(),
+      orElse: () => const <String>{},
+    );
+
     final deckForEnergy = _deckForEnergy(_selectedEnergyLevel);
     final visibleDeck = deckForEnergy
-        // Do NOT filter out already-saved recipes.
-        // Otherwise, a user who just generated+saved a recipe won't see it in swipe.
-        .where((r) => !_dismissedCardIds.contains(r.id))
+        .where(
+          (r) =>
+              !_dismissedCardIds.contains(r.id) &&
+              !(shouldFilterSaved && savedIds.contains(r.id)),
+        )
         .toList(growable: false);
     final showLoading =
         (_deckLoading && deckForEnergy.isEmpty) ||
-        _loadingMoreEnergy.contains(_selectedEnergyLevel);
+        _loadingMoreEnergy.contains(_selectedEnergyLevel) ||
+        (shouldFilterSaved && savedRecipesAsync.isLoading);
 
     Widget deckWidget;
     if (showLoading) {
@@ -337,8 +352,19 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     );
   }
 
-  void _openRecipeDetail(Recipe recipe) {
-    context.push('${AppRoutes.recipes}/${recipe.id}', extra: recipe);
+  void _openRecipeDetail(
+    Recipe recipe, {
+    bool assumeUnlocked = false,
+    bool openDirections = false,
+  }) {
+    context.push(
+      '${AppRoutes.recipes}/${recipe.id}',
+      extra: {
+        'recipe': recipe,
+        'assumeUnlocked': assumeUnlocked,
+        'openDirections': openDirections,
+      },
+    );
   }
 
   Future<void> _handleRightSwipe(Recipe recipe) async {
@@ -368,7 +394,9 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
           .read(recipeServiceProvider)
           .isRecipeSaved(userId, recipe.id);
       if (alreadySaved) {
-        if (mounted) _openRecipeDetail(recipe);
+        if (mounted) {
+          _openRecipeDetail(recipe, assumeUnlocked: true, openDirections: true);
+        }
         return;
       }
 
@@ -461,7 +489,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
       }
 
       await ref.read(recipeServiceProvider).saveRecipe(userId, global);
-      if (mounted) _openRecipeDetail(global);
+      if (mounted) _openRecipeDetail(global, assumeUnlocked: true);
     } catch (e) {
       if (kDebugMode) {
         debugPrint('SwipeScreen unlock failed: $e');
@@ -1012,7 +1040,9 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
         .read(recipeServiceProvider)
         .isRecipeSaved(userId, recipe.id);
     if (alreadySaved) {
-      if (mounted) _openRecipeDetail(recipe);
+      if (mounted) {
+        _openRecipeDetail(recipe, assumeUnlocked: true, openDirections: true);
+      }
       return;
     }
 
@@ -1101,6 +1131,8 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     }
 
     await ref.read(recipeServiceProvider).saveRecipe(userId, global);
-    if (mounted) _openRecipeDetail(global);
+    if (mounted) {
+      _openRecipeDetail(global, assumeUnlocked: true, openDirections: true);
+    }
   }
 }
