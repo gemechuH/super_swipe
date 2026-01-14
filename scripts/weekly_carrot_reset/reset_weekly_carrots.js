@@ -1,5 +1,16 @@
 import admin from "firebase-admin";
 
+function looksLikeBase64(value) {
+  // Very small heuristic: base64 payloads are typically long and only contain base64 chars.
+  // This avoids breaking normal JSON.
+  return (
+    typeof value === "string" &&
+    value.length > 200 &&
+    /^[A-Za-z0-9+/=\r\n]+$/.test(value) &&
+    !value.trim().startsWith("{")
+  );
+}
+
 function requireEnv(name) {
   const value = process.env[name];
   if (!value) {
@@ -13,19 +24,55 @@ function parseJsonEnv(name) {
   try {
     return JSON.parse(raw);
   } catch (e) {
+    // Some users prefer storing the service account JSON as base64 to avoid formatting issues.
+    // If JSON parsing fails and it looks like base64, try decode+parse.
+    if (looksLikeBase64(raw)) {
+      try {
+        const decoded = Buffer.from(raw, "base64").toString("utf8");
+        return JSON.parse(decoded);
+      } catch (e2) {
+        throw new Error(
+          `Invalid JSON in env var ${name} (base64 decode attempted): ${e2?.message || e2}`
+        );
+      }
+    }
+
     throw new Error(`Invalid JSON in env var ${name}: ${e?.message || e}`);
   }
 }
 
+function normalizeServiceAccount(sa) {
+  if (!sa || typeof sa !== "object") return sa;
+
+  // If the private key ended up with literal "\\n" sequences, normalize it.
+  if (typeof sa.private_key === "string" && sa.private_key.includes("\\n")) {
+    sa.private_key = sa.private_key.replace(/\\n/g, "\n");
+  }
+
+  return sa;
+}
+
 async function main() {
   const projectId = requireEnv("FIREBASE_PROJECT_ID");
-  const serviceAccount = parseJsonEnv("SERVICE_ACCOUNT_JSON");
+  const serviceAccount = normalizeServiceAccount(
+    parseJsonEnv("SERVICE_ACCOUNT_JSON")
+  );
 
   const dryRun =
     String(process.env.DRY_RUN || "false").toLowerCase() === "true";
   const pageSize = Math.min(
     Math.max(parseInt(process.env.PAGE_SIZE || "200", 10) || 200, 1),
     500
+  );
+
+  // Safe diagnostics (no secrets printed)
+  console.log(
+    `Config: projectId=${projectId} dryRun=${dryRun} pageSize=${pageSize}`
+  );
+  console.log(
+    `ServiceAccount: type=${serviceAccount?.type || "?"} project_id=${
+      serviceAccount?.project_id || "?"
+    } has_private_key=${Boolean(serviceAccount?.private_key)}`
   );
 
   admin.initializeApp({
