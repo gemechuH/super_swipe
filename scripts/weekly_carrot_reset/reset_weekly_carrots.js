@@ -52,6 +52,39 @@ function normalizeServiceAccount(sa) {
   return sa;
 }
 
+function validateServiceAccount(sa, expectedProjectId) {
+  const missing = [];
+  if (!sa || typeof sa !== "object") {
+    throw new Error(
+      "SERVICE_ACCOUNT_JSON is not a JSON object. Paste the full service account key JSON (downloaded from Firebase/GCP)."
+    );
+  }
+
+  // Common mistake: pasting Firebase web config instead of service account JSON.
+  if (sa.apiKey || sa.authDomain || sa.appId) {
+    throw new Error(
+      "SERVICE_ACCOUNT_JSON looks like a Firebase client config (apiKey/appId). You must use a Google Cloud *service account key* JSON (type=service_account)."
+    );
+  }
+
+  if (sa.type !== "service_account") missing.push("type=service_account");
+  if (!sa.project_id) missing.push("project_id");
+  if (!sa.client_email) missing.push("client_email");
+  if (!sa.private_key) missing.push("private_key");
+
+  if (missing.length) {
+    throw new Error(
+      `SERVICE_ACCOUNT_JSON is missing required fields: ${missing.join(", ")}`
+    );
+  }
+
+  if (expectedProjectId && sa.project_id && sa.project_id !== expectedProjectId) {
+    throw new Error(
+      `Project mismatch: FIREBASE_PROJECT_ID=${expectedProjectId} but service account project_id=${sa.project_id}. Use a key from the same project, or fix FIREBASE_PROJECT_ID.`
+    );
+  }
+}
+
 async function main() {
   const projectId = requireEnv("FIREBASE_PROJECT_ID");
   const serviceAccount = normalizeServiceAccount(
@@ -74,6 +107,8 @@ async function main() {
       serviceAccount?.project_id || "?"
     } has_private_key=${Boolean(serviceAccount?.private_key)}`
   );
+
+  validateServiceAccount(serviceAccount, projectId);
 
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
