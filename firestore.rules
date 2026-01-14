@@ -39,7 +39,21 @@ service cloud.firestore {
       // Exception: Premium users bypass carrot restrictions
       allow update: if isOwner(userId) && (
         isPremium() ||
-        request.resource.data.carrots.current <= resource.data.carrots.current
+        // Normal spending/decrement
+        request.resource.data.carrots.current <= resource.data.carrots.current ||
+        // Weekly reset: allow setting current back to max only after 7 days.
+        (
+          resource.data.carrots.lastResetAt != null &&
+          request.resource.data.carrots.current == resource.data.carrots.max &&
+          request.resource.data.carrots.lastResetAt == request.time &&
+          request.time > resource.data.carrots.lastResetAt + duration.value(7, 'd')
+        ) ||
+        // First-time initialization when lastResetAt is null
+        (
+          resource.data.carrots.lastResetAt == null &&
+          request.resource.data.carrots.current == resource.data.carrots.max &&
+          request.resource.data.carrots.lastResetAt == request.time
+        )
       );
 
       // ----------------------------------------
@@ -91,7 +105,21 @@ service cloud.firestore {
     match /recipes/{recipeId} {
       // Visibility-based read: Guests can see public recipes
       allow read: if resource.data.visibility == 'public' || isSignedIn();
-      allow write: if false; // Only Admin/Backend
+
+      // Users can publish recipes they generated to the global pool.
+      // In a stricter production setup, do this via Cloud Functions.
+      allow create: if isSignedIn() &&
+        request.resource.data.visibility == 'public' &&
+        request.resource.data.isActive == true &&
+        request.resource.data.createdBy == request.auth.uid;
+
+      // Allow the creator to update their own recipe (e.g., imageUrl fixes).
+      // Prevent changing ownership.
+      allow update: if isSignedIn() &&
+        resource.data.createdBy == request.auth.uid &&
+        request.resource.data.createdBy == resource.data.createdBy;
+
+      allow delete: if false;
     }
 
     match /recipe_secrets/{recipeId} {

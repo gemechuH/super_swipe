@@ -325,6 +325,23 @@ class DatabaseService {
     }
   }
 
+  /// Marks a swipe card as disliked (left swipe) but keeps it unconsumed.
+  ///
+  /// This allows the user to see the card again on a future visit.
+  Future<void> markSwipeCardDisliked(String userId, String cardId) async {
+    try {
+      await _swipeDeck(userId).doc(cardId).set({
+        'isConsumed': false,
+        'isDisliked': true,
+        'lastSwipeDirection': 'left',
+        'lastSwipedAt': FieldValue.serverTimestamp(),
+        'dislikedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (_) {
+      // Best-effort; don't block UX.
+    }
+  }
+
   /// Clears the user's swipe deck (used for manual refresh).
   Future<void> clearSwipeDeck(String userId) async {
     const pageSize = 400;
@@ -672,6 +689,33 @@ class DatabaseService {
     await _users.doc(userId).update({
       'stats.recipesUnlocked': FieldValue.increment(1),
     });
+  }
+
+  /// Publishes a recipe into the global recipes collection so all users can
+  /// swipe/browse it.
+  ///
+  /// Note: In a stricter production setup this should be done by backend-only
+  /// code (Cloud Functions) to prevent spam. For now we gate via Firestore rules.
+  Future<void> publishRecipeToGlobal({
+    required String userId,
+    required Recipe recipe,
+  }) async {
+    final docRef = _recipes.doc(recipe.id);
+
+    await docRef.set({
+      ...recipe.toFirestore(),
+      'isActive': true,
+      'visibility': 'public',
+      'createdBy': userId,
+      'source': 'ai_user',
+      // Keep createdAt stable if already present.
+      'createdAt': FieldValue.serverTimestamp(),
+      // Ensure stats exists for ordering.
+      'stats': {
+        'likes': recipe.stats.likes,
+        'popularityScore': recipe.stats.popularityScore,
+      },
+    }, SetOptions(merge: true));
   }
 
   // ============================================================
