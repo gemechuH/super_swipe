@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:super_swipe/core/models/pantry_discovery_settings.dart';
 import 'package:super_swipe/core/models/user_profile.dart';
 import 'package:super_swipe/core/models/pantry_item.dart';
 import 'package:super_swipe/core/config/pantry_constants.dart';
@@ -95,4 +96,20 @@ final pantryCountProvider = Provider<int>((ref) {
 final pantryCategoriesProvider = FutureProvider<List<PantryCategory>>((ref) {
   final configService = ref.watch(configServiceProvider);
   return configService.getPantryCategories();
+});
+
+final pantryDiscoverySettingsProvider = Provider<PantryDiscoverySettings>((
+  ref,
+) {
+  final profile = ref.watch(userProfileProvider).value;
+  return profile?.preferences.pantryDiscovery ??
+      const PantryDiscoverySettings();
+});
+
+final includeBasicsProvider = Provider<bool>((ref) {
+  return ref.watch(pantryDiscoverySettingsProvider).includeBasics;
+});
+
+final willingToShopProvider = Provider<bool>((ref) {
+  return ref.watch(pantryDiscoverySettingsProvider).willingToShop;
 });

@@ -120,6 +120,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           Recipe? initialRecipe;
           var assumeUnlocked = false;
           var openDirections = false;
+          var isGenerating = false;
 
           if (extra is Recipe) {
             initialRecipe = extra;
@@ -130,12 +131,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             }
             assumeUnlocked = extra['assumeUnlocked'] == true;
             openDirections = extra['openDirections'] == true;
+            isGenerating = extra['isGenerating'] == true;
           }
           return RecipeDetailScreen(
             recipeId: recipeId,
             initialRecipe: initialRecipe,
             assumeUnlocked: assumeUnlocked,
             openDirections: openDirections,
+            isGenerating: isGenerating,
           );
         },
       ),

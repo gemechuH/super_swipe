@@ -1,12 +1,52 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:super_swipe/core/models/pantry_item.dart';
 import 'package:super_swipe/core/services/firestore_service.dart';
+import 'package:super_swipe/features/swipe/services/swipe_inputs_signature.dart';
 
 /// Service for pantry management in Firestore
 class PantryService {
   final FirestoreService _firestoreService;
 
   PantryService(this._firestoreService);
+
+  Future<void> _recomputeSwipeInputsSignature(String userId) async {
+    try {
+      final userDoc = await _firestoreService.users.doc(userId).get();
+      final userData = userDoc.data() as Map<String, dynamic>?;
+      final prefs =
+          (userData?['preferences'] as Map<String, dynamic>?) ??
+          <String, dynamic>{};
+      final pantryDiscovery =
+          (prefs['pantryDiscovery'] as Map<String, dynamic>?) ??
+          <String, dynamic>{};
+
+      final includeBasics = pantryDiscovery['includeBasics'] ?? true;
+      final willingToShop = pantryDiscovery['willingToShop'] ?? false;
+
+      final pantrySnap = await _firestoreService
+          .userPantry(userId)
+          .orderBy('name')
+          .get();
+      final names = pantrySnap.docs
+          .map((d) => (d.data() as Map<String, dynamic>?) ?? {})
+          .map((m) => (m['normalizedName'] ?? m['name'] ?? '').toString())
+          .toList(growable: false);
+
+      final sig = buildSwipeInputsSignature(
+        pantryIngredientNames: names,
+        includeBasics: includeBasics == true,
+        willingToShop: willingToShop == true,
+      );
+
+      await _firestoreService.users.doc(userId).update({
+        'appState.swipeInputsSignature': sig,
+        'appState.swipeInputsUpdatedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (_) {
+      // Best-effort; signature bump should not block pantry UX.
+    }
+  }
 
   /// Get all pantry items for a user (one-time fetch, alphabetically sorted)
   Future<List<PantryItem>> getUserPantry(String userId) async {
@@ -61,6 +101,7 @@ class PantryService {
     );
 
     await docRef.set(item.toFirestore());
+    await _recomputeSwipeInputsSignature(userId);
   }
 
   /// Batch add pantry items
@@ -94,6 +135,7 @@ class PantryService {
     }
 
     await batch.commit();
+    await _recomputeSwipeInputsSignature(userId);
   }
 
   /// Update pantry item
@@ -118,11 +160,13 @@ class PantryService {
     updates['updatedAt'] = FieldValue.serverTimestamp();
 
     await _firestoreService.userPantry(userId).doc(itemId).update(updates);
+    await _recomputeSwipeInputsSignature(userId);
   }
 
   /// Delete pantry item
   Future<void> deletePantryItem(String userId, String itemId) async {
     await _firestoreService.userPantry(userId).doc(itemId).delete();
+    await _recomputeSwipeInputsSignature(userId);
   }
 
   /// Clear all pantry items

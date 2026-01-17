@@ -23,6 +23,40 @@ class PantryScreen extends ConsumerStatefulWidget {
 class _PantryScreenState extends ConsumerState<PantryScreen> {
   String _searchQuery = '';
   bool _showDepleted = false;
+  bool _isUpdatingDiscoverySettings = false;
+
+  Future<void> _updatePantryDiscoverySettings({
+    bool? includeBasics,
+    bool? willingToShop,
+  }) async {
+    if (_requireAuth()) return;
+    final authState = ref.read(authProvider);
+    final user = authState.user;
+    if (user == null || user.isAnonymous) return;
+
+    final current = ref.read(pantryDiscoverySettingsProvider);
+    final next = current.copyWith(
+      includeBasics: includeBasics,
+      willingToShop: willingToShop,
+    );
+
+    setState(() => _isUpdatingDiscoverySettings = true);
+    try {
+      await ref
+          .read(userServiceProvider)
+          .updatePantryDiscoverySettings(user.uid, next);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to update discovery settings: $e'),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isUpdatingDiscoverySettings = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +84,13 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
     authState,
     List<PantryItem> filtered,
   ) {
+    final discovery = ref.watch(pantryDiscoverySettingsProvider);
+    final user = authState.user;
+    final canEditDiscovery =
+        user != null &&
+        user.isAnonymous != true &&
+        !_isUpdatingDiscoverySettings;
+
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
       // NOTE: No floatingActionButton - MainWrapper has one that overrides.
@@ -153,6 +194,129 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
                               style: TextStyle(fontWeight: FontWeight.w600),
                             ),
                           ],
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.grey.shade200),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.tune_rounded,
+                                    size: 18,
+                                    color: AppTheme.textSecondary,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Expanded(
+                                    child: Text(
+                                      'Discovery settings',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  if (_isUpdatingDiscoverySettings)
+                                    const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  Switch(
+                                    value: discovery.includeBasics,
+                                    onChanged: canEditDiscovery
+                                        ? (v) => _updatePantryDiscoverySettings(
+                                            includeBasics: v,
+                                          )
+                                        : null,
+                                    activeThumbColor: AppTheme.primaryColor,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Expanded(
+                                    child: Text(
+                                      'Include basics',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.only(left: 52),
+                                child: Text(
+                                  'Include common basics like butter, salt, and pepper in suggestions.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppTheme.textSecondary,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  Switch(
+                                    value: discovery.willingToShop,
+                                    onChanged: canEditDiscovery
+                                        ? (v) => _updatePantryDiscoverySettings(
+                                            willingToShop: v,
+                                          )
+                                        : null,
+                                    activeThumbColor: AppTheme.primaryColor,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Expanded(
+                                    child: Text(
+                                      'Willing to shop',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.only(left: 52),
+                                child: Text(
+                                  'Allow suggestions that may require a few extra items.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppTheme.textSecondary,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ),
+                              if (user != null && user.isAnonymous == true)
+                                const Padding(
+                                  padding: EdgeInsets.only(left: 52, top: 8),
+                                  child: Text(
+                                    'Sign in to save these settings.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppTheme.textSecondary,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                       ],
                     ),

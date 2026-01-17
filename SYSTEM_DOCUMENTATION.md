@@ -182,15 +182,25 @@ lib/
   preferences: {
     dietaryRestrictions: string[],  // ["vegetarian", "gluten-free"]
     allergies: string[],
-    defaultEnergyLevel: number,     // 0-3
+    defaultEnergyLevel: number,     // 0-4
     preferredCuisines: string[]
+
+    // Pantry-first discovery (Swipe Engine)
+    pantryDiscovery: {
+      includeBasics: boolean,       // default true
+      willingToShop: boolean        // default false
+    }
   },
 
   // App State
   appState: {
     hasSeenOnboarding: boolean,
     hasSeenTutorials: map,
-    lastActiveAt: timestamp
+    lastActiveAt: timestamp,
+
+    // Pantry-first discovery (Swipe Engine)
+    swipeInputsSignature: string,   // derived hash (pantry + toggles)
+    swipeInputsUpdatedAt: timestamp
   },
 
   // Statistics
@@ -257,8 +267,81 @@ lib/
   difficulty: string,
   calories: number,
 
+  // Unlock metadata (Swipe Engine)
+  isUnlocked: boolean,
+  unlockedAt: timestamp,
+  unlockSource: string,        // "swipe" | "directions"
+  unlockTxId: string,          // deterministic (recommended == recipeId)
+  ideaKey: string,
+  energyLevel: number,         // 0-4
+
   // Timestamps
   savedAt: timestamp
+}
+```
+
+#### **users/{userId}/swipeDeck/{cardId}**
+
+Lightweight AI preview “cards” used for pantry-first swipe.
+
+```javascript
+{
+  id: string,                  // recommended == ideaKey
+  ideaKey: string,
+  energyLevel: number,          // 0-4
+
+  // Preview fields
+  title: string,
+  vibeDescription: string,
+  ingredients: string[],
+  mainIngredients: string[],
+  estimatedTimeMinutes: number,
+  calories: number,
+  equipmentIcons: string[],
+  mealType: string,
+  cuisine: string,
+  skillLevel: string,
+
+  // Card state
+  isConsumed: boolean,
+  isDisliked: boolean?,
+  lastSwipeDirection: string?,  // "left" | "right"
+  lastSwipedAt: timestamp?,
+  consumedAt: timestamp?,
+
+  // Invalidation/debug
+  inputsSignature: string,
+  promptVersion: string,
+  createdAt: timestamp
+}
+```
+
+#### **users/{userId}/ideaKeyHistory/{historyId}**
+
+Tracks “no repeats ever per energy level”.
+
+```javascript
+{
+  ideaKey: string,
+  energyLevel: number,          // 0-4
+  firstSeenAt: timestamp,
+  title: string?,
+  ingredients: string[]?
+}
+```
+
+#### **users/{userId}/transactions/{txId}**
+
+Immutable ledger entries. For unlock spends, `txId` is typically the `recipeId`/`ideaKey`.
+
+```javascript
+{
+  type: string,                 // e.g. "spend" | "reset"
+  amount: number,               // e.g. -1
+  balanceAfter: number,
+  recipeId: string,
+  description: string,
+  timestamp: timestamp
 }
 ```
 
@@ -278,7 +361,7 @@ lib/
   instructions: string[],
 
   // Classification
-  energyLevel: number,          // 0: Sleepy, 1: Low, 2: Okay, 3: High
+  energyLevel: number,          // 0: Sleepy, 1: Low, 2: Okay, 3: Good, 4: Energized
   timeMinutes: number,
   calories: number,
   servings: number?,

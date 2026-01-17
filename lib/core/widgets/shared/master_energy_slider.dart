@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:super_swipe/core/config/swipe_constants.dart';
 import 'package:super_swipe/core/theme/app_theme.dart';
 
 /// A reusable Energy Level slider with consistent styling across the app.
@@ -17,24 +18,14 @@ class MasterEnergySlider extends StatelessWidget {
     this.showLabels = true,
   });
 
-  static const energyLabels = [
-    '😴 Sleepy',
-    '😐 Low',
-    '🙂 Okay',
-    '😊 Good',
-    '⚡ Energized',
-  ];
-
-  static const energyDescriptions = [
-    'Quick & easy (under 15 min)',
-    'Simple recipes (15-20 min)',
-    'Moderate effort (20-30 min)',
-    'Some cooking (30-45 min)',
-    'Elaborate (45+ min)',
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final int clampedValue = value.clamp(
+      EnergyLevel.minValue,
+      EnergyLevel.maxValue,
+    );
+    final level = EnergyLevel.fromInt(clampedValue);
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -52,12 +43,12 @@ class MasterEnergySlider extends StatelessWidget {
         children: [
           // Current value display with emoji
           Text(
-            energyLabels[value.clamp(0, 4)],
+            level.sliderLabel,
             style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 4),
           Text(
-            energyDescriptions[value.clamp(0, 4)],
+            level.sliderDescription,
             style: TextStyle(fontSize: 13, color: Colors.grey[600]),
           ),
           const SizedBox(height: 16),
@@ -73,11 +64,13 @@ class MasterEnergySlider extends StatelessWidget {
               trackHeight: 6,
             ),
             child: Slider(
-              value: value.toDouble(),
-              min: 0,
-              max: 4,
-              divisions: 4,
-              onChanged: (v) => onChanged(v.round()),
+              value: clampedValue.toDouble(),
+              min: EnergyLevel.minValue.toDouble(),
+              max: EnergyLevel.maxValue.toDouble(),
+              divisions: EnergyLevel.maxValue - EnergyLevel.minValue,
+              onChanged: (v) => onChanged(
+                v.round().clamp(EnergyLevel.minValue, EnergyLevel.maxValue),
+              ),
             ),
           ),
 

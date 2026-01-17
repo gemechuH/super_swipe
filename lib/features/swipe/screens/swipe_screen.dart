@@ -7,6 +7,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:super_swipe/core/config/assumed_seasonings.dart';
+import 'package:super_swipe/core/config/constants.dart' show AppAssets;
 import 'package:super_swipe/core/models/pantry_item.dart';
 import 'package:super_swipe/core/models/recipe.dart';
 import 'package:super_swipe/core/models/recipe_preview.dart';
@@ -19,6 +21,9 @@ import 'package:super_swipe/core/widgets/shared/master_energy_slider.dart';
 import 'package:super_swipe/core/widgets/dialogs/confirm_unlock_dialog.dart';
 import 'package:super_swipe/core/widgets/loading/app_loading.dart';
 import 'package:super_swipe/features/auth/providers/auth_provider.dart';
+import 'package:super_swipe/features/swipe/providers/pantry_first_swipe_deck_provider.dart';
+import 'package:super_swipe/features/swipe/services/pantry_first_swipe_deck_service.dart';
+import 'package:super_swipe/features/swipe/widgets/recipe_preview_card.dart';
 import 'package:super_swipe/services/database/database_provider.dart';
 
 class SwipeScreen extends ConsumerStatefulWidget {
@@ -40,6 +45,8 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
   bool _unlockFlowInProgress = false;
 
   bool _deckLoading = false;
+  bool _didInitialLoad = false;
+  bool _usePantryFirstDeck = true;
   int _swiperRebuildToken = 0;
   final Set<String> _dismissedCardIds = <String>{};
 
@@ -54,12 +61,25 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     super.dispose();
   }
 
-  @override
-  void initState() {
-    super.initState();
+  void _scheduleInitialLoadIfNeeded() {
+    if (_didInitialLoad) return;
+    _didInitialLoad = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       unawaited(_refreshEnergy(energyLevel: _selectedEnergyLevel));
     });
+  }
+
+  void _refreshCurrentDeck() {
+    if (_usePantryFirstDeck) {
+      unawaited(
+        ref
+            .read(pantryFirstSwipeDeckProvider(_selectedEnergyLevel).notifier)
+            .refresh(),
+      );
+      return;
+    }
+    unawaited(_refreshEnergy(energyLevel: _selectedEnergyLevel));
   }
 
   String _norm(String value) => value.toLowerCase().trim();
@@ -148,6 +168,132 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     }
   }
 
+  Widget _buildGuestGate() {
+    return Scaffold(
+      backgroundColor: AppTheme.backgroundColor,
+      appBar: AppBar(
+        title: const Text('Swipe'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.lock_outline,
+                  size: 56,
+                  color: AppTheme.textSecondary,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Sign in to start swiping.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Guests can browse the app, but Swipe requires a full account.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => context.go(AppRoutes.login),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: const Text('Go to Login'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPantryGate({required int nonSeasoningCount}) {
+    return Scaffold(
+      backgroundColor: AppTheme.backgroundColor,
+      appBar: AppBar(
+        title: const Text('Swipe'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.kitchen_outlined,
+                  size: 56,
+                  color: AppTheme.textSecondary,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Add at least 3 ingredients to start',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'You have $nonSeasoningCount so far. Seasonings like salt and pepper don\'t count.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => context.go(AppRoutes.pantry),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: const Text('Go to Pantry'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Set<String> _pantryKeySet(List<PantryItem> pantryItems) {
     return pantryItems
         .map((i) => _norm(i.normalizedName))
@@ -186,68 +332,504 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final authUser = ref.watch(authProvider).user;
-    final profile = ref.watch(userProfileProvider).value;
+  void _onPreviewSwipeEnd(
+    List<RecipePreview> deck,
+    int previousIndex,
+    int targetIndex,
+    SwiperActivity activity,
+  ) {
+    if (activity is! Swipe) return;
+    if (previousIndex >= deck.length) return;
+
+    final swiped = deck[previousIndex];
+    _dismissedCardIds.add(swiped.id);
+
+    final remainingAfterSwipe = (deck.length - 1).clamp(0, deck.length);
+    unawaited(
+      ref
+          .read(pantryFirstSwipeDeckProvider(_selectedEnergyLevel).notifier)
+          .maybeTriggerRefillForVisibleRemaining(remainingAfterSwipe),
+    );
+
+    if (activity.direction == AxisDirection.left) {
+      unawaited(_handlePreviewLeftSwipe(swiped));
+    } else if (activity.direction == AxisDirection.right) {
+      unawaited(_handlePreviewRightSwipe(swiped));
+    }
+  }
+
+  Future<void> _handlePreviewLeftSwipe(RecipePreview preview) async {
+    final user = ref.read(authProvider).user;
+    if (user == null || user.isAnonymous == true) return;
+
+    await ref
+        .read(databaseServiceProvider)
+        .markSwipeCardDisliked(user.uid, preview.id);
+  }
+
+  Recipe _placeholderRecipeFromPreview(RecipePreview preview) {
+    final imageUrl = (preview.imageUrl?.isNotEmpty == true)
+        ? preview.imageUrl!
+        : AppAssets.placeholderRecipe;
+    final ingredients = preview.ingredients.isNotEmpty
+        ? preview.ingredients
+        : preview.mainIngredients;
+
+    return Recipe(
+      id: preview.id,
+      title: preview.title,
+      imageUrl: imageUrl,
+      description: preview.vibeDescription,
+      ingredients: ingredients,
+      instructions: const <String>[],
+      ingredientIds: const <String>[],
+      energyLevel: preview.energyLevel,
+      timeMinutes: preview.estimatedTimeMinutes,
+      calories: preview.calories,
+      equipment: preview.equipmentIcons,
+      mealType: preview.mealType,
+      skillLevel: preview.skillLevel,
+      cuisine: preview.cuisine,
+      isPremium: false,
+    );
+  }
+
+  Future<void> _handlePreviewRightSwipe(RecipePreview preview) async {
+    final user = ref.read(authProvider).user;
+    if (user == null || user.isAnonymous == true) return;
+
+    Future<void> undoLastSwipeAndRestore() async {
+      _dismissedCardIds.remove(preview.id);
+      try {
+        await _swiperController.unswipe();
+      } catch (_) {
+        // no-op
+      }
+    }
+
+    if (_unlockFlowInProgress) return;
+    setState(() => _unlockFlowInProgress = true);
+
+    try {
+      // If already unlocked (in My Recipes), just open it.
+      final saved = ref.read(savedRecipesProvider).value;
+      final alreadyUnlocked = saved?.any((r) => r.id == preview.id) == true;
+      if (alreadyUnlocked) {
+        unawaited(
+          ref
+              .read(databaseServiceProvider)
+              .markSwipeCardConsumed(user.uid, preview.id),
+        );
+        if (mounted) {
+          _openRecipeDetailById(preview.id, assumeUnlocked: true);
+        }
+        return;
+      }
+
+      final profile = ref.read(userProfileProvider).value;
+      final subscription = profile?.subscriptionStatus.toLowerCase() ?? 'free';
+      final isPremium = subscription == 'premium';
+
+      final carrotsObj = profile?.carrots;
+      final maxCarrots = carrotsObj?.max ?? 5;
+      final currentCarrots = carrotsObj?.current ?? 0;
+
+      if (!mounted) return;
+
+      final hideUnlockReminder = ref.read(appStateProvider).skipUnlockReminder;
+
+      bool shouldProceed;
+      if (isPremium) {
+        shouldProceed = true;
+      } else if (hideUnlockReminder) {
+        shouldProceed = await _showReducedUnlockDialog(
+          preview: preview,
+          currentCarrots: currentCarrots,
+          maxCarrots: maxCarrots,
+        );
+      } else {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) {
+            return ConfirmUnlockDialog(
+              preview: preview,
+              currentCarrots: currentCarrots,
+              maxCarrots: maxCarrots,
+              initialDoNotShowAgain: hideUnlockReminder,
+              onDoNotShowAgainChanged: (v) {
+                unawaited(
+                  ref.read(appStateProvider.notifier).setSkipUnlockReminder(v),
+                );
+              },
+              onCancel: () => Navigator.of(dialogContext).pop(false),
+              onUnlock: () => Navigator.of(dialogContext).pop(true),
+            );
+          },
+        );
+        shouldProceed = confirmed == true;
+      }
+
+      if (!shouldProceed || !mounted) {
+        await undoLastSwipeAndRestore();
+        return;
+      }
+
+      final notifier = ref.read(
+        pantryFirstSwipeDeckProvider(_selectedEnergyLevel).notifier,
+      );
+
+      await notifier.reserveUnlockPreview(preview, unlockSource: 'swipe_right');
+
+      if (!mounted) return;
+
+      final placeholder = _placeholderRecipeFromPreview(preview);
+      _openRecipeDetailById(
+        preview.id,
+        recipe: placeholder,
+        assumeUnlocked: true,
+        openDirections: true,
+        isGenerating: true,
+      );
+
+      unawaited(
+        notifier.generateAndFinalizeUnlockPreview(
+          preview,
+          unlockSource: 'swipe_right',
+        ),
+      );
+    } on OutOfCarrotsException {
+      if (mounted) _showOutOfCarrots();
+      await undoLastSwipeAndRestore();
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('SwipeScreen preview unlock failed: $e');
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not unlock that recipe. Please try again.'),
+          ),
+        );
+      }
+      await undoLastSwipeAndRestore();
+    } finally {
+      if (mounted) setState(() => _unlockFlowInProgress = false);
+    }
+  }
+
+  Future<void> _handlePreviewShowDirections(RecipePreview preview) async {
+    final authUser = ref.read(authProvider).user;
+    final userId = authUser?.uid;
+
+    if (userId == null || authUser?.isAnonymous == true) {
+      if (mounted) context.go(AppRoutes.login);
+      return;
+    }
+
+    // If already unlocked (in My Recipes), just open directions.
+    final saved = ref.read(savedRecipesProvider).value;
+    final alreadyUnlocked = saved?.any((r) => r.id == preview.id) == true;
+    if (alreadyUnlocked) {
+      unawaited(
+        ref
+            .read(databaseServiceProvider)
+            .markSwipeCardConsumed(userId, preview.id),
+      );
+      if (mounted) {
+        _dismissedCardIds.add(preview.id);
+        _openRecipeDetailById(
+          preview.id,
+          assumeUnlocked: true,
+          openDirections: true,
+        );
+      }
+      return;
+    }
+
+    if (_unlockFlowInProgress) return;
+
+    final profile = ref.read(userProfileProvider).value;
     final subscription = profile?.subscriptionStatus.toLowerCase() ?? 'free';
     final isPremium = subscription == 'premium';
 
     final carrotsObj = profile?.carrots;
+    final maxCarrots = carrotsObj?.max ?? 5;
     final currentCarrots = carrotsObj?.current ?? 0;
-    final canUnlock = isPremium || currentCarrots > 0;
 
-    // Hide recipes the user already has in their cookbook.
-    // This covers:
-    // - AI-generated recipes (saved directly to user's cookbook)
-    // - Recipes unlocked by swiping right / “Show Directions”
-    final savedRecipesAsync = ref.watch(savedRecipesProvider);
-    final shouldFilterSaved = authUser != null && authUser.isAnonymous != true;
-    final savedIds = savedRecipesAsync.maybeWhen(
-      data: (recipes) => recipes.map((r) => r.id).toSet(),
-      orElse: () => const <String>{},
-    );
+    final hideUnlockReminder = ref.read(appStateProvider).skipUnlockReminder;
 
-    final deckForEnergy = _deckForEnergy(_selectedEnergyLevel);
-    final visibleDeck = deckForEnergy
-        .where(
-          (r) =>
-              !_dismissedCardIds.contains(r.id) &&
-              !(shouldFilterSaved && savedIds.contains(r.id)),
-        )
-        .toList(growable: false);
-    final showLoading =
-        (_deckLoading && deckForEnergy.isEmpty) ||
-        _loadingMoreEnergy.contains(_selectedEnergyLevel) ||
-        (shouldFilterSaved && savedRecipesAsync.isLoading);
+    bool shouldProceed;
+    if (isPremium) {
+      shouldProceed = true;
+    } else if (hideUnlockReminder) {
+      shouldProceed = await _showReducedUnlockDialog(
+        preview: preview,
+        currentCarrots: currentCarrots,
+        maxCarrots: maxCarrots,
+      );
+    } else {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          return ConfirmUnlockDialog(
+            preview: preview,
+            currentCarrots: currentCarrots,
+            maxCarrots: maxCarrots,
+            initialDoNotShowAgain: hideUnlockReminder,
+            onDoNotShowAgainChanged: (v) {
+              unawaited(
+                ref.read(appStateProvider.notifier).setSkipUnlockReminder(v),
+              );
+            },
+            onCancel: () => Navigator.of(dialogContext).pop(false),
+            onUnlock: () => Navigator.of(dialogContext).pop(true),
+          );
+        },
+      );
+      shouldProceed = confirmed == true;
+    }
 
-    Widget deckWidget;
-    if (showLoading) {
-      deckWidget = _buildDeckLoading();
-    } else if (visibleDeck.isEmpty) {
-      deckWidget = Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(
-            deckForEnergy.isEmpty
-                ? 'No recipes yet. Tap refresh to load.'
-                : 'No more recipes right now. Try another energy level.',
-            textAlign: TextAlign.center,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
+    if (!shouldProceed || !mounted) return;
+
+    setState(() => _unlockFlowInProgress = true);
+    try {
+      final notifier = ref.read(
+        pantryFirstSwipeDeckProvider(_selectedEnergyLevel).notifier,
+      );
+
+      await notifier.reserveUnlockPreview(
+        preview,
+        unlockSource: 'show_directions',
+      );
+
+      if (!mounted) return;
+      _dismissedCardIds.add(preview.id);
+
+      final placeholder = _placeholderRecipeFromPreview(preview);
+      _openRecipeDetailById(
+        preview.id,
+        recipe: placeholder,
+        assumeUnlocked: true,
+        openDirections: true,
+        isGenerating: true,
+      );
+
+      unawaited(
+        notifier.generateAndFinalizeUnlockPreview(
+          preview,
+          unlockSource: 'show_directions',
+        ),
+      );
+    } on OutOfCarrotsException {
+      if (mounted) _showOutOfCarrots();
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('SwipeScreen preview Show Directions unlock failed: $e');
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not unlock that recipe. Please try again.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _unlockFlowInProgress = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final authUser = ref.watch(authProvider).user;
+    if (authUser != null && authUser.isAnonymous) {
+      return _buildGuestGate();
+    }
+
+    final pantryAsync = ref.watch(pantryItemsProvider);
+    final includeBasics = ref.watch(includeBasicsProvider);
+
+    if (pantryAsync.isLoading) {
+      return Scaffold(
+        backgroundColor: AppTheme.backgroundColor,
+        appBar: AppBar(
+          title: const Text('Swipe'),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+        ),
+        body: const Center(
+          child: AppInlineLoading(
+            size: 28,
+            baseColor: Color(0xFFE6E6E6),
+            highlightColor: Color(0xFFF7F7F7),
           ),
         ),
       );
-    } else {
-      deckWidget = AppinioSwiper(
-        key: ValueKey('swiper_${_selectedEnergyLevel}_$_swiperRebuildToken'),
-        controller: _swiperController,
-        cardCount: visibleDeck.length,
-        onSwipeEnd: (previousIndex, targetIndex, activity) =>
-            _onSwipeEnd(visibleDeck, previousIndex, targetIndex, activity),
-        cardBuilder: (context, index) => _buildRecipeCard(visibleDeck[index]),
+    }
+
+    if (pantryAsync.hasError) {
+      return Scaffold(
+        backgroundColor: AppTheme.backgroundColor,
+        appBar: AppBar(
+          title: const Text('Swipe'),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              'Couldn\'t load your pantry right now.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
+            ),
+          ),
+        ),
       );
+    }
+
+    final nonSeasoningCount = countNonSeasoningPantryItems(
+      pantryAsync.value ?? const <PantryItem>[],
+      includeBasics: includeBasics,
+    );
+
+    if (nonSeasoningCount < 3) {
+      return _buildPantryGate(nonSeasoningCount: nonSeasoningCount);
+    }
+
+    final isPremium = ref.watch(
+      userProfileProvider.select((asyncProfile) {
+        final profile = asyncProfile.asData?.value;
+        final subscription = (profile?.subscriptionStatus ?? 'free')
+            .toLowerCase();
+        return subscription == 'premium';
+      }),
+    );
+
+    final currentCarrots = ref.watch(
+      userProfileProvider.select((asyncProfile) {
+        final profile = asyncProfile.asData?.value;
+        return profile?.carrots.current ?? 0;
+      }),
+    );
+    final canUnlock = isPremium || currentCarrots > 0;
+
+    final deckForEnergy = _deckForEnergy(_selectedEnergyLevel);
+    final visibleLegacyDeck = deckForEnergy
+        .where((r) => !_dismissedCardIds.contains(r.id))
+        .toList(growable: false);
+
+    final previewDeckAsync = ref.watch(
+      pantryFirstSwipeDeckProvider(_selectedEnergyLevel),
+    );
+    final previewDeck = previewDeckAsync.value ?? const <RecipePreview>[];
+    final visiblePreviewDeck = previewDeck
+        .where((p) => !_dismissedCardIds.contains(p.id))
+        .toList(growable: false);
+
+    final usingPreview = _usePantryFirstDeck;
+    final activeDeckCount = usingPreview
+        ? visiblePreviewDeck.length
+        : visibleLegacyDeck.length;
+
+    if (!usingPreview && deckForEnergy.isEmpty && !_deckLoading) {
+      _scheduleInitialLoadIfNeeded();
+    }
+
+    Widget deckWidget;
+    if (usingPreview) {
+      if (previewDeckAsync.isLoading && previewDeck.isEmpty) {
+        deckWidget = const Center(
+          child: AppInlineLoading(
+            size: 28,
+            baseColor: Color(0xFFE6E6E6),
+            highlightColor: Color(0xFFF7F7F7),
+          ),
+        );
+      } else if (previewDeckAsync.hasError) {
+        deckWidget = Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              'Couldn\'t load your swipe ideas right now.',
+              textAlign: TextAlign.center,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
+            ),
+          ),
+        );
+      } else if (visiblePreviewDeck.isEmpty) {
+        deckWidget = Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              'No ideas yet. Tap refresh to try again.',
+              textAlign: TextAlign.center,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
+            ),
+          ),
+        );
+      } else {
+        deckWidget = AppinioSwiper(
+          key: ValueKey('preview_${_selectedEnergyLevel}_$_swiperRebuildToken'),
+          controller: _swiperController,
+          cardCount: visiblePreviewDeck.length,
+          onSwipeEnd: (previousIndex, targetIndex, activity) =>
+              _onPreviewSwipeEnd(
+                visiblePreviewDeck,
+                previousIndex,
+                targetIndex,
+                activity,
+              ),
+          cardBuilder: (context, index) => RecipePreviewCard(
+            preview: visiblePreviewDeck[index],
+            onShowDirections: () =>
+                _handlePreviewShowDirections(visiblePreviewDeck[index]),
+          ),
+        );
+      }
+    } else {
+      final showLoading =
+          (_deckLoading && deckForEnergy.isEmpty) ||
+          _loadingMoreEnergy.contains(_selectedEnergyLevel);
+
+      if (showLoading) {
+        deckWidget = _buildDeckLoading();
+      } else if (visibleLegacyDeck.isEmpty) {
+        deckWidget = Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              deckForEnergy.isEmpty
+                  ? 'No recipes yet. Tap refresh to load.'
+                  : 'No more recipes right now. Try another energy level.',
+              textAlign: TextAlign.center,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
+            ),
+          ),
+        );
+      } else {
+        deckWidget = AppinioSwiper(
+          key: ValueKey('legacy_${_selectedEnergyLevel}_$_swiperRebuildToken'),
+          controller: _swiperController,
+          cardCount: visibleLegacyDeck.length,
+          onSwipeEnd: (previousIndex, targetIndex, activity) => _onSwipeEnd(
+            visibleLegacyDeck,
+            previousIndex,
+            targetIndex,
+            activity,
+          ),
+          cardBuilder: (context, index) =>
+              _buildRecipeCard(visibleLegacyDeck[index]),
+        );
+      }
     }
 
     return Scaffold(
@@ -259,12 +841,26 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
         actions: [
           IconButton(
             tooltip: 'Refresh deck',
-            onPressed: _deckLoading
-                ? null
-                : () => unawaited(
-                    _refreshEnergy(energyLevel: _selectedEnergyLevel),
-                  ),
+            onPressed: _deckLoading ? null : _refreshCurrentDeck,
             icon: const Icon(Icons.refresh_rounded),
+          ),
+          IconButton(
+            tooltip: _usePantryFirstDeck
+                ? 'Use global recipes'
+                : 'Use swipe ideas',
+            onPressed: () {
+              setState(() {
+                _usePantryFirstDeck = !_usePantryFirstDeck;
+                _dismissedCardIds.clear();
+                _swiperRebuildToken++;
+              });
+              _refreshCurrentDeck();
+            },
+            icon: Icon(
+              _usePantryFirstDeck
+                  ? Icons.public_rounded
+                  : Icons.auto_awesome_rounded,
+            ),
           ),
         ],
       ),
@@ -282,7 +878,9 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                     _dismissedCardIds.clear();
                     _swiperRebuildToken++;
                   });
-                  unawaited(_ensureEnergyLoaded(next));
+                  if (!_usePantryFirstDeck) {
+                    unawaited(_ensureEnergyLoaded(next));
+                  }
                 },
               ),
             ),
@@ -300,7 +898,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                   _buildActionButton(
                     icon: Icons.close,
                     color: AppTheme.errorColor,
-                    onPressed: (_unlockFlowInProgress || visibleDeck.isEmpty)
+                    onPressed: (_unlockFlowInProgress || activeDeckCount == 0)
                         ? null
                         : () => _swiperController.swipeLeft(),
                   ),
@@ -313,36 +911,46 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text(
-                            'Tip: Tap “Show Ingredients Needed” to preview without unlocking.',
+                            'Tip: Left = dislike, right = keep moving.',
                           ),
                         ),
                       );
                     },
                   ),
                   const SizedBox(width: AppTheme.spacingXL),
-                  AnimatedOpacity(
-                    duration: const Duration(milliseconds: 200),
-                    opacity: canUnlock ? 1.0 : 0.5,
-                    child: _buildActionButton(
+                  if (!_usePantryFirstDeck)
+                    AnimatedOpacity(
+                      duration: const Duration(milliseconds: 200),
+                      opacity: canUnlock ? 1.0 : 0.5,
+                      child: _buildActionButton(
+                        icon: Icons.arrow_forward_rounded,
+                        color: AppTheme.primaryColor,
+                        onPressed:
+                            (_unlockFlowInProgress || activeDeckCount == 0)
+                            ? null
+                            : () {
+                                final authUser = ref.read(authProvider).user;
+                                if (authUser == null || authUser.isAnonymous) {
+                                  context.go(AppRoutes.login);
+                                  return;
+                                }
+
+                                if (canUnlock) {
+                                  _swiperController.swipeRight();
+                                } else {
+                                  _showOutOfCarrots();
+                                }
+                              },
+                      ),
+                    )
+                  else
+                    _buildActionButton(
                       icon: Icons.arrow_forward_rounded,
                       color: AppTheme.primaryColor,
-                      onPressed: (_unlockFlowInProgress || visibleDeck.isEmpty)
+                      onPressed: (_unlockFlowInProgress || activeDeckCount == 0)
                           ? null
-                          : () {
-                              final authUser = ref.read(authProvider).user;
-                              if (authUser == null || authUser.isAnonymous) {
-                                context.go(AppRoutes.login);
-                                return;
-                              }
-
-                              if (canUnlock) {
-                                _swiperController.swipeRight();
-                              } else {
-                                _showOutOfCarrots();
-                              }
-                            },
+                          : () => _swiperController.swipeRight(),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -356,6 +964,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     Recipe recipe, {
     bool assumeUnlocked = false,
     bool openDirections = false,
+    bool isGenerating = false,
   }) {
     context.push(
       '${AppRoutes.recipes}/${recipe.id}',
@@ -363,6 +972,25 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
         'recipe': recipe,
         'assumeUnlocked': assumeUnlocked,
         'openDirections': openDirections,
+        'isGenerating': isGenerating,
+      },
+    );
+  }
+
+  void _openRecipeDetailById(
+    String recipeId, {
+    Recipe? recipe,
+    bool assumeUnlocked = false,
+    bool openDirections = false,
+    bool isGenerating = false,
+  }) {
+    context.push(
+      '${AppRoutes.recipes}/$recipeId',
+      extra: {
+        if (recipe != null) 'recipe': recipe,
+        'assumeUnlocked': assumeUnlocked,
+        'openDirections': openDirections,
+        'isGenerating': isGenerating,
       },
     );
   }

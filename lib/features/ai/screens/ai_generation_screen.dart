@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
+import 'package:super_swipe/core/config/swipe_constants.dart';
 import 'package:super_swipe/core/models/pantry_item.dart';
 import 'package:super_swipe/core/models/recipe.dart';
 import 'package:super_swipe/core/providers/draft_recipe_provider.dart';
@@ -774,7 +775,10 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                 '${selectedItems.length} selected',
               ),
               _buildSummaryRow('Meal Type', _selectedMealType ?? 'Any'),
-              _buildSummaryRow('Energy Level', _getEnergyLabel(_energyLevel)),
+              _buildSummaryRow(
+                'Energy Level',
+                EnergyLevel.fromInt(_energyLevel).summaryLabel,
+              ),
               if (_cravingsController.text.trim().isNotEmpty)
                 _buildSummaryRow('Cravings', _cravingsController.text.trim()),
               const SizedBox(height: 16),
@@ -845,21 +849,6 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
         ],
       ),
     );
-  }
-
-  String _getEnergyLabel(int level) {
-    switch (level) {
-      case 0:
-        return 'Zero (Ready-made)';
-      case 1:
-        return 'Low (Quick & Easy)';
-      case 2:
-        return 'Medium (Some Effort)';
-      case 3:
-        return 'High (Full Cooking)';
-      default:
-        return 'Medium';
-    }
   }
 
   Future<void> _generateRecipe() async {

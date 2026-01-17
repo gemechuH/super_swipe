@@ -7,6 +7,8 @@ import 'package:super_swipe/core/providers/user_data_providers.dart';
 import 'package:super_swipe/core/router/app_router.dart';
 import 'package:super_swipe/core/theme/app_theme.dart';
 import 'package:super_swipe/core/widgets/loading/app_loading.dart';
+import 'package:super_swipe/core/widgets/loading/app_shimmer.dart';
+import 'package:super_swipe/core/widgets/loading/skeleton.dart';
 import 'package:super_swipe/features/auth/providers/auth_provider.dart';
 import 'package:super_swipe/services/database/database_provider.dart';
 
@@ -15,6 +17,7 @@ class RecipeDetailScreen extends ConsumerStatefulWidget {
   final Recipe? initialRecipe;
   final bool assumeUnlocked;
   final bool openDirections;
+  final bool isGenerating;
 
   const RecipeDetailScreen({
     super.key,
@@ -22,6 +25,7 @@ class RecipeDetailScreen extends ConsumerStatefulWidget {
     this.initialRecipe,
     this.assumeUnlocked = false,
     this.openDirections = false,
+    this.isGenerating = false,
   });
 
   @override
@@ -243,6 +247,8 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
     final instructions = safeRecipe?.instructions ?? const <String>[];
     final currentStep = safeRecipe?.currentStep ?? 0;
     final totalSteps = instructions.length;
+    final showGeneratingSkeleton =
+        widget.isGenerating && (safeRecipe?.instructions.isEmpty ?? true);
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
@@ -335,8 +341,9 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                             style: const TextStyle(fontWeight: FontWeight.w700),
                           ),
                         ),
-                        if (isLoading) const SizedBox(width: 16),
-                        if (isLoading)
+                        if (isLoading || showGeneratingSkeleton)
+                          const SizedBox(width: 16),
+                        if (isLoading || showGeneratingSkeleton)
                           const SizedBox(
                             width: 18,
                             height: 18,
@@ -388,10 +395,22 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                   ),
                   const SizedBox(height: AppTheme.spacingS),
                   if (instructions.isEmpty)
-                    const Text(
-                      'Directions are not available for this recipe yet.',
-                      style: TextStyle(color: AppTheme.textSecondary),
-                    )
+                    (isLoading || showGeneratingSkeleton)
+                        ? const AppShimmer(
+                            child: Column(
+                              children: [
+                                SkeletonListTile(showLeading: false),
+                                SizedBox(height: 10),
+                                SkeletonListTile(showLeading: false),
+                                SizedBox(height: 10),
+                                SkeletonListTile(showLeading: false),
+                              ],
+                            ),
+                          )
+                        : const Text(
+                            'Directions are not available for this recipe yet.',
+                            style: TextStyle(color: AppTheme.textSecondary),
+                          )
                   else
                     Column(
                       children: List.generate(instructions.length, (index) {

@@ -13,6 +13,7 @@ Super Swipe is a mobile application that revolutionizes meal planning by combini
 ## ✨ Features
 
 ### 🔥 Core Features
+
 - **Tinder-Style Swiping** - Swipe right to unlock recipes, left to skip
 - **Carrot System** - Gamified weekly unlocks (5 free carrots/week)
 - **Hybrid AI Vision** - Smart food detection combining ML Kit and Google Cloud Vision with cost controls
@@ -20,12 +21,14 @@ Super Swipe is a mobile application that revolutionizes meal planning by combini
 - **Smart Pantry Management** - Add, edit, delete ingredients with real-time updates
 
 ### 🎯 User Experience
-- **Energy Level Filter** - Recipes matched to your current energy (Sleepy 💤, Low 🔋, Okay ⚡, High 🔥)
+
+- **Energy Level Filter** - Recipes matched to your current energy (0–4)
 - **Saved Recipes Collection** - Access your unlocked recipes anytime
 - **Beautiful UI** - Modern, intuitive design with smooth animations
 - **Offline Support** - Works without internet connection
 
 ### 🔐 Authentication
+
 - Email/Password signup and login
 - Google Sign-In integration
 - Anonymous guest mode
@@ -35,7 +38,7 @@ Super Swipe is a mobile application that revolutionizes meal planning by combini
 
 ## 📱 Screenshots
 
-*(Add your app screenshots here)*
+### Add your app screenshots here
 
 ![Screenshot 1](assets/images/screenshot-1.jpg)
 ![Screenshot 2](assets/images/screenshot-2.jpg)
@@ -43,24 +46,26 @@ Super Swipe is a mobile application that revolutionizes meal planning by combini
 ![Screenshot 4](assets/images/screenshot-4.jpg)
 ![Screenshot 5](assets/images/screenshot-5.jpg)
 
-
 ---
 
 ## 🏗️ Tech Stack
 
 ### **Frontend**
+
 - **Framework**: Flutter 3.10.3
 - **Language**: Dart (100% null safety)
 - **State Management**: Riverpod 2.5.1
 - **Navigation**: GoRouter 14.3.0
 
 ### **Backend**
+
 - **Database**: Cloud Firestore
 - **Authentication**: Firebase Auth
 - **Storage**: Firebase Cloud Storage (ready)
 - **AI Vision**: Hybrid (ML Kit + Google Cloud Vision API)
 
 ### **Key Packages**
+
 ```yaml
 firebase_core: ^3.6.0
 firebase_auth: ^5.3.1
@@ -88,29 +93,33 @@ http: ^1.2.2
 ### Installation
 
 1. **Clone the repository**
+
 ```bash
 git clone [your-repo-url]
 cd super_swipe
 ```
 
 2. **Install dependencies**
+
 ```bash
 flutter pub get
 ```
 
 3. **Configure Firebase**
-   
+
    ⚠️ **IMPORTANT**: Firebase configuration files are NOT included in this repo for security.
-   
+
    See detailed setup guide: **[FIREBASE_SETUP.md](./FIREBASE_SETUP.md)**
-   
+
    Quick overview:
+
    - Create a Firebase project at [console.firebase.google.com](https://console.firebase.google.com)
    - Download `GoogleService-Info.plist` (iOS) → place in `ios/Runner/`
    - Download `google-services.json` (Android) → place in `android/app/`
    - Run: `flutterfire configure` to generate `lib/firebase_options.dart`
 
 4. **Set up Firestore**
+
    - Enable Firestore in Firebase Console
    - Deploy security rules from `firestore.rules`:
      ```bash
@@ -118,6 +127,7 @@ flutter pub get
      ```
 
 5. **Run the app**
+
 ```bash
 flutter run
 ```
@@ -178,19 +188,32 @@ users/{userId}
   ├── uid, email, displayName
   ├── carrots: { current, max, lastResetAt }
   ├── stats: { scanCount, recipesUnlocked, totalCarrotsSpent }
-  ├── preferences: { dietaryRestrictions, allergies }
+  ├── preferences: { dietaryRestrictions, allergies, pantryDiscovery }
+  ├── appState: { swipeInputsSignature, swipeInputsUpdatedAt, ... }
   ├── pantry/{itemId}
   │     ├── name, category, quantity
   │     ├── source (manual/scanned/ml-kit/cloud-vision)
   │     └── timestamps
+  ├── swipeDeck/{cardId}
+  │     ├── ideaKey, energyLevel (0-4)
+  │     ├── title, vibeDescription, ingredients, mealType, cuisine
+  │     ├── isConsumed, isDisliked, lastSwipedAt
+  │     └── inputsSignature, promptVersion, createdAt
+  ├── ideaKeyHistory/{historyId}
+  │     ├── ideaKey, energyLevel (0-4)
+  │     └── firstSeenAt
+  ├── transactions/{txId}
+  │     ├── type, amount, balanceAfter
+  │     └── timestamp
   └── savedRecipes/{recipeId}
         ├── recipeId, title, imageUrl
+        ├── isUnlocked, unlockedAt, unlockSource, unlockTxId
         └── savedAt
 
 recipes/{recipeId}
   ├── title, description, imageUrl
   ├── ingredients, instructions
-  ├── energyLevel (0-3)
+  ├── energyLevel (0-4)
   ├── calories, timeMinutes
   └── dietaryTags
 
@@ -237,6 +260,7 @@ flutter test test/services/recipe_service_test.dart
 ## 🔄 Development Roadmap
 
 ### ✅ Completed (Milestones 1-3)
+
 - [x] UI/UX & Authentication
 - [x] Pantry Management System
 - [x] Hybrid AI Vision System (ML Kit + Cloud Vision)
@@ -246,12 +270,14 @@ flutter test test/services/recipe_service_test.dart
 - [x] Carrot Gamification System
 
 ### 🚧 In Progress (Milestone 4)
+
 - [ ] OpenAI Recipe Generation
 - [ ] Ingredient-based AI matching
 - [ ] Diet & allergy filtering
 - [ ] Energy level optimization
 
 ### 📅 Planned (Milestone 5)
+
 - [ ] Texture Fix Mode
 - [ ] Leftover Repurpose Mode
 - [ ] Advanced Analytics
@@ -263,6 +289,7 @@ flutter test test/services/recipe_service_test.dart
 ## 🤖 Hybrid AI Vision System
 
 ### Smart Detection Strategy
+
 - **ML Kit First**: Fast, free on-device processing for simple scans
 - **Cloud Vision Upgrade**: High-accuracy API used selectively when:
   - 1 item detected with confidence < 50%
@@ -270,12 +297,14 @@ flutter test test/services/recipe_service_test.dart
   - 4+ items detected (complex scenes)
 
 ### Cost Controls
+
 - **Free Users**: 10 Cloud Vision requests per day
 - **Premium Users**: 50 requests per day
 - **Graceful Degradation**: ML Kit fallback when quota reached
 - **Usage Tracking**: Real-time quota monitoring and analytics
 
 ### Enhanced Accuracy
+
 - **Advanced Filtering**: Removes non-food items and generic labels
 - **Smart Normalization**: Consolidates similar food items
 - **Quantity Detection**: Accurate multi-item counting with position deduplication
@@ -306,6 +335,7 @@ Private - All Rights Reserved
 ## 📞 Support
 
 For issues, questions, or feature requests:
+
 - **Email**: [your-email]
 - **Documentation**: See [SYSTEM_DOCUMENTATION.md](./SYSTEM_DOCUMENTATION.md)
 
@@ -322,4 +352,4 @@ For issues, questions, or feature requests:
 
 **Built with ❤️ using Flutter**
 
-*Last Updated: December 2024*
+Last Updated: January 17, 2026

@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:super_swipe/core/models/pantry_discovery_settings.dart';
 import 'package:super_swipe/core/models/user_profile.dart';
 import 'package:super_swipe/core/models/recipe.dart';
 import 'package:super_swipe/core/services/firestore_service.dart';
+import 'package:super_swipe/features/swipe/services/swipe_inputs_signature.dart';
 
 /// Service for user profile management in Firestore
 class UserService {
@@ -36,10 +38,13 @@ class UserService {
           'allergies': [],
           'defaultEnergyLevel': 2,
           'preferredCuisines': [],
+          'pantryDiscovery': {'includeBasics': true, 'willingToShop': false},
         },
         'appState': {
           'hasSeenOnboarding': false,
           'hasSeenTutorials': {'swipe': false, 'pantry': false},
+          'swipeInputsSignature': '',
+          'swipeInputsUpdatedAt': FieldValue.serverTimestamp(),
         },
         'stats': {'recipesUnlocked': 0, 'totalCarrotsSpent': 0},
         'updatedAt': FieldValue.serverTimestamp(),
@@ -84,6 +89,42 @@ class UserService {
     UserPreferences preferences,
   ) async {
     await updateUserProfile(userId, {'preferences': preferences.toMap()});
+  }
+
+  Future<void> updateSwipeInputsSignature(
+    String userId, {
+    required String swipeInputsSignature,
+  }) async {
+    await updateUserProfile(userId, {
+      'appState.swipeInputsSignature': swipeInputsSignature,
+      'appState.swipeInputsUpdatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> updatePantryDiscoverySettings(
+    String userId,
+    PantryDiscoverySettings settings,
+  ) async {
+    final pantrySnap = await _firestoreService
+        .userPantry(userId)
+        .orderBy('name')
+        .get();
+    final pantryNames = pantrySnap.docs
+        .map((d) => (d.data() as Map<String, dynamic>?) ?? {})
+        .map((m) => (m['normalizedName'] ?? m['name'] ?? '').toString())
+        .toList(growable: false);
+
+    final sig = buildSwipeInputsSignature(
+      pantryIngredientNames: pantryNames,
+      includeBasics: settings.includeBasics,
+      willingToShop: settings.willingToShop,
+    );
+
+    await updateUserProfile(userId, {
+      'preferences.pantryDiscovery': settings.toMap(),
+      'appState.swipeInputsSignature': sig,
+      'appState.swipeInputsUpdatedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   /// Spend carrots (with transaction to prevent race conditions)

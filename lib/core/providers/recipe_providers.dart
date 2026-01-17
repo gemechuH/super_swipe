@@ -58,13 +58,3 @@ final savedRecipeProvider = StreamProvider.family<Recipe?, String>((
     error: (error, stackTrace) => Stream.value(null),
   );
 });
-
-/// Swipe Deck Recipes Provider
-/// Fetches recipes for the swipe deck based on user preferences (energy level, etc).
-final swipeDeckRecipesProvider = FutureProvider<List<Recipe>>((ref) async {
-  final recipeService = ref.watch(recipeServiceProvider);
-  // Default to energy level 2 or some logic.
-  // Ideally this should depend on a 'swipeFilterProvider' or user prefs.
-  // For now, fetch a default set to unblock the build.
-  return recipeService.getRecipesByEnergyLevel(energyLevel: 2, limit: 20);
-});

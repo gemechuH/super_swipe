@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:super_swipe/core/models/pantry_discovery_settings.dart';
 
 /// User profile model with Firestore serialization
 class UserProfile {
@@ -141,6 +142,7 @@ class UserPreferences {
   final String defaultDifficulty; // 'easy' | 'medium' | 'hard'
   final String
   defaultMealType; // 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'dessert'
+  final PantryDiscoverySettings pantryDiscovery;
 
   const UserPreferences({
     this.dietaryRestrictions = const [],
@@ -150,6 +152,7 @@ class UserPreferences {
     this.pantryFlexibility = 'lenient',
     this.defaultDifficulty = 'easy',
     this.defaultMealType = 'dinner',
+    this.pantryDiscovery = const PantryDiscoverySettings(),
   });
 
   factory UserPreferences.fromMap(Map<String, dynamic> map) {
@@ -161,6 +164,10 @@ class UserPreferences {
       pantryFlexibility: map['pantryFlexibility'] ?? 'lenient',
       defaultDifficulty: map['defaultDifficulty'] ?? 'easy',
       defaultMealType: map['defaultMealType'] ?? 'dinner',
+      pantryDiscovery: PantryDiscoverySettings.fromMap(
+        (map['pantryDiscovery'] as Map<String, dynamic>?) ??
+            <String, dynamic>{},
+      ),
     );
   }
 
@@ -173,6 +180,7 @@ class UserPreferences {
       'pantryFlexibility': pantryFlexibility,
       'defaultDifficulty': defaultDifficulty,
       'defaultMealType': defaultMealType,
+      'pantryDiscovery': pantryDiscovery.toMap(),
     };
   }
 
@@ -184,6 +192,7 @@ class UserPreferences {
     String? pantryFlexibility,
     String? defaultDifficulty,
     String? defaultMealType,
+    PantryDiscoverySettings? pantryDiscovery,
   }) {
     return UserPreferences(
       dietaryRestrictions: dietaryRestrictions ?? this.dietaryRestrictions,
@@ -193,6 +202,7 @@ class UserPreferences {
       pantryFlexibility: pantryFlexibility ?? this.pantryFlexibility,
       defaultDifficulty: defaultDifficulty ?? this.defaultDifficulty,
       defaultMealType: defaultMealType ?? this.defaultMealType,
+      pantryDiscovery: pantryDiscovery ?? this.pantryDiscovery,
     );
   }
 }
@@ -201,16 +211,23 @@ class UserPreferences {
 class AppState {
   final bool hasSeenOnboarding;
   final Map<String, bool> hasSeenTutorials;
+  final String swipeInputsSignature;
+  final DateTime? swipeInputsUpdatedAt;
 
   const AppState({
     this.hasSeenOnboarding = false,
     this.hasSeenTutorials = const {},
+    this.swipeInputsSignature = '',
+    this.swipeInputsUpdatedAt,
   });
 
   factory AppState.fromMap(Map<String, dynamic> map) {
     return AppState(
       hasSeenOnboarding: map['hasSeenOnboarding'] ?? false,
       hasSeenTutorials: Map<String, bool>.from(map['hasSeenTutorials'] ?? {}),
+      swipeInputsSignature: map['swipeInputsSignature'] ?? '',
+      swipeInputsUpdatedAt: (map['swipeInputsUpdatedAt'] as Timestamp?)
+          ?.toDate(),
     );
   }
 
@@ -218,16 +235,24 @@ class AppState {
     return {
       'hasSeenOnboarding': hasSeenOnboarding,
       'hasSeenTutorials': hasSeenTutorials,
+      'swipeInputsSignature': swipeInputsSignature,
+      'swipeInputsUpdatedAt': swipeInputsUpdatedAt != null
+          ? Timestamp.fromDate(swipeInputsUpdatedAt!)
+          : null,
     };
   }
 
   AppState copyWith({
     bool? hasSeenOnboarding,
     Map<String, bool>? hasSeenTutorials,
+    String? swipeInputsSignature,
+    DateTime? swipeInputsUpdatedAt,
   }) {
     return AppState(
       hasSeenOnboarding: hasSeenOnboarding ?? this.hasSeenOnboarding,
       hasSeenTutorials: hasSeenTutorials ?? this.hasSeenTutorials,
+      swipeInputsSignature: swipeInputsSignature ?? this.swipeInputsSignature,
+      swipeInputsUpdatedAt: swipeInputsUpdatedAt ?? this.swipeInputsUpdatedAt,
     );
   }
 }

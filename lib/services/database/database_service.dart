@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:super_swipe/core/config/constants.dart';
 import 'package:super_swipe/core/models/pantry_item.dart';
 import 'package:super_swipe/core/models/recipe.dart';
 import 'package:super_swipe/core/models/recipe_preview.dart';
@@ -44,6 +45,9 @@ class DatabaseService {
 
   CollectionReference<Map<String, dynamic>> _swipeDeck(String userId) =>
       _users.doc(userId).collection('swipeDeck');
+
+  CollectionReference<Map<String, dynamic>> _ideaKeyHistory(String userId) =>
+      _users.doc(userId).collection('ideaKeyHistory');
 
   // ============================================================
   // 1. CARROT ECONOMY
@@ -191,6 +195,219 @@ class DatabaseService {
     });
   }
 
+  /// Unlocks an AI preview (pantry-first swipe) in a single transaction.
+  ///
+  /// IMPORTANT: This should only be called after full recipe generation
+  /// succeeds so free users are never charged for failed AI.
+  ///
+  /// Returns false if the user is non-premium and has insufficient carrots.
+  Future<bool> unlockSwipePreview({
+    required String userId,
+    required Recipe recipe,
+    required bool isPremium,
+    required String unlockSource,
+  }) async {
+    final userRef = _users.doc(userId);
+    final savedRef = _savedRecipes(userId).doc(recipe.id);
+    final txRef = _transactions(userId).doc(recipe.id);
+    final deckRef = _swipeDeck(userId).doc(recipe.id);
+
+    return _firestore.runTransaction<bool>((transaction) async {
+      final savedSnap = await transaction.get(savedRef);
+      if (savedSnap.exists && savedSnap.data()?['isUnlocked'] == true) {
+        transaction.set(deckRef, {
+          'isConsumed': true,
+          'consumedAt': FieldValue.serverTimestamp(),
+          'lastSwipeDirection': 'right',
+          'lastSwipedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        return true;
+      }
+
+      final userSnap = await transaction.get(userRef);
+      if (!userSnap.exists) throw Exception('User not found');
+
+      final userData = userSnap.data()!;
+      final carrots = userData['carrots'] as Map<String, dynamic>? ?? {};
+      final currentCarrots = (carrots['current'] as num?)?.toInt() ?? 0;
+
+      if (!isPremium && currentCarrots < 1) {
+        return false;
+      }
+
+      if (!isPremium) {
+        transaction.update(userRef, {
+          'carrots.current': currentCarrots - 1,
+          'stats.totalCarrotsSpent': FieldValue.increment(1),
+          'stats.recipesUnlocked': FieldValue.increment(1),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        transaction.set(txRef, {
+          'type': 'spend',
+          'amount': -1,
+          'balanceAfter': currentCarrots - 1,
+          'recipeId': recipe.id,
+          'source': unlockSource,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+      } else {
+        transaction.update(userRef, {
+          'stats.recipesUnlocked': FieldValue.increment(1),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      transaction.set(savedRef, {
+        ...recipe.toSavedRecipeFirestore(),
+        'isUnlocked': true,
+        'unlockedAt': FieldValue.serverTimestamp(),
+        'unlockTxId': recipe.id,
+        'unlockSource': unlockSource,
+      }, SetOptions(merge: true));
+
+      transaction.set(deckRef, {
+        'isConsumed': true,
+        'consumedAt': FieldValue.serverTimestamp(),
+        'lastSwipeDirection': 'right',
+        'lastSwipedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      return true;
+    });
+  }
+
+  /// Reserves an AI preview unlock immediately:
+  /// - For free users: decrements carrots + writes deterministic ledger `transactions/{recipeId}`
+  /// - Creates a placeholder `savedRecipes/{recipeId}` (instructions empty)
+  /// - Marks the swipe card consumed
+  ///
+  /// This allows the app to navigate to the recipe page instantly and show
+  /// a skeleton UI while full recipe generation runs.
+  Future<bool> reserveSwipePreviewUnlock({
+    required String userId,
+    required RecipePreview preview,
+    required bool isPremium,
+    required String unlockSource,
+  }) async {
+    final userRef = _users.doc(userId);
+    final savedRef = _savedRecipes(userId).doc(preview.id);
+    final txRef = _transactions(userId).doc(preview.id);
+    final deckRef = _swipeDeck(userId).doc(preview.id);
+
+    return _firestore.runTransaction<bool>((transaction) async {
+      final savedSnap = await transaction.get(savedRef);
+      if (savedSnap.exists && savedSnap.data()?['isUnlocked'] == true) {
+        transaction.set(deckRef, {
+          'isConsumed': true,
+          'consumedAt': FieldValue.serverTimestamp(),
+          'lastSwipeDirection': 'right',
+          'lastSwipedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        return true;
+      }
+
+      final userSnap = await transaction.get(userRef);
+      if (!userSnap.exists) throw Exception('User not found');
+
+      final userData = userSnap.data()!;
+      final carrots = userData['carrots'] as Map<String, dynamic>? ?? {};
+      final currentCarrots = (carrots['current'] as num?)?.toInt() ?? 0;
+
+      if (!isPremium && currentCarrots < 1) {
+        return false;
+      }
+
+      if (!isPremium) {
+        transaction.update(userRef, {
+          'carrots.current': currentCarrots - 1,
+          'stats.totalCarrotsSpent': FieldValue.increment(1),
+          'stats.recipesUnlocked': FieldValue.increment(1),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        transaction.set(txRef, {
+          'type': 'spend',
+          'amount': -1,
+          'balanceAfter': currentCarrots - 1,
+          'recipeId': preview.id,
+          'source': unlockSource,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+      } else {
+        transaction.update(userRef, {
+          'stats.recipesUnlocked': FieldValue.increment(1),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      final imageUrl = (preview.imageUrl?.isNotEmpty == true)
+          ? preview.imageUrl!
+          : AppAssets.placeholderRecipe;
+
+      transaction.set(savedRef, {
+        'recipeId': preview.id,
+        'title': preview.title,
+        'titleLowercase': preview.title.toLowerCase(),
+        'imageUrl': imageUrl,
+        'description': preview.vibeDescription,
+        'ingredients': preview.ingredients,
+        'instructions': const <String>[],
+        'ingredientIds': const <String>[],
+        'energyLevel': preview.energyLevel,
+        'timeMinutes': preview.estimatedTimeMinutes,
+        'calories': preview.calories,
+        'equipment': preview.equipmentIcons,
+        'mealType': preview.mealType,
+        'skillLevel': preview.skillLevel,
+        'cuisine': preview.cuisine,
+        'isPremium': isPremium,
+        'isUnlocked': true,
+        'unlockedAt': FieldValue.serverTimestamp(),
+        'unlockTxId': preview.id,
+        'unlockSource': unlockSource,
+        'generationStatus': 'pending',
+        'currentStep': 0,
+        'savedAt': FieldValue.serverTimestamp(),
+        'lastStepAt': FieldValue.serverTimestamp(),
+        'isFavorite': false,
+      }, SetOptions(merge: true));
+
+      transaction.set(deckRef, {
+        'isConsumed': true,
+        'consumedAt': FieldValue.serverTimestamp(),
+        'lastSwipeDirection': 'right',
+        'lastSwipedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      return true;
+    });
+  }
+
+  /// Merges the finalized full recipe into `savedRecipes/{recipeId}` after
+  /// a successful reserve.
+  Future<void> upsertUnlockedSavedRecipeForSwipePreview({
+    required String userId,
+    required Recipe recipe,
+    required String unlockSource,
+  }) async {
+    final savedRef = _savedRecipes(userId).doc(recipe.id);
+    final deckRef = _swipeDeck(userId).doc(recipe.id);
+
+    await savedRef.set({
+      ...recipe.toSavedRecipeFirestore(),
+      'isUnlocked': true,
+      'unlockSource': unlockSource,
+      'generationStatus': 'ready',
+    }, SetOptions(merge: true));
+
+    // Best-effort: ensure the swipe card stays consumed.
+    await deckRef.set({
+      'isConsumed': true,
+      'consumedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
   /// Fetches recipe secrets (instructions) after unlock.
   /// Security rules ensure only unlocked/premium users can read.
   Future<List<String>> getRecipeSecrets(String recipeId) async {
@@ -226,7 +443,9 @@ class DatabaseService {
       userId,
     ).where('isConsumed', isEqualTo: false).limit(limit).get();
 
-    final docs = snap.docs;
+    final docs = snap.docs
+        .where((d) => (d.data()['isDisliked'] as bool?) != true)
+        .toList(growable: false);
     if (docs.isEmpty) return const <RecipePreview>[];
 
     // Sort by createdAt if present (stable-ish ordering).
@@ -244,11 +463,44 @@ class DatabaseService {
     return docs.map(RecipePreview.fromFirestore).toList(growable: false);
   }
 
+  /// Returns true if any unconsumed, non-disliked card in the given energy deck
+  /// has an inputsSignature different from [inputsSignature].
+  ///
+  /// This is used for cache invalidation when pantry/toggles change.
+  ///
+  /// Note: We avoid composite indexes by querying only on `isConsumed` and
+  /// filtering client-side.
+  Future<bool> hasSwipeDeckSignatureMismatch(
+    String userId, {
+    required int energyLevel,
+    required String inputsSignature,
+    int limit = 200,
+  }) async {
+    final snap = await _swipeDeck(
+      userId,
+    ).where('isConsumed', isEqualTo: false).limit(limit).get();
+
+    for (final doc in snap.docs) {
+      final data = doc.data();
+      if ((data['isDisliked'] as bool?) == true) continue;
+
+      final e = (data['energyLevel'] as num?)?.toInt();
+      if (e != energyLevel) continue;
+
+      final sig = (data['inputsSignature'] as String?) ?? '';
+      if (sig != inputsSignature) return true;
+    }
+
+    return false;
+  }
+
   /// Persists new swipe cards (idempotent per card id).
   Future<void> upsertSwipeCards(
     String userId,
-    List<RecipePreview> cards,
-  ) async {
+    List<RecipePreview> cards, {
+    String? inputsSignature,
+    String? promptVersion,
+  }) async {
     if (cards.isEmpty) return;
 
     final batch = _firestore.batch();
@@ -256,11 +508,41 @@ class DatabaseService {
       final ref = _swipeDeck(userId).doc(card.id);
       batch.set(ref, {
         ...card.toFirestore(),
+        'ideaKey': card.id,
         'isConsumed': false,
+        if (inputsSignature != null) 'inputsSignature': inputsSignature,
+        if (promptVersion != null) 'promptVersion': promptVersion,
         'createdAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     }
     await batch.commit();
+  }
+
+  Future<bool> hasIdeaKeyHistory(
+    String userId, {
+    required int energyLevel,
+    required String ideaKey,
+  }) async {
+    final docId = 'e${energyLevel}_$ideaKey';
+    final snap = await _ideaKeyHistory(userId).doc(docId).get();
+    return snap.exists;
+  }
+
+  Future<void> writeIdeaKeyHistory(
+    String userId, {
+    required int energyLevel,
+    required String ideaKey,
+    String? title,
+    List<String>? ingredients,
+  }) async {
+    final docId = 'e${energyLevel}_$ideaKey';
+    await _ideaKeyHistory(userId).doc(docId).set({
+      'ideaKey': ideaKey,
+      'energyLevel': energyLevel,
+      'firstSeenAt': FieldValue.serverTimestamp(),
+      if (title != null) 'title': title,
+      if (ingredients != null) 'ingredients': ingredients,
+    }, SetOptions(merge: true));
   }
 
   /// Marks a swipe card as consumed so it won't show again.
@@ -269,6 +551,8 @@ class DatabaseService {
       await _swipeDeck(userId).doc(cardId).set({
         'isConsumed': true,
         'consumedAt': FieldValue.serverTimestamp(),
+        'lastSwipeDirection': 'right',
+        'lastSwipedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (_) {
       // Best-effort; don't block UX.

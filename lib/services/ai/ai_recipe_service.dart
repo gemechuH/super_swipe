@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
+import 'package:super_swipe/core/config/swipe_constants.dart';
 import 'package:super_swipe/core/models/recipe.dart';
 import 'package:super_swipe/core/models/recipe_preview.dart';
 
@@ -609,7 +610,7 @@ Context:
 - Cravings: ${cravings.isNotEmpty ? cravings : 'Surprise me!'}
 - Allergies to AVOID: ${allergies.isNotEmpty ? allergies.join(', ') : 'None'}
 - Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'None'}
-- Energy Level: $energyLevel/3 (0=ready-made, 3=elaborate)
+        - Energy Level: ${EnergyLevel.fromInt(energyLevel).promptLine}
 ''';
   }
 
@@ -633,7 +634,7 @@ Expand this recipe preview into a FULL professional recipe:
 - Vibe: ${preview.vibeDescription}
 - Main Ingredients: ${preview.mainIngredients.join(', ')}
 - Target Time: ~${preview.estimatedTimeMinutes} minutes
-- Energy Level: ${preview.energyLevel}/3
+- Energy Level: ${EnergyLevel.fromInt(preview.energyLevel).promptScale}
 
 Allergies to AVOID: ${allergies.isNotEmpty ? allergies.join(', ') : 'None'}
 Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'None'}
@@ -665,7 +666,7 @@ PREFERENCES:
 - Allergies to AVOID: ${allergies.isNotEmpty ? allergies.join(', ') : 'None'}
 - Dietary Restrictions: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'None'}
 - Meal Type: ${mealType ?? 'Any'}
-- Energy/Complexity Level: $energyLevel/10 (1=quick & easy, 10=elaborate)
+    - Energy Level: ${EnergyLevel.fromInt(energyLevel).promptLine}
 ''';
   }
 

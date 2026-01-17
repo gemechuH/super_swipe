@@ -27,6 +27,18 @@ service cloud.firestore {
              exists(/databases/$(database)/documents/users/$(request.auth.uid)/savedRecipes/$(recipeId));
     }
 
+    function isValidUnlockSpend(userId, recipeId) {
+      return !isPremium() &&
+        get(/databases/$(database)/documents/users/$(userId)).data.carrots.current >= 1 &&
+        // Carrots decremented by exactly 1 in same transaction
+        getAfter(/databases/$(database)/documents/users/$(userId)).data.carrots.current ==
+          get(/databases/$(database)/documents/users/$(userId)).data.carrots.current - 1 &&
+        // Deterministic ledger entry exists in same transaction
+        existsAfter(/databases/$(database)/documents/users/$(userId)/transactions/$(recipeId)) &&
+        // Ledger entry is a spend of exactly -1
+        getAfter(/databases/$(database)/documents/users/$(userId)/transactions/$(recipeId)).data.amount == -1;
+    }
+
     // ==========================================
     // USER PROFILES & SUB-COLLECTIONS
     // ==========================================
@@ -37,6 +49,8 @@ service cloud.firestore {
       
       // CRITICAL: Prevent users from manually increasing their own carrots
       // Exception: Premium users bypass carrot restrictions
+      // NOTE: Weekly carrot reset is performed by GitHub Actions using the Firebase Admin SDK
+      // (see scripts/weekly_carrot_reset/), which bypasses Firestore Security Rules entirely.
       allow update: if isOwner(userId) && (
         isPremium() ||
         // Normal spending/decrement only (weekly resets handled by admin/cron)
@@ -54,7 +68,16 @@ service cloud.firestore {
       // SAVED RECIPES - Owner full access
       // ----------------------------------------
       match /savedRecipes/{recipeId} {
-        allow read, write: if isOwner(userId);
+        allow read: if isOwner(userId);
+
+        // Creating an unlocked recipe must be paired with a decrement + ledger
+        // in the same transaction (unless premium).
+        allow create: if isOwner(userId) && (
+          isPremium() || isValidUnlockSpend(userId, recipeId)
+        );
+
+        // Allow updates for progress/favorites after it exists.
+        allow update, delete: if isOwner(userId);
       }
 
       // ----------------------------------------
