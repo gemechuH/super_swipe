@@ -352,4 +352,4 @@ For issues, questions, or feature requests:
 
 **Built with ❤️ using Flutter**
 
-_Last Updated: December 2024_
+Last Updated: January 17, 2026
