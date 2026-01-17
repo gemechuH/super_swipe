@@ -42,7 +42,7 @@ bool isAssumedSeasoningName(
   if (seasonings.contains(normalized)) return true;
 
   // A small amount of leniency for common butter variants.
-  if (includeBasics && normalized.contains('butter')) return true;
+  if (includeBasics && RegExp(r'\bbutter\b').hasMatch(normalized)) return true;
 
   return false;
 }
