@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 import 'package:super_swipe/core/models/recipe.dart';
 import 'package:super_swipe/core/providers/recipe_providers.dart';
@@ -269,50 +270,69 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                     borderRadius: AppTheme.borderRadiusLarge,
                     child: AspectRatio(
                       aspectRatio: 16 / 9,
-                      child: safeRecipe.imageUrl.startsWith('http')
-                          ? Image.network(
-                              safeRecipe.imageUrl,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  Container(
-                                    color: Colors.grey[200],
-                                    child: const Center(
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.image_not_supported_outlined,
-                                            size: 48,
-                                            color: Colors.grey,
+                      child: (isLoading || showGeneratingSkeleton)
+                          ? const AppShimmer(
+                              child: SkeletonBox(
+                                height: double.infinity,
+                                borderRadius: BorderRadius.zero,
+                              ),
+                            )
+                          : (safeRecipe.imageUrl.startsWith('http')
+                                ? CachedNetworkImage(
+                                    imageUrl: safeRecipe.imageUrl,
+                                    fit: BoxFit.cover,
+                                    placeholder: (context, url) =>
+                                        const AppShimmer(
+                                          child: SkeletonBox(
+                                            height: double.infinity,
+                                            borderRadius: BorderRadius.zero,
                                           ),
-                                          SizedBox(height: 8),
-                                          Text(
-                                            'Image unavailable',
-                                            style: TextStyle(
+                                        ),
+                                    errorWidget: (context, url, error) => Container(
+                                      color: Colors.grey[200],
+                                      child: const Center(
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              Icons
+                                                  .image_not_supported_outlined,
+                                              size: 48,
+                                              color: Colors.grey,
+                                            ),
+                                            SizedBox(height: 8),
+                                            Text(
+                                              'Image unavailable',
+                                              style: TextStyle(
+                                                color: Colors.grey,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                : Image.asset(
+                                    safeRecipe.imageUrl,
+                                    fit: BoxFit.cover,
+                                    errorBuilder:
+                                        (
+                                          context,
+                                          error,
+                                          stackTrace,
+                                        ) => Container(
+                                          color: Colors.grey[200],
+                                          child: const Center(
+                                            child: Icon(
+                                              Icons
+                                                  .image_not_supported_outlined,
+                                              size: 48,
                                               color: Colors.grey,
                                             ),
                                           ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                            )
-                          : Image.asset(
-                              safeRecipe.imageUrl,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  Container(
-                                    color: Colors.grey[200],
-                                    child: const Center(
-                                      child: Icon(
-                                        Icons.image_not_supported_outlined,
-                                        size: 48,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
-                                  ),
-                            ),
+                                        ),
+                                  )),
                     ),
                   ),
                   const SizedBox(height: AppTheme.spacingL),

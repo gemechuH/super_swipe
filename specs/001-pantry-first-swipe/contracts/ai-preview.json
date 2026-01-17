@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AI Preview Batch Response",
+  "type": "object",
+  "required": ["previews"],
+  "properties": {
+    "previews": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "title",
+          "vibe_description",
+          "ingredients",
+          "estimated_time_minutes",
+          "calories",
+          "equipment_icons",
+          "meal_type",
+          "cuisine",
+          "skill_level",
+          "energy_level"
+        ],
+        "properties": {
+          "title": { "type": "string", "minLength": 1 },
+          "vibe_description": { "type": "string" },
+          "ingredients": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1
+          },
+          "estimated_time_minutes": { "type": "integer", "minimum": 1 },
+          "calories": { "type": "integer", "minimum": 0 },
+          "equipment_icons": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "meal_type": { "type": "string" },
+          "cuisine": { "type": "string" },
+          "skill_level": { "type": "string" },
+          "energy_level": { "type": "integer", "minimum": 0, "maximum": 4 }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

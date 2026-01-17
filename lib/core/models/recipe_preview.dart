@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:super_swipe/core/utils/recipe_image_utils.dart';
 
 /// Lightweight recipe preview model for swipe deck cards.
 /// Contains only essential info - no instructions (saves on AI costs).
@@ -51,9 +52,21 @@ class RecipePreview {
           [],
     );
     final parsedMain = List<String>.from(json['main_ingredients'] ?? []);
+    final mealType =
+        (json['meal_type'] ?? json['mealType'] ?? 'dinner') as String;
+    final cuisine = (json['cuisine'] ?? 'other') as String;
+    final title = (json['title'] ?? 'Chef\'s Special') as String;
+
+    final providedImageUrl =
+        (json['imageUrl'] ?? json['image_url'] ?? json['image'] ?? '')
+            as Object;
+    final imageUrl = providedImageUrl is String ? providedImageUrl : '';
+
+    final generatedId = 'preview_${DateTime.now().millisecondsSinceEpoch}';
+
     return RecipePreview(
-      id: 'preview_${DateTime.now().millisecondsSinceEpoch}',
-      title: json['title'] ?? 'Chef\'s Special',
+      id: generatedId,
+      title: title,
       vibeDescription: json['vibe_description'] ?? json['description'] ?? '',
       ingredients: parsedIngredients,
       mainIngredients: parsedMain.isNotEmpty
@@ -61,15 +74,23 @@ class RecipePreview {
           : (parsedIngredients.length > 4
                 ? parsedIngredients.take(4).toList()
                 : parsedIngredients),
+      imageUrl: RecipeImageUtils.forRecipe(
+        existing: imageUrl,
+        id: generatedId,
+        title: title,
+        mealType: mealType,
+        cuisine: cuisine,
+        ingredients: parsedIngredients,
+      ),
       estimatedTimeMinutes:
           (json['estimated_time_minutes'] ?? json['timeMinutes'] ?? 30) as int,
       calories: (json['calories'] ?? json['calories_estimate'] ?? 0) as int,
       equipmentIcons: List<String>.from(
         json['equipment_icons'] ?? json['equipment'] ?? [],
       ),
-      mealType: json['meal_type'] ?? json['mealType'] ?? 'dinner',
+      mealType: mealType,
       energyLevel: json['energy_level'] ?? json['energyLevel'] ?? 2,
-      cuisine: json['cuisine'] ?? 'other',
+      cuisine: cuisine,
       skillLevel: json['skill_level'] ?? json['skillLevel'] ?? 'beginner',
     );
   }

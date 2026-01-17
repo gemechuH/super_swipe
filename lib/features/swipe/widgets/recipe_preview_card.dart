@@ -2,15 +2,18 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:super_swipe/core/models/recipe_preview.dart';
 import 'package:super_swipe/core/theme/app_theme.dart';
+import 'package:super_swipe/core/utils/recipe_image_utils.dart';
+import 'package:super_swipe/core/widgets/loading/app_shimmer.dart';
+import 'package:super_swipe/core/widgets/loading/skeleton.dart';
 
 class RecipePreviewCard extends StatelessWidget {
   final RecipePreview preview;
-  final VoidCallback? onShowDirections;
+  final VoidCallback? onShowIngredients;
 
   const RecipePreviewCard({
     super.key,
     required this.preview,
-    this.onShowDirections,
+    this.onShowIngredients,
   });
 
   @override
@@ -18,21 +21,30 @@ class RecipePreviewCard extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxH = constraints.maxHeight;
-        final isCompact = maxH.isFinite && maxH < 360;
+        final isCompact = maxH.isFinite && maxH < 420;
         final imageHeight = isCompact
-            ? 120.0
-            : (maxH.isFinite ? (maxH * 0.55).clamp(140.0, 240.0) : 220.0);
+            ? 140.0
+            : (maxH.isFinite ? (maxH * 0.58).clamp(160.0, 280.0) : 240.0);
         final padding = isCompact ? 12.0 : 16.0;
 
-        final chips = <Widget>[
-          _Chip(label: '${preview.estimatedTimeMinutes} min'),
-          if (preview.calories > 0) _Chip(label: '${preview.calories} cal'),
-          if (!isCompact) _Chip(label: preview.skillLevel),
-          if (!isCompact) _Chip(label: preview.cuisine),
-        ];
+        final ingredients = preview.ingredients.isNotEmpty
+            ? preview.ingredients
+            : preview.mainIngredients;
+        final ingredientPreviewCount = isCompact ? 4 : 6;
+        final visibleIngredients = ingredients.take(ingredientPreviewCount);
+        final hasMoreIngredients = ingredients.length > ingredientPreviewCount;
+
+        final resolvedImageUrl = RecipeImageUtils.forRecipe(
+          existing: preview.imageUrl,
+          id: preview.id,
+          title: preview.title,
+          mealType: preview.mealType,
+          cuisine: preview.cuisine,
+          ingredients: preview.ingredients,
+        );
 
         return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(24),
@@ -51,75 +63,116 @@ class RecipePreviewCard extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (preview.imageUrl != null && preview.imageUrl!.isNotEmpty)
-                      SizedBox(
-                        height: imageHeight,
-                        child: CachedNetworkImage(
-                          imageUrl: preview.imageUrl!,
-                          fit: BoxFit.cover,
-                          errorWidget: (context, url, error) => Container(
-                            color: AppTheme.surfaceColor,
-                            alignment: Alignment.center,
-                            child: const Icon(Icons.image_not_supported),
-                          ),
-                        ),
-                      )
-                    else
-                      Container(
-                        height: imageHeight,
-                        color: AppTheme.surfaceColor,
-                        alignment: Alignment.center,
-                        child: const Icon(Icons.restaurant_menu, size: 36),
-                      ),
+                    SizedBox(
+                      height: imageHeight,
+                      child: resolvedImageUrl.startsWith('http')
+                          ? CachedNetworkImage(
+                              imageUrl: resolvedImageUrl,
+                              fit: BoxFit.cover,
+                              placeholder: (context, url) => AppShimmer(
+                                child: SkeletonBox(
+                                  height: imageHeight,
+                                  borderRadius: BorderRadius.zero,
+                                ),
+                              ),
+                              errorWidget: (context, url, error) => Container(
+                                color: AppTheme.surfaceColor,
+                                alignment: Alignment.center,
+                                child: const Icon(Icons.image_not_supported),
+                              ),
+                            )
+                          : Image.asset(
+                              resolvedImageUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  Container(
+                                    color: AppTheme.surfaceColor,
+                                    alignment: Alignment.center,
+                                    child: const Icon(
+                                      Icons.image_not_supported,
+                                    ),
+                                  ),
+                            ),
+                    ),
                     Expanded(
                       child: Padding(
                         padding: EdgeInsets.all(padding),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              preview.title,
-                              maxLines: isCompact ? 1 : 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.titleLarge
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.w800,
-                                    height: 1.1,
-                                  ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              preview.vibeDescription,
-                              maxLines: isCompact ? 2 : 3,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(
-                                    color: AppTheme.textSecondary,
-                                    height: 1.35,
-                                  ),
-                            ),
-                            const SizedBox(height: 12),
-                            Wrap(spacing: 8, runSpacing: 8, children: chips),
-                            if (!isCompact && preview.mainIngredients.isNotEmpty) ...[
-                              const SizedBox(height: 12),
-                              Text(
-                                preview.mainIngredients.take(4).join(' • '),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
-                                      color: AppTheme.textSecondary,
-                                      fontWeight: FontWeight.w600,
+                        child: IgnorePointer(
+                          ignoring: true,
+                          child: SingleChildScrollView(
+                            // Layout safety only (prevents overflow). Gestures go to swiper.
+                            physics: const NeverScrollableScrollPhysics(),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  preview.title,
+                                  maxLines: isCompact ? 1 : 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleLarge
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w800,
+                                        height: 1.1,
+                                      ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  preview.vibeDescription,
+                                  maxLines: isCompact ? 2 : 3,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(
+                                        color: AppTheme.textSecondary,
+                                        height: 1.35,
+                                      ),
+                                ),
+                                const SizedBox(height: 14),
+                                if (visibleIngredients.isNotEmpty) ...[
+                                  ...visibleIngredients.map(
+                                    (ing) => Padding(
+                                      padding:
+                                          const EdgeInsets.only(bottom: 6),
+                                      child: Text(
+                                        '• $ing',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: AppTheme.textSecondary,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                      ),
                                     ),
-                              ),
-                            ],
-                          ],
+                                  ),
+                                  if (hasMoreIngredients)
+                                    Text(
+                                      '…and ${ingredients.length - ingredientPreviewCount} more',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: AppTheme.textSecondary,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                ],
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                     ),
                   ],
                 ),
-                if (onShowDirections != null)
+                if (onShowIngredients != null)
                   Positioned(
                     right: padding,
                     top: padding,
@@ -130,9 +183,12 @@ class RecipePreviewCard extends StatelessWidget {
                         border: Border.all(color: Colors.grey.shade200),
                       ),
                       child: TextButton.icon(
-                        onPressed: onShowDirections,
-                        icon: const Icon(Icons.menu_book_rounded, size: 16),
-                        label: const Text('Show Directions'),
+                        onPressed: onShowIngredients,
+                        icon: const Icon(
+                          Icons.format_list_bulleted_rounded,
+                          size: 16,
+                        ),
+                        label: const Text('Show Ingredients'),
                         style: TextButton.styleFrom(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
@@ -148,31 +204,6 @@ class RecipePreviewCard extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-}
-
-class _Chip extends StatelessWidget {
-  final String label;
-
-  const _Chip({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppTheme.backgroundColor,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: AppTheme.textPrimary,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
     );
   }
 }

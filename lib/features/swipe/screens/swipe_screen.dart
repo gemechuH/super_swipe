@@ -8,10 +8,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:super_swipe/core/config/assumed_seasonings.dart';
-import 'package:super_swipe/core/config/constants.dart' show AppAssets;
 import 'package:super_swipe/core/models/pantry_item.dart';
 import 'package:super_swipe/core/models/recipe.dart';
 import 'package:super_swipe/core/models/recipe_preview.dart';
+import 'package:super_swipe/core/utils/recipe_image_utils.dart';
 import 'package:super_swipe/core/providers/app_state_provider.dart';
 import 'package:super_swipe/core/providers/recipe_providers.dart';
 import 'package:super_swipe/core/providers/user_data_providers.dart';
@@ -20,6 +20,8 @@ import 'package:super_swipe/core/theme/app_theme.dart';
 import 'package:super_swipe/core/widgets/shared/master_energy_slider.dart';
 import 'package:super_swipe/core/widgets/dialogs/confirm_unlock_dialog.dart';
 import 'package:super_swipe/core/widgets/loading/app_loading.dart';
+import 'package:super_swipe/core/widgets/loading/app_shimmer.dart';
+import 'package:super_swipe/core/widgets/loading/skeleton.dart';
 import 'package:super_swipe/features/auth/providers/auth_provider.dart';
 import 'package:super_swipe/features/swipe/providers/pantry_first_swipe_deck_provider.dart';
 import 'package:super_swipe/features/swipe/services/pantry_first_swipe_deck_service.dart';
@@ -180,7 +182,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
+            constraints: const BoxConstraints(maxWidth: 520),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -243,7 +245,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
+            constraints: const BoxConstraints(maxWidth: 520),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -368,12 +370,18 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
   }
 
   Recipe _placeholderRecipeFromPreview(RecipePreview preview) {
-    final imageUrl = (preview.imageUrl?.isNotEmpty == true)
-        ? preview.imageUrl!
-        : AppAssets.placeholderRecipe;
     final ingredients = preview.ingredients.isNotEmpty
         ? preview.ingredients
         : preview.mainIngredients;
+
+    final imageUrl = RecipeImageUtils.forRecipe(
+      existing: preview.imageUrl,
+      id: preview.id,
+      title: preview.title,
+      mealType: preview.mealType,
+      cuisine: preview.cuisine,
+      ingredients: ingredients,
+    );
 
     return Recipe(
       id: preview.id,
@@ -395,8 +403,8 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
   }
 
   Future<void> _handlePreviewRightSwipe(RecipePreview preview) async {
-    final user = ref.read(authProvider).user;
-    if (user == null || user.isAnonymous == true) return;
+    if (_unlockFlowInProgress) return;
+    setState(() => _unlockFlowInProgress = true);
 
     Future<void> undoLastSwipeAndRestore() async {
       _dismissedCardIds.remove(preview.id);
@@ -407,21 +415,31 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
       }
     }
 
-    if (_unlockFlowInProgress) return;
-    setState(() => _unlockFlowInProgress = true);
-
     try {
-      // If already unlocked (in My Recipes), just open it.
+      final authUser = ref.read(authProvider).user;
+      final userId = authUser?.uid;
+
+      if (userId == null || authUser?.isAnonymous == true) {
+        if (mounted) context.go(AppRoutes.login);
+        await undoLastSwipeAndRestore();
+        return;
+      }
+
+      // If already unlocked (in My Recipes), just open directions.
       final saved = ref.read(savedRecipesProvider).value;
       final alreadyUnlocked = saved?.any((r) => r.id == preview.id) == true;
       if (alreadyUnlocked) {
         unawaited(
           ref
               .read(databaseServiceProvider)
-              .markSwipeCardConsumed(user.uid, preview.id),
+              .markSwipeCardConsumed(userId, preview.id),
         );
         if (mounted) {
-          _openRecipeDetailById(preview.id, assumeUnlocked: true);
+          _openRecipeDetailById(
+            preview.id,
+            assumeUnlocked: true,
+            openDirections: true,
+          );
         }
         return;
       }
@@ -429,14 +447,11 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
       final profile = ref.read(userProfileProvider).value;
       final subscription = profile?.subscriptionStatus.toLowerCase() ?? 'free';
       final isPremium = subscription == 'premium';
+      final hideUnlockReminder = ref.read(appStateProvider).skipUnlockReminder;
 
       final carrotsObj = profile?.carrots;
       final maxCarrots = carrotsObj?.max ?? 5;
       final currentCarrots = carrotsObj?.current ?? 0;
-
-      if (!mounted) return;
-
-      final hideUnlockReminder = ref.read(appStateProvider).skipUnlockReminder;
 
       bool shouldProceed;
       if (isPremium) {
@@ -479,7 +494,10 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
         pantryFirstSwipeDeckProvider(_selectedEnergyLevel).notifier,
       );
 
-      await notifier.reserveUnlockPreview(preview, unlockSource: 'swipe_right');
+      await notifier.reserveUnlockPreview(
+        preview,
+        unlockSource: 'swipe_right',
+      );
 
       if (!mounted) return;
 
@@ -513,128 +531,6 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
         );
       }
       await undoLastSwipeAndRestore();
-    } finally {
-      if (mounted) setState(() => _unlockFlowInProgress = false);
-    }
-  }
-
-  Future<void> _handlePreviewShowDirections(RecipePreview preview) async {
-    final authUser = ref.read(authProvider).user;
-    final userId = authUser?.uid;
-
-    if (userId == null || authUser?.isAnonymous == true) {
-      if (mounted) context.go(AppRoutes.login);
-      return;
-    }
-
-    // If already unlocked (in My Recipes), just open directions.
-    final saved = ref.read(savedRecipesProvider).value;
-    final alreadyUnlocked = saved?.any((r) => r.id == preview.id) == true;
-    if (alreadyUnlocked) {
-      unawaited(
-        ref
-            .read(databaseServiceProvider)
-            .markSwipeCardConsumed(userId, preview.id),
-      );
-      if (mounted) {
-        _dismissedCardIds.add(preview.id);
-        _openRecipeDetailById(
-          preview.id,
-          assumeUnlocked: true,
-          openDirections: true,
-        );
-      }
-      return;
-    }
-
-    if (_unlockFlowInProgress) return;
-
-    final profile = ref.read(userProfileProvider).value;
-    final subscription = profile?.subscriptionStatus.toLowerCase() ?? 'free';
-    final isPremium = subscription == 'premium';
-
-    final carrotsObj = profile?.carrots;
-    final maxCarrots = carrotsObj?.max ?? 5;
-    final currentCarrots = carrotsObj?.current ?? 0;
-
-    final hideUnlockReminder = ref.read(appStateProvider).skipUnlockReminder;
-
-    bool shouldProceed;
-    if (isPremium) {
-      shouldProceed = true;
-    } else if (hideUnlockReminder) {
-      shouldProceed = await _showReducedUnlockDialog(
-        preview: preview,
-        currentCarrots: currentCarrots,
-        maxCarrots: maxCarrots,
-      );
-    } else {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        barrierDismissible: false,
-        builder: (dialogContext) {
-          return ConfirmUnlockDialog(
-            preview: preview,
-            currentCarrots: currentCarrots,
-            maxCarrots: maxCarrots,
-            initialDoNotShowAgain: hideUnlockReminder,
-            onDoNotShowAgainChanged: (v) {
-              unawaited(
-                ref.read(appStateProvider.notifier).setSkipUnlockReminder(v),
-              );
-            },
-            onCancel: () => Navigator.of(dialogContext).pop(false),
-            onUnlock: () => Navigator.of(dialogContext).pop(true),
-          );
-        },
-      );
-      shouldProceed = confirmed == true;
-    }
-
-    if (!shouldProceed || !mounted) return;
-
-    setState(() => _unlockFlowInProgress = true);
-    try {
-      final notifier = ref.read(
-        pantryFirstSwipeDeckProvider(_selectedEnergyLevel).notifier,
-      );
-
-      await notifier.reserveUnlockPreview(
-        preview,
-        unlockSource: 'show_directions',
-      );
-
-      if (!mounted) return;
-      _dismissedCardIds.add(preview.id);
-
-      final placeholder = _placeholderRecipeFromPreview(preview);
-      _openRecipeDetailById(
-        preview.id,
-        recipe: placeholder,
-        assumeUnlocked: true,
-        openDirections: true,
-        isGenerating: true,
-      );
-
-      unawaited(
-        notifier.generateAndFinalizeUnlockPreview(
-          preview,
-          unlockSource: 'show_directions',
-        ),
-      );
-    } on OutOfCarrotsException {
-      if (mounted) _showOutOfCarrots();
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('SwipeScreen preview Show Directions unlock failed: $e');
-      }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not unlock that recipe. Please try again.'),
-          ),
-        );
-      }
     } finally {
       if (mounted) setState(() => _unlockFlowInProgress = false);
     }
@@ -742,11 +638,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     if (usingPreview) {
       if (previewDeckAsync.isLoading && previewDeck.isEmpty) {
         deckWidget = const Center(
-          child: AppInlineLoading(
-            size: 28,
-            baseColor: Color(0xFFE6E6E6),
-            highlightColor: Color(0xFFF7F7F7),
-          ),
+          child: AppShimmer(child: SkeletonRecipeCard()),
         );
       } else if (previewDeckAsync.hasError) {
         deckWidget = Center(
@@ -778,6 +670,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
         deckWidget = AppinioSwiper(
           key: ValueKey('preview_${_selectedEnergyLevel}_$_swiperRebuildToken'),
           controller: _swiperController,
+          swipeOptions: const SwipeOptions.only(left: true, right: true),
           cardCount: visiblePreviewDeck.length,
           onSwipeEnd: (previousIndex, targetIndex, activity) =>
               _onPreviewSwipeEnd(
@@ -786,10 +679,16 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                 targetIndex,
                 activity,
               ),
-          cardBuilder: (context, index) => RecipePreviewCard(
-            preview: visiblePreviewDeck[index],
-            onShowDirections: () =>
-                _handlePreviewShowDirections(visiblePreviewDeck[index]),
+          cardBuilder: (context, index) => GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onVerticalDragStart: (_) {},
+            onVerticalDragUpdate: (_) {},
+            onVerticalDragEnd: (_) {},
+            child: RecipePreviewCard(
+              preview: visiblePreviewDeck[index],
+              onShowIngredients: () =>
+                  _showPreviewIngredients(visiblePreviewDeck[index]),
+            ),
           ),
         );
       }
@@ -819,6 +718,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
         deckWidget = AppinioSwiper(
           key: ValueKey('legacy_${_selectedEnergyLevel}_$_swiperRebuildToken'),
           controller: _swiperController,
+          swipeOptions: const SwipeOptions.only(left: true, right: true),
           cardCount: visibleLegacyDeck.length,
           onSwipeEnd: (previousIndex, targetIndex, activity) => _onSwipeEnd(
             visibleLegacyDeck,
@@ -826,8 +726,13 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
             targetIndex,
             activity,
           ),
-          cardBuilder: (context, index) =>
-              _buildRecipeCard(visibleLegacyDeck[index]),
+          cardBuilder: (context, index) => GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onVerticalDragStart: (_) {},
+            onVerticalDragUpdate: (_) {},
+            onVerticalDragEnd: (_) {},
+            child: _buildRecipeCard(visibleLegacyDeck[index]),
+          ),
         );
       }
     }
@@ -886,7 +791,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
             ),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: deckWidget,
               ),
             ),
@@ -1144,94 +1049,85 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     );
   }
 
-  Widget _buildDeckLoading() {
-    Widget skeletonLine({double width = double.infinity, double height = 14}) {
-      return Container(
-        width: width,
-        height: height,
-        decoration: BoxDecoration(
-          color: Colors.grey.shade200,
-          borderRadius: BorderRadius.circular(10),
-        ),
-      );
-    }
+  void _showPreviewIngredients(RecipePreview preview) {
+    final items = preview.ingredients.isNotEmpty
+        ? preview.ingredients
+        : preview.mainIngredients;
 
-    final textTheme = Theme.of(context).textTheme;
-
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              height: 420,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: AppTheme.mediumShadow,
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: Stack(
-                  fit: StackFit.expand,
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Container(color: Colors.grey.shade100),
-                    Positioned(
-                      left: 18,
-                      right: 18,
-                      bottom: 18,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              skeletonLine(width: 90, height: 18),
-                              const SizedBox(width: 10),
-                              skeletonLine(width: 70, height: 18),
-                              const SizedBox(width: 10),
-                              skeletonLine(width: 80, height: 18),
-                            ],
-                          ),
-                          const SizedBox(height: 14),
-                          skeletonLine(width: 240, height: 22),
-                          const SizedBox(height: 10),
-                          skeletonLine(width: 320, height: 14),
-                          const SizedBox(height: 8),
-                          skeletonLine(width: 280, height: 14),
-                          const SizedBox(height: 18),
-                          Row(
-                            children: [
-                              const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: AppInlineLoading(
-                                  size: 18,
-                                  baseColor: Color(0xFFE6E6E6),
-                                  highlightColor: Color(0xFFF7F7F7),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Text(
-                                'Loading recipes…',
-                                style: textTheme.bodyMedium?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                  color: AppTheme.textPrimary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+                    Expanded(
+                      child: Text(
+                        'Ingredients',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w800),
                       ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close_rounded),
                     ),
                   ],
                 ),
-              ),
+                const SizedBox(height: 6),
+                Text(
+                  preview.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                const SizedBox(height: 14),
+                if (items.isEmpty)
+                  const Text(
+                    'No ingredients listed yet.',
+                    style: TextStyle(color: AppTheme.textSecondary),
+                  )
+                else
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: items.length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 8),
+                      itemBuilder: (context, index) => Text(
+                        '• ${items[index]}',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDeckLoading() {
+    return const Center(
+      child: AppShimmer(child: SkeletonRecipeCard()),
     );
   }
 
@@ -1240,252 +1136,156 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
         ref.watch(pantryItemsProvider).value ?? const <PantryItem>[];
     final pantry = _pantryKeySet(pantryItems);
 
-    final ingredientCount = recipe.ingredientIds.isNotEmpty
-        ? recipe.ingredientIds.length
-        : recipe.ingredients.length;
-    final equipment = recipe.equipment
-        .where((e) => e.trim().isNotEmpty)
-        .toList(growable: false);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxH = constraints.maxHeight;
+        final isCompact = maxH.isFinite && maxH < 560;
+        final contentTop = maxH.isFinite
+            ? (maxH * 0.46).clamp(140.0, maxH - 220.0)
+            : 200.0;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: AppTheme.mediumShadow,
-      ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          ClipRRect(
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
             borderRadius: BorderRadius.circular(24),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (recipe.imageUrl.startsWith('http'))
-                  CachedNetworkImage(
-                    imageUrl: recipe.imageUrl,
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) => Container(
-                      color: Colors.grey.shade200,
-                      child: const Center(
-                        child: AppInlineLoading(
-                          size: 28,
-                          baseColor: Color(0xFFE6E6E6),
-                          highlightColor: Color(0xFFF7F7F7),
-                        ),
-                      ),
-                    ),
-                    errorWidget: (context, url, error) => Container(
-                      color: Colors.grey.shade200,
-                      child: const Icon(
-                        Icons.broken_image,
-                        size: 80,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  )
-                else
-                  Image.network(
-                    'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?q=80&w=1200&auto=format&fit=crop',
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      color: Colors.grey.shade200,
-                      child: const Icon(
-                        Icons.broken_image,
-                        size: 80,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  ),
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withValues(alpha: 0.75),
-                        ],
-                        stops: const [0.55, 1.0],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            boxShadow: AppTheme.mediumShadow,
           ),
-
-          // Stat pills (time / items / calories)
-          Positioned(
-            left: 16,
-            right: 16,
-            bottom: 230,
-            child: Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                _statPill(Icons.timer_outlined, '${recipe.timeMinutes} min'),
-                _statPill(
-                  Icons.format_list_bulleted_rounded,
-                  '$ingredientCount items',
-                ),
-                _statPill(
-                  Icons.local_fire_department_outlined,
-                  '${recipe.calories} cal',
-                ),
-              ],
-            ),
-          ),
-
-          Positioned(
-            left: 18,
-            right: 18,
-            bottom: 18,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  recipe.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  recipe.description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.9),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                if (equipment.isNotEmpty) ...[
-                  _equipmentPill(equipment[0]),
-                  if (equipment.length > 1) ...[
-                    const SizedBox(height: 10),
-                    _equipmentPill(equipment[1]),
-                  ],
-                  const SizedBox(height: 16),
-                ],
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primaryColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      elevation: 0,
-                    ),
-                    onPressed: () {
-                      showModalBottomSheet(
-                        context: context,
-                        isScrollControlled: true,
-                        shape: const RoundedRectangleBorder(
-                          borderRadius: BorderRadius.vertical(
-                            top: Radius.circular(24),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (recipe.imageUrl.startsWith('http'))
+                      CachedNetworkImage(
+                        imageUrl: recipe.imageUrl,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => Container(
+                          color: Colors.grey.shade200,
+                          child: const Center(
+                            child: AppInlineLoading(
+                              size: 28,
+                              baseColor: Color(0xFFE6E6E6),
+                              highlightColor: Color(0xFFF7F7F7),
+                            ),
                           ),
                         ),
-                        builder: (_) => _buildIngredientsModal(recipe, pantry),
-                      );
-                    },
-                    child: const Text(
-                      'View Ingredients',
-                      style: TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      side: BorderSide(
-                        color: Colors.white.withValues(alpha: 0.55),
+                        errorWidget: (context, url, error) => Container(
+                          color: Colors.grey.shade200,
+                          child: const Icon(
+                            Icons.broken_image,
+                            size: 80,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      )
+                    else
+                      Image.network(
+                        'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?q=80&w=1200&auto=format&fit=crop',
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          color: Colors.grey.shade200,
+                          child: const Icon(
+                            Icons.broken_image,
+                            size: 80,
+                            color: Colors.grey,
+                          ),
+                        ),
                       ),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                    Positioned.fill(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withValues(alpha: 0.75),
+                            ],
+                            stops: const [0.55, 1.0],
+                          ),
+                        ),
                       ),
                     ),
-                    onPressed: () => _handleShowDirections(recipe),
-                    icon: const Icon(Icons.menu_book_rounded, size: 18),
-                    label: const Text(
-                      'Show Directions',
-                      style: TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                  ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _statPill(IconData icon, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: Colors.white),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _equipmentPill(String label) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.30),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.kitchen_outlined, size: 18, color: Colors.white),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
               ),
-            ),
+
+              Positioned(
+                left: 18,
+                right: 18,
+                bottom: 18,
+                top: contentTop,
+                child: ClipRect(
+                  child: SingleChildScrollView(
+                    physics: const NeverScrollableScrollPhysics(),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          recipe.title,
+                          maxLines: isCompact ? 1 : 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          recipe.description,
+                          maxLines: isCompact ? 1 : 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.9),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.primaryColor,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              elevation: 0,
+                            ),
+                            onPressed: () {
+                              showModalBottomSheet(
+                                context: context,
+                                isScrollControlled: true,
+                                shape: const RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.vertical(
+                                    top: Radius.circular(24),
+                                  ),
+                                ),
+                                builder: (_) =>
+                                    _buildIngredientsModal(recipe, pantry),
+                              );
+                            },
+                            child: const Text(
+                              'Show Ingredients',
+                              style: TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -1655,112 +1455,4 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     );
   }
 
-  Future<void> _handleShowDirections(Recipe recipe) async {
-    final authUser = ref.read(authProvider).user;
-    final userId = authUser?.uid;
-
-    if (userId == null || authUser?.isAnonymous == true) {
-      if (mounted) context.go(AppRoutes.login);
-      return;
-    }
-
-    final alreadySaved = await ref
-        .read(recipeServiceProvider)
-        .isRecipeSaved(userId, recipe.id);
-    if (alreadySaved) {
-      if (mounted) {
-        _openRecipeDetail(recipe, assumeUnlocked: true, openDirections: true);
-      }
-      return;
-    }
-
-    if (!mounted) return;
-
-    final profile = ref.read(userProfileProvider).value;
-    final subscription = profile?.subscriptionStatus.toLowerCase() ?? 'free';
-    final isPremium = subscription == 'premium';
-    final hideUnlockReminder = ref.read(appStateProvider).skipUnlockReminder;
-
-    final preview = RecipePreview(
-      id: recipe.id,
-      title: recipe.title,
-      vibeDescription: recipe.description,
-      ingredients: recipe.ingredients,
-      mainIngredients: recipe.ingredients.take(5).toList(),
-      imageUrl: recipe.imageUrl,
-      estimatedTimeMinutes: recipe.timeMinutes,
-      calories: recipe.calories,
-      equipmentIcons: recipe.equipment,
-      mealType: recipe.mealType,
-      energyLevel: recipe.energyLevel,
-      cuisine: recipe.cuisine,
-      skillLevel: recipe.skillLevel,
-    );
-
-    final carrotsObj = profile?.carrots;
-    final maxCarrots = carrotsObj?.max ?? 5;
-    final currentCarrots = carrotsObj?.current ?? 0;
-    final availableCarrots = currentCarrots;
-
-    bool shouldProceed;
-    if (isPremium) {
-      shouldProceed = true;
-    } else if (hideUnlockReminder) {
-      shouldProceed = await _showReducedUnlockDialog(
-        preview: preview,
-        currentCarrots: availableCarrots,
-        maxCarrots: maxCarrots,
-      );
-    } else {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        barrierDismissible: false,
-        builder: (dialogContext) {
-          return ConfirmUnlockDialog(
-            preview: preview,
-            currentCarrots: availableCarrots,
-            maxCarrots: maxCarrots,
-            initialDoNotShowAgain: hideUnlockReminder,
-            onDoNotShowAgainChanged: (v) {
-              unawaited(
-                ref.read(appStateProvider.notifier).setSkipUnlockReminder(v),
-              );
-            },
-            onCancel: () => Navigator.of(dialogContext).pop(false),
-            onUnlock: () => Navigator.of(dialogContext).pop(true),
-          );
-        },
-      );
-      shouldProceed = confirmed == true;
-    }
-
-    if (!shouldProceed || !mounted) return;
-
-    if (!isPremium) {
-      final success = await ref
-          .read(databaseServiceProvider)
-          .deductCarrot(userId);
-      if (!success) {
-        if (!mounted) return;
-        _showOutOfCarrots();
-        return;
-      }
-    }
-
-    final global = await ref
-        .read(recipeServiceProvider)
-        .getRecipeById(recipe.id);
-    if (global == null) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Recipe is unavailable right now.')),
-      );
-      return;
-    }
-
-    await ref.read(recipeServiceProvider).saveRecipe(userId, global);
-    if (mounted) {
-      _openRecipeDetail(global, assumeUnlocked: true, openDirections: true);
-    }
-  }
 }

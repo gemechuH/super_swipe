@@ -103,75 +103,125 @@ class SkeletonRecipeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 16,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SkeletonBox(height: 220, borderRadius: BorderRadius.zero),
-              Padding(
-                padding: const EdgeInsets.all(18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: const [
-                        SkeletonLine(width: 80, height: 14),
-                        SkeletonLine(width: 60, height: 14),
-                        SkeletonLine(width: 70, height: 14),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    const FractionallySizedBox(
-                      widthFactor: 0.78,
-                      alignment: Alignment.centerLeft,
-                      child: SkeletonLine(height: 20),
-                    ),
-                    const SizedBox(height: 10),
-                    const FractionallySizedBox(
-                      widthFactor: 0.95,
-                      alignment: Alignment.centerLeft,
-                      child: SkeletonLine(height: 12),
-                    ),
-                    const SizedBox(height: 8),
-                    const FractionallySizedBox(
-                      widthFactor: 0.82,
-                      alignment: Alignment.centerLeft,
-                      child: SkeletonLine(height: 12),
-                    ),
-                    const SizedBox(height: 16),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      children: const [
-                        SkeletonLine(width: 90, height: 16),
-                        SkeletonLine(width: 90, height: 16),
-                        SkeletonLine(width: 90, height: 16),
-                      ],
-                    ),
-                  ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxH = constraints.maxHeight;
+        final isCompact = maxH.isFinite && maxH < 520;
+        final isVeryCompact = maxH.isFinite && maxH < 320;
+
+        final outerVPad = isVeryCompact ? 4.0 : 8.0;
+        final outerHPad = isVeryCompact ? 4.0 : 8.0;
+        final contentPad = isVeryCompact ? 12.0 : 16.0;
+
+        // Estimate content height below the image (padding + lines + spacers).
+        final belowImageHeight = isVeryCompact ? 132.0 : 196.0;
+
+        final imageHeight = maxH.isFinite
+            ? (maxH - (outerVPad * 2) - belowImageHeight).clamp(0.0, 280.0)
+            : (isCompact ? 140.0 : 220.0);
+
+        return Padding(
+          padding: EdgeInsets.symmetric(horizontal: outerHPad, vertical: outerVPad),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 16,
+                  offset: const Offset(0, 8),
                 ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SkeletonBox(
+                    height: imageHeight,
+                    borderRadius: BorderRadius.zero,
+                  ),
+                  Padding(
+                    padding: EdgeInsets.all(contentPad),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: isVeryCompact
+                          ? const [
+                              FractionallySizedBox(
+                                widthFactor: 0.72,
+                                alignment: Alignment.centerLeft,
+                                child: SkeletonLine(height: 18),
+                              ),
+                              SizedBox(height: 8),
+                              FractionallySizedBox(
+                                widthFactor: 0.92,
+                                alignment: Alignment.centerLeft,
+                                child: SkeletonLine(height: 12),
+                              ),
+                              SizedBox(height: 12),
+                              FractionallySizedBox(
+                                widthFactor: 0.68,
+                                alignment: Alignment.centerLeft,
+                                child: SkeletonLine(height: 12),
+                              ),
+                              SizedBox(height: 8),
+                              FractionallySizedBox(
+                                widthFactor: 0.78,
+                                alignment: Alignment.centerLeft,
+                                child: SkeletonLine(height: 12),
+                              ),
+                              SizedBox(height: 12),
+                              SkeletonLine(width: 120, height: 14),
+                            ]
+                          : const [
+                              FractionallySizedBox(
+                                widthFactor: 0.75,
+                                alignment: Alignment.centerLeft,
+                                child: SkeletonLine(height: 20),
+                              ),
+                              SizedBox(height: 10),
+                              FractionallySizedBox(
+                                widthFactor: 0.92,
+                                alignment: Alignment.centerLeft,
+                                child: SkeletonLine(height: 12),
+                              ),
+                              SizedBox(height: 8),
+                              FractionallySizedBox(
+                                widthFactor: 0.82,
+                                alignment: Alignment.centerLeft,
+                                child: SkeletonLine(height: 12),
+                              ),
+                              SizedBox(height: 16),
+                              FractionallySizedBox(
+                                widthFactor: 0.68,
+                                alignment: Alignment.centerLeft,
+                                child: SkeletonLine(height: 12),
+                              ),
+                              SizedBox(height: 8),
+                              FractionallySizedBox(
+                                widthFactor: 0.78,
+                                alignment: Alignment.centerLeft,
+                                child: SkeletonLine(height: 12),
+                              ),
+                              SizedBox(height: 8),
+                              FractionallySizedBox(
+                                widthFactor: 0.62,
+                                alignment: Alignment.centerLeft,
+                                child: SkeletonLine(height: 12),
+                              ),
+                              SizedBox(height: 18),
+                              SkeletonLine(width: 140, height: 16),
+                            ],
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

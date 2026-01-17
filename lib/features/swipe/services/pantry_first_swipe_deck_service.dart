@@ -22,6 +22,11 @@ class PantryFirstSwipeDeckService {
 
   static final Set<String> _generationLocks = <String>{};
 
+  // Deck sizing (requested: 10 initial, refill when 5 left, add 10 more)
+  static const int _initialDeckTarget = 10;
+  static const int _refillThreshold = 5;
+  static const int _refillAddCount = 10;
+
   const PantryFirstSwipeDeckService({
     required SwipeDeckPersistence persistence,
     required AiRecipeService aiRecipeService,
@@ -87,9 +92,11 @@ class PantryFirstSwipeDeckService {
     }
 
     final existing = await getDeck(userId: userId, energyLevel: energyLevel);
-    if (existing.isNotEmpty) return;
-
-    const missing = 6;
+    final missing = (_initialDeckTarget - existing.length).clamp(
+      0,
+      _initialDeckTarget,
+    );
+    if (missing <= 0) return;
 
     _logInfo(
       'Ensuring initial deck (energy=$energyLevel, existing=${existing.length}, missing=$missing)',
@@ -124,7 +131,7 @@ class PantryFirstSwipeDeckService {
     required bool willingToShop,
     required String inputsSignature,
   }) async {
-    if (remaining > 3) return false;
+    if (remaining > _refillThreshold) return false;
 
     final lockKey = _lockKey(userId, energyLevel);
     if (_generationLocks.contains(lockKey)) {
@@ -139,7 +146,7 @@ class PantryFirstSwipeDeckService {
     await _generateAndPersist(
       userId: userId,
       energyLevel: energyLevel,
-      count: 5,
+      count: _refillAddCount,
       pantryItems: pantryItems,
       allergies: allergies,
       dietaryRestrictions: dietaryRestrictions,

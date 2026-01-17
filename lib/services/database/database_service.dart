@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:super_swipe/core/config/constants.dart';
+import 'package:super_swipe/core/utils/recipe_image_utils.dart';
 import 'package:super_swipe/core/models/pantry_item.dart';
 import 'package:super_swipe/core/models/recipe.dart';
 import 'package:super_swipe/core/models/recipe_preview.dart';
@@ -341,9 +341,14 @@ class DatabaseService {
         });
       }
 
-      final imageUrl = (preview.imageUrl?.isNotEmpty == true)
-          ? preview.imageUrl!
-          : AppAssets.placeholderRecipe;
+      final imageUrl = RecipeImageUtils.forRecipe(
+        existing: preview.imageUrl,
+        id: preview.id,
+        title: preview.title,
+        mealType: preview.mealType,
+        cuisine: preview.cuisine,
+        ingredients: preview.ingredients,
+      );
 
       transaction.set(savedRef, {
         'recipeId': preview.id,
@@ -394,8 +399,16 @@ class DatabaseService {
     final savedRef = _savedRecipes(userId).doc(recipe.id);
     final deckRef = _swipeDeck(userId).doc(recipe.id);
 
+    // IMPORTANT:
+    // - Do NOT overwrite `savedAt` / `lastStepAt` on finalize, otherwise the
+    //   saved-recipes stream can reorder/flash and the detail screen may not
+    //   reflect new instructions promptly.
+    final data = <String, dynamic>{...recipe.toSavedRecipeFirestore()};
+    data.remove('savedAt');
+    data.remove('lastStepAt');
+
     await savedRef.set({
-      ...recipe.toSavedRecipeFirestore(),
+      ...data,
       'isUnlocked': true,
       'unlockSource': unlockSource,
       'generationStatus': 'ready',
@@ -406,6 +419,25 @@ class DatabaseService {
       'isConsumed': true,
       'consumedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+  }
+
+  /// Marks a reserved swipe-preview unlock as failed to generate.
+  ///
+  /// This is best-effort only and is used to avoid a permanent
+  /// "Directions coming soon" state when background generation errors.
+  Future<void> markSwipePreviewGenerationFailed({
+    required String userId,
+    required String recipeId,
+    String? errorMessage,
+  }) async {
+    try {
+      await _savedRecipes(userId).doc(recipeId).set({
+        'generationStatus': 'failed',
+        if (errorMessage != null) 'generationError': errorMessage,
+      }, SetOptions(merge: true));
+    } catch (_) {
+      // no-op
+    }
   }
 
   /// Fetches recipe secrets (instructions) after unlock.

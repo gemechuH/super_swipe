@@ -133,8 +133,8 @@ firebase-debug.log
 # OS specific
 Thumbs.db
 #speckit
-test/
-.specify/
-.speckit/
-.github/
-specs/
+# test/
+# .specify/
+# .speckit/
+# .github/
+# specs/

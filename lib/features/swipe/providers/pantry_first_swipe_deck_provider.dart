@@ -54,6 +54,9 @@ class PantryFirstSwipeDeckController
       willingToShop: willingToShop,
     );
 
+    var isDisposed = false;
+    ref.onDispose(() => isDisposed = true);
+
     final svc = ref.watch(pantryFirstSwipeDeckServiceProvider);
 
     await svc.ensureInitialDeck(
@@ -88,7 +91,7 @@ class PantryFirstSwipeDeckController
           )
           .then((didRefill) async {
             if (!didRefill) return;
-            if (!ref.mounted) return;
+            if (isDisposed) return;
             await refresh();
           }),
     );
@@ -183,18 +186,30 @@ class PantryFirstSwipeDeckController
     final willingToShop = profile.preferences.pantryDiscovery.willingToShop;
 
     final svc = ref.read(pantryFirstSwipeDeckServiceProvider);
-    await svc.generateAndFinalizeUnlockedPreview(
-      userId: user.uid,
-      preview: preview,
-      pantryItems: pantryItems.map((p) => p.normalizedName).toList(),
-      allergies: profile.preferences.allergies,
-      dietaryRestrictions: profile.preferences.dietaryRestrictions,
-      showCalories: true,
-      strictPantryMatch: !willingToShop,
-      isPremium: isPremium,
-      unlockSource: unlockSource,
-    );
-    unawaited(refresh());
+    try {
+      await svc.generateAndFinalizeUnlockedPreview(
+        userId: user.uid,
+        preview: preview,
+        pantryItems: pantryItems.map((p) => p.normalizedName).toList(),
+        allergies: profile.preferences.allergies,
+        dietaryRestrictions: profile.preferences.dietaryRestrictions,
+        showCalories: true,
+        strictPantryMatch: !willingToShop,
+        isPremium: isPremium,
+        unlockSource: unlockSource,
+      );
+      unawaited(refresh());
+    } catch (e) {
+      unawaited(
+        ref
+            .read(databaseServiceProvider)
+            .markSwipePreviewGenerationFailed(
+              userId: user.uid,
+              recipeId: preview.id,
+              errorMessage: e.toString(),
+            ),
+      );
+    }
   }
 
   Future<Recipe> unlockPreview(
