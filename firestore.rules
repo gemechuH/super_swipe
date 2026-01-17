@@ -29,6 +29,7 @@ service cloud.firestore {
 
     function isValidUnlockSpend(userId, recipeId) {
       return !isPremium() &&
+        get(/databases/$(database)/documents/users/$(userId)).data.carrots.current >= 1 &&
         // Carrots decremented by exactly 1 in same transaction
         getAfter(/databases/$(database)/documents/users/$(userId)).data.carrots.current ==
           get(/databases/$(database)/documents/users/$(userId)).data.carrots.current - 1 &&
