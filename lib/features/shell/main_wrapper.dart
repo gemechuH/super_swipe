@@ -162,10 +162,17 @@ class _NotchedBottomNavBar extends StatelessWidget {
                   onTap: () => context.go(AppRoutes.home),
                 ),
                 _NavItem(
+                  icon: Icons.swipe_outlined,
+                  selectedIcon: Icons.swipe_rounded,
+                  label: 'Swipe',
+                  isSelected: currentIndex == 1,
+                  onTap: () => context.go(AppRoutes.swipe),
+                ),
+                _NavItem(
                   icon: Icons.kitchen_outlined,
                   selectedIcon: Icons.kitchen_rounded,
                   label: 'Pantry',
-                  isSelected: currentIndex == 1,
+                  isSelected: currentIndex == 2,
                   onTap: () => context.go(AppRoutes.pantry),
                 ),
               ],
@@ -184,14 +191,14 @@ class _NotchedBottomNavBar extends StatelessWidget {
                   icon: Icons.restaurant_menu_outlined,
                   selectedIcon: Icons.restaurant_menu_rounded,
                   label: 'Recipes',
-                  isSelected: currentIndex == 2,
+                  isSelected: currentIndex == 3,
                   onTap: () => context.go(AppRoutes.recipes),
                 ),
                 _NavItem(
                   icon: Icons.settings_outlined,
                   selectedIcon: Icons.settings_rounded,
                   label: 'Settings',
-                  isSelected: currentIndex == 3,
+                  isSelected: currentIndex == 4,
                   onTap: () => context.go(AppRoutes.settings),
                 ),
               ],
@@ -205,9 +212,10 @@ class _NotchedBottomNavBar extends StatelessWidget {
   int _calculateSelectedIndex(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
     if (location.startsWith(AppRoutes.home)) return 0;
-    if (location.startsWith(AppRoutes.pantry)) return 1;
-    if (location.startsWith(AppRoutes.recipes)) return 2;
-    if (location.startsWith(AppRoutes.settings)) return 3;
+    if (location.startsWith(AppRoutes.swipe)) return 1;
+    if (location.startsWith(AppRoutes.pantry)) return 2;
+    if (location.startsWith(AppRoutes.recipes)) return 3;
+    if (location.startsWith(AppRoutes.settings)) return 4;
     return 0;
   }
 }

@@ -22,6 +22,9 @@ class PantryFirstSwipeDeckService {
 
   static final Set<String> _generationLocks = <String>{};
 
+  static const int _initialDeckTarget = 20;
+  static const int _refillBatchSize = 10;
+
   const PantryFirstSwipeDeckService({
     required SwipeDeckPersistence persistence,
     required AiRecipeService aiRecipeService,
@@ -52,15 +55,18 @@ class PantryFirstSwipeDeckService {
     );
   }
 
-  String _lockKey(String userId, int energyLevel) => '$userId:$energyLevel';
+  String _lockKey(String userId, int energyLevel, String inputsSignature) =>
+      '$userId:$energyLevel:$inputsSignature';
 
   Future<List<RecipePreview>> getDeck({
     required String userId,
     required int energyLevel,
+    required String inputsSignature,
   }) async {
     final all = await _persistence.getUnconsumedSwipeCards(userId);
     return all
         .where((c) => c.energyLevel == energyLevel)
+        .where((c) => c.inputsSignature == inputsSignature)
         .toList(growable: false);
   }
 
@@ -76,39 +82,49 @@ class PantryFirstSwipeDeckService {
     required bool willingToShop,
     required String inputsSignature,
   }) async {
-    final mismatch = await _persistence.hasDeckSignatureMismatch(
-      userId,
-      energyLevel: energyLevel,
-      inputsSignature: inputsSignature,
-    );
-    if (mismatch) {
-      _logInfo('Deck signature mismatch; clearing deck (energy=$energyLevel)');
-      await _persistence.clearSwipeDeck(userId);
-    }
-
-    final existing = await getDeck(userId: userId, energyLevel: energyLevel);
-    if (existing.isNotEmpty) return;
-
-    const missing = 6;
-
-    _logInfo(
-      'Ensuring initial deck (energy=$energyLevel, existing=${existing.length}, missing=$missing)',
-    );
-
-    await _generateAndPersist(
+    // Gemini can return fewer unique previews than requested.
+    // Keep trying (within a small cap) until we actually reach the target.
+    var existing = await getDeck(
       userId: userId,
       energyLevel: energyLevel,
-      count: missing,
-      pantryItems: pantryItems,
-      allergies: allergies,
-      dietaryRestrictions: dietaryRestrictions,
-      preferredCuisines: preferredCuisines,
-      mealType: mealType,
-      includeBasics: includeBasics,
-      willingToShop: willingToShop,
       inputsSignature: inputsSignature,
-      existingCardIds: existing.map((e) => e.id).toSet(),
     );
+
+    const maxTopUpRounds = 3;
+    for (var round = 0; round < maxTopUpRounds; round++) {
+      final missing = (_initialDeckTarget - existing.length).clamp(
+        0,
+        _initialDeckTarget,
+      );
+      if (missing == 0) return;
+
+      _logInfo(
+        'Ensuring initial deck (energy=$energyLevel, existing=${existing.length}, missing=$missing, round=${round + 1}/$maxTopUpRounds)',
+      );
+
+      final createdCount = await _generateAndPersist(
+        userId: userId,
+        energyLevel: energyLevel,
+        count: missing,
+        pantryItems: pantryItems,
+        allergies: allergies,
+        dietaryRestrictions: dietaryRestrictions,
+        preferredCuisines: preferredCuisines,
+        mealType: mealType,
+        includeBasics: includeBasics,
+        willingToShop: willingToShop,
+        inputsSignature: inputsSignature,
+        existingCardIds: existing.map((e) => e.id).toSet(),
+      );
+
+      if (createdCount <= 0) return;
+
+      existing = await getDeck(
+        userId: userId,
+        energyLevel: energyLevel,
+        inputsSignature: inputsSignature,
+      );
+    }
   }
 
   Future<bool> maybeTriggerRefill({
@@ -123,10 +139,13 @@ class PantryFirstSwipeDeckService {
     required bool includeBasics,
     required bool willingToShop,
     required String inputsSignature,
+    bool force = false,
   }) async {
-    if (remaining > 3) return false;
+    // Endless deck behavior: when the user reaches 10 remaining, generate 10
+    // more in the background.
+    if (!force && remaining != 10) return false;
 
-    final lockKey = _lockKey(userId, energyLevel);
+    final lockKey = _lockKey(userId, energyLevel, inputsSignature);
     if (_generationLocks.contains(lockKey)) {
       _logInfo('Refill skipped (already in progress) (energy=$energyLevel)');
       return false;
@@ -134,12 +153,16 @@ class PantryFirstSwipeDeckService {
 
     _logInfo('Triggering refill (energy=$energyLevel, remaining=$remaining)');
 
-    final existing = await getDeck(userId: userId, energyLevel: energyLevel);
-
-    await _generateAndPersist(
+    final existing = await getDeck(
       userId: userId,
       energyLevel: energyLevel,
-      count: 5,
+      inputsSignature: inputsSignature,
+    );
+
+    final createdCount = await _generateAndPersist(
+      userId: userId,
+      energyLevel: energyLevel,
+      count: _refillBatchSize,
       pantryItems: pantryItems,
       allergies: allergies,
       dietaryRestrictions: dietaryRestrictions,
@@ -151,7 +174,7 @@ class PantryFirstSwipeDeckService {
       existingCardIds: existing.map((e) => e.id).toSet(),
     );
 
-    return true;
+    return createdCount > 0;
   }
 
   Future<Recipe> unlockPreview({
@@ -289,7 +312,7 @@ class PantryFirstSwipeDeckService {
     );
   }
 
-  Future<void> _generateAndPersist({
+  Future<int> _generateAndPersist({
     required String userId,
     required int energyLevel,
     required int count,
@@ -303,14 +326,14 @@ class PantryFirstSwipeDeckService {
     required String inputsSignature,
     required Set<String> existingCardIds,
   }) async {
-    if (count <= 0) return;
+    if (count <= 0) return 0;
 
-    final lockKey = _lockKey(userId, energyLevel);
+    final lockKey = _lockKey(userId, energyLevel, inputsSignature);
     if (_generationLocks.contains(lockKey)) {
       _logInfo(
         'Generation skipped (already in progress) (energy=$energyLevel)',
       );
-      return;
+      return 0;
     }
     _generationLocks.add(lockKey);
 
@@ -320,14 +343,22 @@ class PantryFirstSwipeDeckService {
       final created = <RecipePreview>[];
       final seenIdeaKeys = <String>{...existingCardIds};
       var remaining = count;
-      const maxAttempts = 3;
+      const maxAttempts = 6;
 
       for (var attempt = 0; attempt < maxAttempts && remaining > 0; attempt++) {
         _logInfo(
           'Generation attempt ${attempt + 1}/$maxAttempts (energy=$energyLevel, remaining=$remaining)',
         );
+
+        // Gemini can return fewer previews than requested or repeat ideas.
+        // After the first attempt, request a small buffer to increase the
+        // likelihood we can still reach the target unique count.
+        final requestCount = (attempt == 0)
+            ? remaining
+            : (remaining + 3).clamp(1, count);
+
         final previews = await _aiRecipeService.generateRecipePreviewsBatch(
-          count: remaining,
+          count: requestCount,
           pantryItems: pantryItems,
           allergies: allergies,
           dietaryRestrictions: dietaryRestrictions,
@@ -351,11 +382,18 @@ class PantryFirstSwipeDeckService {
           final exists = await _persistence.hasIdeaKeyHistory(
             userId,
             energyLevel: energyLevel,
+            inputsSignature: inputsSignature,
             ideaKey: ideaKey,
           );
           if (exists) continue;
 
-          created.add(p.copyWith(id: ideaKey, energyLevel: energyLevel));
+          created.add(
+            p.copyWith(
+              id: ideaKey,
+              energyLevel: energyLevel,
+              inputsSignature: inputsSignature,
+            ),
+          );
           remaining--;
           if (remaining <= 0) break;
         }
@@ -363,7 +401,7 @@ class PantryFirstSwipeDeckService {
 
       if (created.isEmpty) {
         _logWarn('Generation produced 0 unique cards (energy=$energyLevel)');
-        return;
+        return 0;
       }
 
       await _persistence.upsertSwipeCards(
@@ -381,11 +419,14 @@ class PantryFirstSwipeDeckService {
         await _persistence.writeIdeaKeyHistory(
           userId,
           energyLevel: energyLevel,
+          inputsSignature: inputsSignature,
           ideaKey: card.id,
           title: card.title,
           ingredients: card.ingredients,
         );
       }
+
+      return created.length;
     } finally {
       _generationLocks.remove(lockKey);
     }
@@ -413,12 +454,14 @@ abstract class SwipeDeckPersistence {
   Future<bool> hasIdeaKeyHistory(
     String userId, {
     required int energyLevel,
+    required String inputsSignature,
     required String ideaKey,
   });
 
   Future<void> writeIdeaKeyHistory(
     String userId, {
     required int energyLevel,
+    required String inputsSignature,
     required String ideaKey,
     String? title,
     List<String>? ingredients,

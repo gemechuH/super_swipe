@@ -37,6 +37,18 @@ class RecipeService {
         });
   }
 
+  /// Stream a single saved recipe document (real-time updates).
+  ///
+  /// This avoids UI hangs caused by providers that emit an empty stream
+  /// while a list-based stream is still loading.
+  Stream<Recipe?> watchSavedRecipe(String userId, String recipeId) {
+    return _firestoreService
+        .userSavedRecipes(userId)
+        .doc(recipeId)
+        .snapshots()
+        .map((doc) => doc.exists ? Recipe.fromFirestore(doc) : null);
+  }
+
   /// Remove a recipe from saved recipes
   Future<void> unsaveRecipe(String userId, String recipeId) async {
     await _firestoreService.userSavedRecipes(userId).doc(recipeId).delete();
@@ -60,6 +72,17 @@ class RecipeService {
     await _firestoreService.userSavedRecipes(userId).doc(recipeId).update({
       'currentStep': currentStep,
       'lastStepAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> updateSavedRecipeInstructions({
+    required String userId,
+    required String recipeId,
+    required List<String> instructions,
+  }) async {
+    await _firestoreService.userSavedRecipes(userId).doc(recipeId).update({
+      'instructions': instructions,
+      'updatedAt': FieldValue.serverTimestamp(),
     });
   }
 

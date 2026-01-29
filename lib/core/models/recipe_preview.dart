@@ -8,6 +8,12 @@ class RecipePreview {
   final String title;
   final String vibeDescription;
 
+  /// Swipe-deck inputs signature this preview belongs to.
+  ///
+  /// Used to scope no-repeat history to (energy + signature) and to filter
+  /// stored cards when users change pantry/preferences.
+  final String inputsSignature;
+
   /// Full ingredient list (no quantities) for the preview card.
   final List<String> ingredients;
 
@@ -30,6 +36,7 @@ class RecipePreview {
     required this.id,
     required this.title,
     required this.vibeDescription,
+    this.inputsSignature = '',
     this.ingredients = const [],
     required this.mainIngredients,
     this.imageUrl,
@@ -55,6 +62,7 @@ class RecipePreview {
       id: 'preview_${DateTime.now().millisecondsSinceEpoch}',
       title: json['title'] ?? 'Chef\'s Special',
       vibeDescription: json['vibe_description'] ?? json['description'] ?? '',
+      inputsSignature: json['inputsSignature'] ?? '',
       ingredients: parsedIngredients,
       mainIngredients: parsedMain.isNotEmpty
           ? parsedMain
@@ -80,6 +88,7 @@ class RecipePreview {
       'id': id,
       'title': title,
       'vibe_description': vibeDescription,
+      'inputsSignature': inputsSignature,
       'ingredients': ingredients,
       'main_ingredients': mainIngredients,
       'estimated_time_minutes': estimatedTimeMinutes,
@@ -99,6 +108,7 @@ class RecipePreview {
       id: doc.id,
       title: data['title'] ?? '',
       vibeDescription: data['vibeDescription'] ?? data['description'] ?? '',
+      inputsSignature: (data['inputsSignature'] as String?) ?? '',
       ingredients: List<String>.from(
         data['ingredients'] ??
             data['ingredientList'] ??
@@ -122,6 +132,7 @@ class RecipePreview {
     return {
       'title': title,
       'vibeDescription': vibeDescription,
+      if (inputsSignature.isNotEmpty) 'inputsSignature': inputsSignature,
       'ingredients': ingredients,
       'mainIngredients': mainIngredients,
       'imageUrl': imageUrl,
@@ -139,6 +150,7 @@ class RecipePreview {
     String? id,
     String? title,
     String? vibeDescription,
+    String? inputsSignature,
     List<String>? ingredients,
     List<String>? mainIngredients,
     String? imageUrl,
@@ -154,6 +166,7 @@ class RecipePreview {
       id: id ?? this.id,
       title: title ?? this.title,
       vibeDescription: vibeDescription ?? this.vibeDescription,
+      inputsSignature: inputsSignature ?? this.inputsSignature,
       ingredients: ingredients ?? this.ingredients,
       mainIngredients: mainIngredients ?? this.mainIngredients,
       imageUrl: imageUrl ?? this.imageUrl,

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -36,6 +38,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _directionsKey = GlobalKey();
   bool _didAutoScrollToDirections = false;
+  bool _didPersistSecretsIntoSavedRecipe = false;
 
   bool _isUpdatingProgress = false;
 
@@ -120,6 +123,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
             widget.initialRecipe,
             isLoading: true,
             openDirections: widget.openDirections,
+            treatAsUnlocked: treatAsUnlocked,
           );
         }
 
@@ -190,6 +194,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
           context,
           recipe,
           openDirections: widget.openDirections,
+          treatAsUnlocked: treatAsUnlocked,
         );
       },
     );
@@ -238,17 +243,55 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
     Recipe? recipe, {
     bool isLoading = false,
     bool openDirections = false,
+    required bool treatAsUnlocked,
   }) {
     if (openDirections) {
       _maybeAutoScrollToDirections();
     }
 
     final safeRecipe = recipe;
-    final instructions = safeRecipe?.instructions ?? const <String>[];
+    final baseInstructions = safeRecipe?.instructions ?? const <String>[];
+    final shouldFetchSecrets =
+        treatAsUnlocked &&
+        safeRecipe != null &&
+        baseInstructions.isEmpty &&
+        widget.recipeId.isNotEmpty &&
+        !widget.isGenerating;
+
+    final secretsAsync = shouldFetchSecrets
+        ? ref.watch(recipeSecretsProvider(widget.recipeId))
+        : const AsyncValue<List<String>>.data(<String>[]);
+
+    final secrets = secretsAsync.asData?.value ?? const <String>[];
+    final instructions = baseInstructions.isNotEmpty
+        ? baseInstructions
+        : (secrets.isNotEmpty ? secrets : baseInstructions);
     final currentStep = safeRecipe?.currentStep ?? 0;
     final totalSteps = instructions.length;
     final showGeneratingSkeleton =
         widget.isGenerating && (safeRecipe?.instructions.isEmpty ?? true);
+
+    final showSecretsLoadingSkeleton =
+        shouldFetchSecrets && instructions.isEmpty && secretsAsync.isLoading;
+
+    if (shouldFetchSecrets &&
+        !_didPersistSecretsIntoSavedRecipe &&
+        secrets.isNotEmpty) {
+      _didPersistSecretsIntoSavedRecipe = true;
+      final userId = ref.read(authProvider).user?.uid;
+      if (userId != null) {
+        // Best-effort: cache secrets into savedRecipes for offline rendering.
+        unawaited(
+          ref
+              .read(recipeServiceProvider)
+              .updateSavedRecipeInstructions(
+                userId: userId,
+                recipeId: widget.recipeId,
+                instructions: secrets,
+              ),
+        );
+      }
+    }
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
@@ -336,7 +379,10 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                         Expanded(
                           child: Text(
                             totalSteps == 0
-                                ? 'Directions coming soon'
+                                ? (showGeneratingSkeleton ||
+                                          showSecretsLoadingSkeleton
+                                      ? 'Loading directions…'
+                                      : 'Directions coming soon')
                                 : 'Step $currentStep of $totalSteps',
                             style: const TextStyle(fontWeight: FontWeight.w700),
                           ),
@@ -395,7 +441,9 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                   ),
                   const SizedBox(height: AppTheme.spacingS),
                   if (instructions.isEmpty)
-                    (isLoading || showGeneratingSkeleton)
+                    (isLoading ||
+                            showGeneratingSkeleton ||
+                            showSecretsLoadingSkeleton)
                         ? const AppShimmer(
                             child: Column(
                               children: [
@@ -407,9 +455,23 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                               ],
                             ),
                           )
-                        : const Text(
-                            'Directions are not available for this recipe yet.',
-                            style: TextStyle(color: AppTheme.textSecondary),
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Directions are not available for this recipe yet.',
+                                style: TextStyle(color: AppTheme.textSecondary),
+                              ),
+                              const SizedBox(height: 10),
+                              if (shouldFetchSecrets)
+                                OutlinedButton.icon(
+                                  onPressed: () => ref.refresh(
+                                    recipeSecretsProvider(widget.recipeId),
+                                  ),
+                                  icon: const Icon(Icons.refresh_rounded),
+                                  label: const Text('Retry loading directions'),
+                                ),
+                            ],
                           )
                   else
                     Column(

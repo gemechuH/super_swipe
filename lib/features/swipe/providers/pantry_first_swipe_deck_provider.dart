@@ -52,7 +52,14 @@ class PantryFirstSwipeDeckController
       pantryIngredientNames: pantryItems.map((p) => p.normalizedName),
       includeBasics: includeBasics,
       willingToShop: willingToShop,
+      allergies: profile.preferences.allergies,
+      dietaryRestrictions: profile.preferences.dietaryRestrictions,
+      preferredCuisines: profile.preferences.preferredCuisines,
+      mealType: profile.preferences.defaultMealType,
     );
+
+    var isDisposed = false;
+    ref.onDispose(() => isDisposed = true);
 
     final svc = ref.watch(pantryFirstSwipeDeckServiceProvider);
 
@@ -69,29 +76,13 @@ class PantryFirstSwipeDeckController
       inputsSignature: signature,
     );
 
-    final deck = await svc.getDeck(userId: user.uid, energyLevel: energyLevel);
-
-    unawaited(
-      svc
-          .maybeTriggerRefill(
-            userId: user.uid,
-            energyLevel: energyLevel,
-            remaining: deck.length,
-            pantryItems: pantryItems.map((p) => p.normalizedName).toList(),
-            allergies: profile.preferences.allergies,
-            dietaryRestrictions: profile.preferences.dietaryRestrictions,
-            preferredCuisines: profile.preferences.preferredCuisines,
-            mealType: profile.preferences.defaultMealType,
-            includeBasics: includeBasics,
-            willingToShop: willingToShop,
-            inputsSignature: signature,
-          )
-          .then((didRefill) async {
-            if (!didRefill) return;
-            if (!ref.mounted) return;
-            await refresh();
-          }),
+    final deck = await svc.getDeck(
+      userId: user.uid,
+      energyLevel: energyLevel,
+      inputsSignature: signature,
     );
+
+    if (isDisposed) return deck;
 
     return deck;
   }
@@ -102,12 +93,14 @@ class PantryFirstSwipeDeckController
   }
 
   Future<void> maybeTriggerRefillForVisibleRemaining(int remaining) async {
+    // Trigger when the user remains with 10 un-swiped cards.
+    if (remaining != 10) return;
+
     final user = ref.read(authProvider).user;
     if (user == null || user.isAnonymous == true) return;
 
     final profile = ref.read(userProfileProvider).value;
     final pantryItems = ref.read(pantryItemsProvider).value;
-
     if (profile == null || pantryItems == null) return;
 
     final includeBasics = profile.preferences.pantryDiscovery.includeBasics;
@@ -116,6 +109,10 @@ class PantryFirstSwipeDeckController
       pantryIngredientNames: pantryItems.map((p) => p.normalizedName),
       includeBasics: includeBasics,
       willingToShop: willingToShop,
+      allergies: profile.preferences.allergies,
+      dietaryRestrictions: profile.preferences.dietaryRestrictions,
+      preferredCuisines: profile.preferences.preferredCuisines,
+      mealType: profile.preferences.defaultMealType,
     );
 
     final svc = ref.read(pantryFirstSwipeDeckServiceProvider);
@@ -135,6 +132,50 @@ class PantryFirstSwipeDeckController
 
     if (!didRefill) return;
     await refresh();
+  }
+
+  Future<void> topUpNow() async {
+    final user = ref.read(authProvider).user;
+    if (user == null || user.isAnonymous == true) return;
+
+    final profile = ref.read(userProfileProvider).value;
+    final pantryItems = ref.read(pantryItemsProvider).value;
+    if (profile == null || pantryItems == null) return;
+
+    final includeBasics = profile.preferences.pantryDiscovery.includeBasics;
+    final willingToShop = profile.preferences.pantryDiscovery.willingToShop;
+    final signature = buildSwipeInputsSignature(
+      pantryIngredientNames: pantryItems.map((p) => p.normalizedName),
+      includeBasics: includeBasics,
+      willingToShop: willingToShop,
+      allergies: profile.preferences.allergies,
+      dietaryRestrictions: profile.preferences.dietaryRestrictions,
+      preferredCuisines: profile.preferences.preferredCuisines,
+      mealType: profile.preferences.defaultMealType,
+    );
+
+    final svc = ref.read(pantryFirstSwipeDeckServiceProvider);
+    await svc.maybeTriggerRefill(
+      userId: user.uid,
+      energyLevel: arg,
+      remaining: 10,
+      pantryItems: pantryItems.map((p) => p.normalizedName).toList(),
+      allergies: profile.preferences.allergies,
+      dietaryRestrictions: profile.preferences.dietaryRestrictions,
+      preferredCuisines: profile.preferences.preferredCuisines,
+      mealType: profile.preferences.defaultMealType,
+      includeBasics: includeBasics,
+      willingToShop: willingToShop,
+      inputsSignature: signature,
+      force: true,
+    );
+
+    await refresh();
+  }
+
+  Future<void> hardRefresh() async {
+    // Back-compat: treat hard-refresh as a top-up (do not clear history).
+    await topUpNow();
   }
 
   Future<void> reserveUnlockPreview(
@@ -284,11 +325,13 @@ class DatabaseSwipeDeckPersistence implements SwipeDeckPersistence {
   Future<bool> hasIdeaKeyHistory(
     String userId, {
     required int energyLevel,
+    required String inputsSignature,
     required String ideaKey,
   }) {
     return _db.hasIdeaKeyHistory(
       userId,
       energyLevel: energyLevel,
+      inputsSignature: inputsSignature,
       ideaKey: ideaKey,
     );
   }
@@ -297,6 +340,7 @@ class DatabaseSwipeDeckPersistence implements SwipeDeckPersistence {
   Future<void> writeIdeaKeyHistory(
     String userId, {
     required int energyLevel,
+    required String inputsSignature,
     required String ideaKey,
     String? title,
     List<String>? ingredients,
@@ -304,6 +348,7 @@ class DatabaseSwipeDeckPersistence implements SwipeDeckPersistence {
     return _db.writeIdeaKeyHistory(
       userId,
       energyLevel: energyLevel,
+      inputsSignature: inputsSignature,
       ideaKey: ideaKey,
       title: title,
       ingredients: ingredients,

@@ -103,12 +103,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: 'signup',
         builder: (context, state) => const SignupScreen(),
       ),
-
-      GoRoute(
-        path: AppRoutes.swipe,
-        name: 'swipe',
-        builder: (context, state) => const SwipeScreen(),
-      ),
       GoRoute(
         path: AppRoutes.recipeDetail,
         name: 'recipeDetail',
@@ -156,6 +150,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             name: 'home',
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: HomeScreen()),
+          ),
+          GoRoute(
+            path: AppRoutes.swipe,
+            name: 'swipe',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: SwipeScreen()),
           ),
           GoRoute(
             path: AppRoutes.pantry,

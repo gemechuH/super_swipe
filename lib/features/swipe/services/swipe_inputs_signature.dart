@@ -9,6 +9,10 @@ String buildSwipeInputsSignature({
   required Iterable<String> pantryIngredientNames,
   required bool includeBasics,
   required bool willingToShop,
+  List<String> allergies = const <String>[],
+  List<String> dietaryRestrictions = const <String>[],
+  List<String> preferredCuisines = const <String>[],
+  String mealType = '',
   String promptVersion = kPantryFirstSwipePromptVersion,
 }) {
   final normalized =
@@ -22,10 +26,35 @@ String buildSwipeInputsSignature({
           .toList(growable: false)
         ..sort();
 
+  final normalizedAllergies =
+      allergies
+          .map((e) => e.toLowerCase().trim())
+          .where((e) => e.isNotEmpty)
+          .toList(growable: false)
+        ..sort();
+
+  final normalizedDietary =
+      dietaryRestrictions
+          .map((e) => e.toLowerCase().trim())
+          .where((e) => e.isNotEmpty)
+          .toList(growable: false)
+        ..sort();
+
+  final normalizedCuisines =
+      preferredCuisines
+          .map((e) => e.toLowerCase().trim())
+          .where((e) => e.isNotEmpty)
+          .toList(growable: false)
+        ..sort();
+
   final payload = <String, dynamic>{
     'v': promptVersion,
     'includeBasics': includeBasics,
     'willingToShop': willingToShop,
+    'mealType': mealType.toLowerCase().trim(),
+    'allergies': normalizedAllergies,
+    'dietaryRestrictions': normalizedDietary,
+    'preferredCuisines': normalizedCuisines,
     'pantry': normalized,
   };
 

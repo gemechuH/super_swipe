@@ -46,6 +46,9 @@ class DatabaseService {
   CollectionReference<Map<String, dynamic>> _swipeDeck(String userId) =>
       _users.doc(userId).collection('swipeDeck');
 
+  CollectionReference<Map<String, dynamic>> _swipeDeckMeta(String userId) =>
+      _users.doc(userId).collection('swipeDeckMeta');
+
   CollectionReference<Map<String, dynamic>> _ideaKeyHistory(String userId) =>
       _users.doc(userId).collection('ideaKeyHistory');
 
@@ -521,9 +524,10 @@ class DatabaseService {
   Future<bool> hasIdeaKeyHistory(
     String userId, {
     required int energyLevel,
+    required String inputsSignature,
     required String ideaKey,
   }) async {
-    final docId = 'e${energyLevel}_$ideaKey';
+    final docId = 'e${energyLevel}_s${inputsSignature}_$ideaKey';
     final snap = await _ideaKeyHistory(userId).doc(docId).get();
     return snap.exists;
   }
@@ -531,18 +535,43 @@ class DatabaseService {
   Future<void> writeIdeaKeyHistory(
     String userId, {
     required int energyLevel,
+    required String inputsSignature,
     required String ideaKey,
     String? title,
     List<String>? ingredients,
   }) async {
-    final docId = 'e${energyLevel}_$ideaKey';
+    final docId = 'e${energyLevel}_s${inputsSignature}_$ideaKey';
     await _ideaKeyHistory(userId).doc(docId).set({
       'ideaKey': ideaKey,
       'energyLevel': energyLevel,
+      'inputsSignature': inputsSignature,
       'firstSeenAt': FieldValue.serverTimestamp(),
       if (title != null) 'title': title,
       if (ingredients != null) 'ingredients': ingredients,
     }, SetOptions(merge: true));
+  }
+
+  /// Clears ideaKeyHistory entries for a specific energy level.
+  ///
+  /// Used by pantry-first Swipe "Generate 10 new ideas" so the app can
+  /// regenerate without being blocked by strict uniqueness checks.
+  Future<void> clearIdeaKeyHistoryForEnergy(
+    String userId,
+    int energyLevel,
+  ) async {
+    const pageSize = 400;
+    while (true) {
+      final snap = await _ideaKeyHistory(
+        userId,
+      ).where('energyLevel', isEqualTo: energyLevel).limit(pageSize).get();
+      if (snap.docs.isEmpty) return;
+
+      final batch = _firestore.batch();
+      for (final doc in snap.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+    }
   }
 
   /// Marks a swipe card as consumed so it won't show again.
@@ -559,13 +588,13 @@ class DatabaseService {
     }
   }
 
-  /// Marks a swipe card as disliked (left swipe) but keeps it unconsumed.
+  /// Marks a swipe card as disliked (left swipe) and consumed.
   ///
-  /// This allows the user to see the card again on a future visit.
+  /// This permanently removes it from the swipe deck.
   Future<void> markSwipeCardDisliked(String userId, String cardId) async {
     try {
       await _swipeDeck(userId).doc(cardId).set({
-        'isConsumed': false,
+        'isConsumed': true,
         'isDisliked': true,
         'lastSwipeDirection': 'left',
         'lastSwipedAt': FieldValue.serverTimestamp(),
@@ -588,6 +617,33 @@ class DatabaseService {
       }
       await batch.commit();
     }
+  }
+
+  // ============================================================
+  // 4.x SWIPE DECK META (per-user)
+  // ============================================================
+
+  Future<Map<String, dynamic>?> getSwipeDeckMeta(
+    String userId,
+    String deckId,
+  ) async {
+    final doc = await _swipeDeckMeta(userId).doc(deckId).get();
+    return doc.data();
+  }
+
+  Future<void> upsertSwipeDeckMeta(
+    String userId,
+    String deckId,
+    Map<String, dynamic> data,
+  ) async {
+    await _swipeDeckMeta(userId).doc(deckId).set({
+      ...data,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> deleteSwipeDeckMeta(String userId, String deckId) async {
+    await _swipeDeckMeta(userId).doc(deckId).delete();
   }
 
   /// Adds or updates pantry items.

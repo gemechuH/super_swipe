@@ -75,7 +75,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
       unawaited(
         ref
             .read(pantryFirstSwipeDeckProvider(_selectedEnergyLevel).notifier)
-            .refresh(),
+            .topUpNow(),
       );
       return;
     }
@@ -321,7 +321,9 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     if (previousIndex >= deck.length) return;
 
     final swipedRecipe = deck[previousIndex];
-    _dismissedCardIds.add(swipedRecipe.id);
+    setState(() {
+      _dismissedCardIds.add(swipedRecipe.id);
+    });
 
     if (activity.direction == AxisDirection.right) {
       unawaited(_handleRightSwipe(swipedRecipe));
@@ -341,10 +343,16 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     if (activity is! Swipe) return;
     if (previousIndex >= deck.length) return;
 
-    final swiped = deck[previousIndex];
-    _dismissedCardIds.add(swiped.id);
+    // Trigger refill based on remaining *after* this swipe removes a card.
+    // Desired behavior: start with 20, then when the user remains with 10
+    // un-swiped cards, generate +10 in the background (repeat forever).
+    final remainingAfterSwipe = (deck.length - 1).clamp(0, 1000000);
 
-    final remainingAfterSwipe = (deck.length - 1).clamp(0, deck.length);
+    final swiped = deck[previousIndex];
+    setState(() {
+      _dismissedCardIds.add(swiped.id);
+    });
+
     unawaited(
       ref
           .read(pantryFirstSwipeDeckProvider(_selectedEnergyLevel).notifier)
@@ -741,36 +749,184 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     Widget deckWidget;
     if (usingPreview) {
       if (previewDeckAsync.isLoading && previewDeck.isEmpty) {
-        deckWidget = const Center(
-          child: AppInlineLoading(
-            size: 28,
-            baseColor: Color(0xFFE6E6E6),
-            highlightColor: Color(0xFFF7F7F7),
+        deckWidget = Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const AppInlineLoading(
+                      size: 28,
+                      baseColor: Color(0xFFE6E6E6),
+                      highlightColor: Color(0xFFF7F7F7),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Creating your next ideas…',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'We’re generating 20 recipes to get you started.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: () => context.go(AppRoutes.pantry),
+                        child: const Text('Go to Pantry'),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => context.go(AppRoutes.aiGenerate),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primaryColor,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Generate a recipe'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         );
       } else if (previewDeckAsync.hasError) {
         deckWidget = Center(
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
-            child: Text(
-              'Couldn\'t load your swipe ideas right now.',
-              textAlign: TextAlign.center,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.cloud_off_rounded,
+                      size: 56,
+                      color: AppTheme.textSecondary,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Couldn\'t generate ideas right now',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Tap retry, or try changing energy level / pantry items.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _refreshCurrentDeck,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primaryColor,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Retry'),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: () => context.go(AppRoutes.pantry),
+                        child: const Text('Go to Pantry'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         );
       } else if (visiblePreviewDeck.isEmpty) {
         deckWidget = Center(
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
-            child: Text(
-              'No ideas yet. Tap refresh to try again.',
-              textAlign: TextAlign.center,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.auto_awesome_rounded,
+                      size: 56,
+                      color: AppTheme.textSecondary,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'You\'ve reached the end of this batch',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Tap to generate 10 more ideas, or try changing energy/pantry.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _refreshCurrentDeck,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primaryColor,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Generate 10 more ideas'),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: () => context.go(AppRoutes.pantry),
+                        child: const Text('Go to Pantry'),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton(
+                        onPressed: () => context.go(AppRoutes.aiGenerate),
+                        child: const Text('Generate a recipe'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         );
@@ -865,93 +1021,121 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
         ],
       ),
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: MasterEnergySlider(
-                value: _selectedEnergyLevel,
-                onChanged: (next) {
-                  if (next == _selectedEnergyLevel) return;
-                  setState(() {
-                    _selectedEnergyLevel = next;
-                    _dismissedCardIds.clear();
-                    _swiperRebuildToken++;
-                  });
-                  if (!_usePantryFirstDeck) {
-                    unawaited(_ensureEnergyLoaded(next));
-                  }
-                },
-              ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: deckWidget,
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 12, 24, 18),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _buildActionButton(
-                    icon: Icons.close,
-                    color: AppTheme.errorColor,
-                    onPressed: (_unlockFlowInProgress || activeDeckCount == 0)
-                        ? null
-                        : () => _swiperController.swipeLeft(),
+            Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
                   ),
-                  const SizedBox(width: AppTheme.spacingXL),
-                  _buildActionButton(
-                    icon: Icons.info_outline_rounded,
-                    color: Colors.blueGrey,
-                    isSmall: true,
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Tip: Left = dislike, right = keep moving.',
-                          ),
-                        ),
-                      );
+                  child: MasterEnergySlider(
+                    value: _selectedEnergyLevel,
+                    onChanged: (next) {
+                      if (next == _selectedEnergyLevel) return;
+                      setState(() {
+                        _selectedEnergyLevel = next;
+                        _dismissedCardIds.clear();
+                        _swiperRebuildToken++;
+                      });
+                      if (!_usePantryFirstDeck) {
+                        unawaited(_ensureEnergyLoaded(next));
+                      }
                     },
                   ),
-                  const SizedBox(width: AppTheme.spacingXL),
-                  if (!_usePantryFirstDeck)
-                    AnimatedOpacity(
-                      duration: const Duration(milliseconds: 200),
-                      opacity: canUnlock ? 1.0 : 0.5,
-                      child: _buildActionButton(
-                        icon: Icons.arrow_forward_rounded,
-                        color: AppTheme.primaryColor,
-                        onPressed:
-                            (_unlockFlowInProgress || activeDeckCount == 0)
-                            ? null
-                            : () {
-                                final authUser = ref.read(authProvider).user;
-                                if (authUser == null || authUser.isAnonymous) {
-                                  context.go(AppRoutes.login);
-                                  return;
-                                }
-
-                                if (canUnlock) {
-                                  _swiperController.swipeRight();
-                                } else {
-                                  _showOutOfCarrots();
-                                }
-                              },
-                      ),
-                    )
-                  else
-                    _buildActionButton(
-                      icon: Icons.arrow_forward_rounded,
-                      color: AppTheme.primaryColor,
-                      onPressed: (_unlockFlowInProgress || activeDeckCount == 0)
-                          ? null
-                          : () => _swiperController.swipeRight(),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(0, 0, 0, 110),
+                    child: deckWidget,
+                  ),
+                ),
+              ],
+            ),
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: AppTheme.backgroundColor.withValues(alpha: 0.92),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
                     ),
-                ],
+                    child: Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: AppTheme.spacingXL,
+                      runSpacing: 12,
+                      children: [
+                        _buildActionButton(
+                          icon: Icons.close,
+                          color: AppTheme.errorColor,
+                          onPressed:
+                              (_unlockFlowInProgress || activeDeckCount == 0)
+                              ? null
+                              : () => _swiperController.swipeLeft(),
+                        ),
+                        _buildActionButton(
+                          icon: Icons.info_outline_rounded,
+                          color: Colors.blueGrey,
+                          isSmall: true,
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Tip: Left = dislike, right = keep moving.',
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        if (!_usePantryFirstDeck)
+                          AnimatedOpacity(
+                            duration: const Duration(milliseconds: 200),
+                            opacity: canUnlock ? 1.0 : 0.5,
+                            child: _buildActionButton(
+                              icon: Icons.arrow_forward_rounded,
+                              color: AppTheme.primaryColor,
+                              onPressed:
+                                  (_unlockFlowInProgress ||
+                                      activeDeckCount == 0)
+                                  ? null
+                                  : () {
+                                      final authUser = ref
+                                          .read(authProvider)
+                                          .user;
+                                      if (authUser == null ||
+                                          authUser.isAnonymous) {
+                                        context.go(AppRoutes.login);
+                                        return;
+                                      }
+
+                                      if (canUnlock) {
+                                        _swiperController.swipeRight();
+                                      } else {
+                                        _showOutOfCarrots();
+                                      }
+                                    },
+                            ),
+                          )
+                        else
+                          _buildActionButton(
+                            icon: Icons.arrow_forward_rounded,
+                            color: AppTheme.primaryColor,
+                            onPressed:
+                                (_unlockFlowInProgress || activeDeckCount == 0)
+                                ? null
+                                : () => _swiperController.swipeRight(),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
           ],

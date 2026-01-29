@@ -7,6 +7,15 @@ class RecipePreviewCard extends StatelessWidget {
   final RecipePreview preview;
   final VoidCallback? onShowDirections;
 
+  static const List<String> _fallbackImages = <String>[
+    'assets/images/salad.jpg',
+    'assets/images/pasta.jpg',
+    'assets/images/curry.jpg',
+    'assets/images/stirfry.jpg',
+    'assets/images/toast.jpg',
+    'assets/images/smoothie.jpg',
+  ];
+
   const RecipePreviewCard({
     super.key,
     required this.preview,
@@ -18,11 +27,17 @@ class RecipePreviewCard extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxH = constraints.maxHeight;
-        final isCompact = maxH.isFinite && maxH < 360;
+        final isCompact = maxH.isFinite && maxH < 420;
         final imageHeight = isCompact
-            ? 120.0
-            : (maxH.isFinite ? (maxH * 0.55).clamp(140.0, 240.0) : 220.0);
-        final padding = isCompact ? 12.0 : 16.0;
+            ? 140.0
+            : (maxH.isFinite ? (maxH * 0.68).clamp(220.0, 360.0) : 300.0);
+        final padding = isCompact ? 12.0 : 18.0;
+        final titleSize = isCompact ? 18.0 : 22.0;
+
+        final hasNetworkImage =
+            preview.imageUrl != null && preview.imageUrl!.isNotEmpty;
+        final fallbackAsset =
+            _fallbackImages[preview.id.hashCode.abs() % _fallbackImages.length];
 
         final chips = <Widget>[
           _Chip(label: '${preview.estimatedTimeMinutes} min'),
@@ -32,7 +47,7 @@ class RecipePreviewCard extends StatelessWidget {
         ];
 
         return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(24),
@@ -51,26 +66,17 @@ class RecipePreviewCard extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (preview.imageUrl != null && preview.imageUrl!.isNotEmpty)
-                      SizedBox(
-                        height: imageHeight,
-                        child: CachedNetworkImage(
-                          imageUrl: preview.imageUrl!,
-                          fit: BoxFit.cover,
-                          errorWidget: (context, url, error) => Container(
-                            color: AppTheme.surfaceColor,
-                            alignment: Alignment.center,
-                            child: const Icon(Icons.image_not_supported),
-                          ),
-                        ),
-                      )
-                    else
-                      Container(
-                        height: imageHeight,
-                        color: AppTheme.surfaceColor,
-                        alignment: Alignment.center,
-                        child: const Icon(Icons.restaurant_menu, size: 36),
-                      ),
+                    SizedBox(
+                      height: imageHeight,
+                      child: hasNetworkImage
+                          ? CachedNetworkImage(
+                              imageUrl: preview.imageUrl!,
+                              fit: BoxFit.cover,
+                              errorWidget: (context, url, error) =>
+                                  Image.asset(fallbackAsset, fit: BoxFit.cover),
+                            )
+                          : Image.asset(fallbackAsset, fit: BoxFit.cover),
+                    ),
                     Expanded(
                       child: Padding(
                         padding: EdgeInsets.all(padding),
@@ -79,11 +85,12 @@ class RecipePreviewCard extends StatelessWidget {
                           children: [
                             Text(
                               preview.title,
-                              maxLines: isCompact ? 1 : 2,
+                              maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: Theme.of(context).textTheme.titleLarge
                                   ?.copyWith(
                                     fontWeight: FontWeight.w800,
+                                    fontSize: titleSize,
                                     height: 1.1,
                                   ),
                             ),
@@ -100,7 +107,8 @@ class RecipePreviewCard extends StatelessWidget {
                             ),
                             const SizedBox(height: 12),
                             Wrap(spacing: 8, runSpacing: 8, children: chips),
-                            if (!isCompact && preview.mainIngredients.isNotEmpty) ...[
+                            if (!isCompact &&
+                                preview.mainIngredients.isNotEmpty) ...[
                               const SizedBox(height: 12),
                               Text(
                                 preview.mainIngredients.take(4).join(' • '),
