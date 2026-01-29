@@ -336,7 +336,7 @@ Private - All Rights Reserved
 
 For issues, questions, or feature requests:
 
-- **Email**: [your-email]
+- **Email**: gemechuhunduma100@gmail.com
 - **Documentation**: See [SYSTEM_DOCUMENTATION.md](./SYSTEM_DOCUMENTATION.md)
 
 ---
