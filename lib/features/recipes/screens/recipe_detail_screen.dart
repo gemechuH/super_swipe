@@ -9,8 +9,6 @@ import 'package:super_swipe/core/providers/user_data_providers.dart';
 import 'package:super_swipe/core/router/app_router.dart';
 import 'package:super_swipe/core/theme/app_theme.dart';
 import 'package:super_swipe/core/widgets/loading/app_loading.dart';
-import 'package:super_swipe/core/widgets/loading/app_shimmer.dart';
-import 'package:super_swipe/core/widgets/loading/skeleton.dart';
 import 'package:super_swipe/features/auth/providers/auth_provider.dart';
 import 'package:super_swipe/services/database/database_provider.dart';
 
@@ -296,8 +294,15 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
-        title: Text(safeRecipe?.title ?? 'Recipe'),
+        // Fix: Allow title to wrap and show full text
+        title: Text(
+          safeRecipe?.title ?? 'Recipe',
+          style: const TextStyle(fontSize: 16),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
         centerTitle: true,
+        toolbarHeight: 64, // Taller to accommodate 2-line titles
       ),
       body: safeRecipe == null
           ? const AppPageLoading()
@@ -444,17 +449,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                     (isLoading ||
                             showGeneratingSkeleton ||
                             showSecretsLoadingSkeleton)
-                        ? const AppShimmer(
-                            child: Column(
-                              children: [
-                                SkeletonListTile(showLeading: false),
-                                SizedBox(height: 10),
-                                SkeletonListTile(showLeading: false),
-                                SizedBox(height: 10),
-                                SkeletonListTile(showLeading: false),
-                              ],
-                            ),
-                          )
+                        ? _buildProgressiveLoadingState()
                         : Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -475,62 +470,69 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                           )
                   else
                     Column(
-                      children: List.generate(instructions.length, (index) {
-                        final stepNumber = index + 1;
-                        final isCompleted = stepNumber <= currentStep;
-                        final isNext = stepNumber == currentStep + 1;
+                      children: [
+                        // Show actual steps
+                        ...List.generate(instructions.length, (index) {
+                          final stepNumber = index + 1;
+                          final isCompleted = stepNumber <= currentStep;
+                          final isNext = stepNumber == currentStep + 1;
 
-                        return Container(
-                          margin: const EdgeInsets.only(
-                            bottom: AppTheme.spacingS,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppTheme.surfaceColor,
-                            borderRadius: AppTheme.borderRadiusMedium,
-                            boxShadow: AppTheme.softShadow,
-                            border: Border.all(
-                              color: isNext
-                                  ? AppTheme.primaryColor.withValues(alpha: 0.6)
-                                  : Colors.transparent,
+                          return Container(
+                            margin: const EdgeInsets.only(
+                              bottom: AppTheme.spacingS,
                             ),
-                          ),
-                          child: ListTile(
-                            leading: Icon(
-                              isCompleted
-                                  ? Icons.check_circle_rounded
-                                  : Icons.radio_button_unchecked_rounded,
-                              color: isCompleted
-                                  ? AppTheme.successColor
-                                  : (isNext
-                                        ? AppTheme.primaryColor
-                                        : AppTheme.textLight),
-                            ),
-                            title: Text(
-                              'Step $stepNumber',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
+                            decoration: BoxDecoration(
+                              color: AppTheme.surfaceColor,
+                              borderRadius: AppTheme.borderRadiusMedium,
+                              boxShadow: AppTheme.softShadow,
+                              border: Border.all(
+                                color: isNext
+                                    ? AppTheme.primaryColor.withValues(alpha: 0.6)
+                                    : Colors.transparent,
                               ),
                             ),
-                            subtitle: Text(instructions[index]),
-                            onTap: (!isNext || _isUpdatingProgress)
-                                ? null
-                                : () => _markStepComplete(stepNumber),
-                            trailing: isNext && !_isUpdatingProgress
-                                ? const Icon(Icons.chevron_right_rounded)
-                                : (_isUpdatingProgress && isNext)
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: AppInlineLoading(
-                                      size: 18,
-                                      baseColor: Color(0xFFE6E6E6),
-                                      highlightColor: Color(0xFFF7F7F7),
-                                    ),
-                                  )
-                                : null,
-                          ),
-                        );
-                      }),
+                            child: ListTile(
+                              leading: Icon(
+                                isCompleted
+                                    ? Icons.check_circle_rounded
+                                    : Icons.radio_button_unchecked_rounded,
+                                color: isCompleted
+                                    ? AppTheme.successColor
+                                    : (isNext
+                                          ? AppTheme.primaryColor
+                                          : AppTheme.textLight),
+                              ),
+                              title: Text(
+                                'Step $stepNumber',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              subtitle: Text(instructions[index]),
+                              onTap: (!isNext || _isUpdatingProgress)
+                                  ? null
+                                  : () => _markStepComplete(stepNumber),
+                              trailing: isNext && !_isUpdatingProgress
+                                  ? const Icon(Icons.chevron_right_rounded)
+                                  : (_isUpdatingProgress && isNext)
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: AppInlineLoading(
+                                        size: 18,
+                                        baseColor: Color(0xFFE6E6E6),
+                                        highlightColor: Color(0xFFF7F7F7),
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                          );
+                        }),
+                        // Show "loading more" if we have partial steps (<=3 means first batch)
+                        if (instructions.length <= 3 && 
+                            (isLoading || showGeneratingSkeleton || showSecretsLoadingSkeleton))
+                          _buildLoadingMoreStepsIndicator(),
+                      ],
                     ),
 
                   // "Cook This Meal" Button
@@ -570,6 +572,120 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
   }
 
   bool _isCooking = false;
+
+  /// Build progressive loading state with animated message
+  Widget _buildProgressiveLoadingState() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppTheme.primaryColor.withValues(alpha: 0.05),
+        borderRadius: AppTheme.borderRadiusMedium,
+        border: Border.all(
+          color: AppTheme.primaryColor.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Column(
+        children: [
+          // Animated chef icon
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.0, end: 1.0),
+            duration: const Duration(milliseconds: 1500),
+            builder: (context, value, child) {
+              return Transform.scale(
+                scale: 0.8 + (value * 0.2),
+                child: Opacity(
+                  opacity: 0.5 + (value * 0.5),
+                  child: child,
+                ),
+              );
+            },
+            child: Icon(
+              Icons.restaurant_menu_rounded,
+              size: 48,
+              color: AppTheme.primaryColor,
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Creating your recipe steps...',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Chef is preparing detailed instructions',
+            style: TextStyle(
+              fontSize: 14,
+              color: AppTheme.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Progress indicator
+          SizedBox(
+            width: 200,
+            child: LinearProgressIndicator(
+              backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
+              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build "loading more steps" indicator when partial steps are shown
+  Widget _buildLoadingMoreStepsIndicator() {
+    return Container(
+      margin: const EdgeInsets.only(top: AppTheme.spacingS),
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+      decoration: BoxDecoration(
+        color: AppTheme.primaryColor.withValues(alpha: 0.08),
+        borderRadius: AppTheme.borderRadiusMedium,
+        border: Border.all(
+          color: AppTheme.primaryColor.withValues(alpha: 0.2),
+          style: BorderStyle.solid,
+        ),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Loading more steps...',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'You can start with the steps above!',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   /// Deducts ingredients from pantry when user cooks the recipe.
   Future<void> _cookThisMeal(Recipe recipe) async {

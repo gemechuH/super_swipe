@@ -411,6 +411,21 @@ class DatabaseService {
     }, SetOptions(merge: true));
   }
 
+  /// Update recipe instructions progressively (for streaming generation)
+  /// This allows showing partial instructions as they're generated.
+  Future<void> updateSavedRecipeInstructions({
+    required String userId,
+    required String recipeId,
+    required List<String> instructions,
+  }) async {
+    final savedRef = _savedRecipes(userId).doc(recipeId);
+    await savedRef.set({
+      'instructions': instructions,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'generationStatus': instructions.length > 3 ? 'ready' : 'generating',
+    }, SetOptions(merge: true));
+  }
+
   /// Fetches recipe secrets (instructions) after unlock.
   /// Security rules ensure only unlocked/premium users can read.
   Future<List<String>> getRecipeSecrets(String recipeId) async {

@@ -250,6 +250,8 @@ class PantryFirstSwipeDeckService {
     }
   }
 
+  /// Generate full recipe with PROGRESSIVE loading (step by step)
+  /// This provides much faster UX - user sees first steps within seconds.
   Future<Recipe> generateFullRecipeAndPersist({
     required String userId,
     required RecipePreview preview,
@@ -260,15 +262,36 @@ class PantryFirstSwipeDeckService {
     required bool strictPantryMatch,
     required bool isPremium,
     required String unlockSource,
+    void Function(List<String> steps)? onProgressiveSteps,
   }) async {
     try {
-      final fullRecipe = await _aiRecipeService.generateFullRecipe(
+      // Use progressive generation for faster UX
+      final fullRecipe = await _aiRecipeService.generateFullRecipeProgressive(
         preview: preview,
         pantryItems: pantryItems,
         allergies: allergies,
         dietaryRestrictions: dietaryRestrictions,
         showCalories: showCalories,
         strictPantryMatch: strictPantryMatch,
+        onStepsUpdate: (steps, isComplete) async {
+          // Save partial steps to database as they arrive
+          if (steps.isNotEmpty) {
+            _logInfo(
+              'Progressive update: ${steps.length} steps (complete=$isComplete)',
+            );
+            
+            // Notify UI callback if provided
+            onProgressiveSteps?.call(steps);
+            
+            // Persist partial progress
+            await _persistence.updateRecipeInstructions(
+              userId,
+              recipeId: preview.id,
+              instructions: steps,
+              isComplete: isComplete,
+            );
+          }
+        },
       );
 
       await _persistence.upsertUnlockedSavedRecipe(
@@ -486,5 +509,13 @@ abstract class SwipeDeckPersistence {
     String userId, {
     required Recipe recipe,
     required String unlockSource,
+  });
+
+  /// Update instructions progressively (for streaming generation)
+  Future<void> updateRecipeInstructions(
+    String userId, {
+    required String recipeId,
+    required List<String> instructions,
+    required bool isComplete,
   });
 }

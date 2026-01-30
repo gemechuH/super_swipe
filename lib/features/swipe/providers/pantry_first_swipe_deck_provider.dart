@@ -465,4 +465,18 @@ class DatabaseSwipeDeckPersistence implements SwipeDeckPersistence {
       unlockSource: unlockSource,
     );
   }
+
+  @override
+  Future<void> updateRecipeInstructions(
+    String userId, {
+    required String recipeId,
+    required List<String> instructions,
+    required bool isComplete,
+  }) {
+    return _db.updateSavedRecipeInstructions(
+      userId: userId,
+      recipeId: recipeId,
+      instructions: instructions,
+    );
+  }
 }

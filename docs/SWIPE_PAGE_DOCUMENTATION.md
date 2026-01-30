@@ -14,9 +14,10 @@
 6. [State Management](#state-management)
 7. [Duplicate Prevention](#duplicate-prevention)
 8. [Database Schema](#database-schema)
-9. [Empty Deck & User Feedback](#empty-deck--user-feedback) ⭐ **NEW**
+9. [Empty Deck & User Feedback](#empty-deck--user-feedback)
 10. [Error Handling](#error-handling)
 11. [File Reference](#file-reference)
+12. [Swipe Right to Unlock - Complete Flow](#swipe-right-to-unlock---complete-flow) ⭐ **NEW**
 
 ---
 
@@ -598,6 +599,263 @@ User-Initiated Refill:
   └── Full recipe generated
   └── Saved to My Recipes
 ```
+
+---
+
+## Swipe Right to Unlock - Complete Flow
+
+### Overview
+
+When a user swipes right on a recipe card, the app performs a **two-phase unlock**:
+1. **Phase 1 (Instant)**: Reserve unlock + deduct carrot + navigate to recipe page
+2. **Phase 2 (Background)**: Generate full recipe with AI + save to database
+
+This design ensures the user sees immediate feedback while the slower AI generation happens in the background.
+
+---
+
+### Step-by-Step Flow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    USER SWIPES RIGHT ON CARD                            │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│ STEP 1: Check if Already Unlocked                                       │
+│ ─────────────────────────────────────────────────────────────────────── │
+│ • Check savedRecipesProvider for existing recipe                        │
+│ • If found: Skip to recipe detail (no carrot cost)                      │
+│ • If not found: Continue to confirmation                                │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│ STEP 2: Show Confirmation Dialog                                        │
+│ ─────────────────────────────────────────────────────────────────────── │
+│ • Premium users: Skip dialog (auto-confirm)                             │
+│ • Free users with "Don't show again": Show reduced dialog               │
+│ • Free users: Show full ConfirmUnlockDialog                             │
+│   ┌──────────────────────────────┐                                      │
+│   │   Unlock Recipe?             │                                      │
+│   │                              │                                      │
+│   │   🥕 Carrots: 3/5            │                                      │
+│   │                              │                                      │
+│   │   [Cancel]  [Unlock 🥕]      │                                      │
+│   └──────────────────────────────┘                                      │
+│                                                                         │
+│ • Cancel: Unswipe card, restore to deck                                 │
+│ • Confirm: Continue to Phase 1                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                        User clicks "Unlock"
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│ STEP 3: Phase 1 - Reserve Unlock (INSTANT)                              │
+│ ─────────────────────────────────────────────────────────────────────── │
+│ Function: reserveUnlockPreview()                                        │
+│                                                                         │
+│ FIRESTORE TRANSACTION (atomic):                                         │
+│ ├── 1. Check if already unlocked → return true if yes                   │
+│ ├── 2. Check carrot balance (free users)                                │
+│ │      └── If carrots < 1 → return false (OutOfCarrotsException)        │
+│ ├── 3. Deduct 1 carrot (free users only)                                │
+│ │      └── carrots.current = carrots.current - 1                        │
+│ ├── 4. Update user stats                                                │
+│ │      └── stats.totalCarrotsSpent++                                    │
+│ │      └── stats.recipesUnlocked++                                      │
+│ ├── 5. Create transaction log                                           │
+│ │      └── transactions/{recipeId}: {type: 'spend', amount: -1, ...}    │
+│ ├── 6. Create placeholder savedRecipe                                   │
+│ │      └── savedRecipes/{recipeId}: {isUnlocked: true, instructions: []}│
+│ └── 7. Mark swipe card consumed                                         │
+│        └── swipeDeck/{recipeId}: {isConsumed: true}                     │
+│                                                                         │
+│ Result: true (success) or false (out of carrots)                        │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                            Success ✓
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│ STEP 4: Navigate to Recipe Detail (INSTANT)                             │
+│ ─────────────────────────────────────────────────────────────────────── │
+│ • Create placeholder Recipe from preview data:                          │
+│   ├── title, description, ingredients (from preview)                    │
+│   ├── instructions: [] (empty - will be filled by AI)                   │
+│   └── isGenerating: true                                                │
+│                                                                         │
+│ • Navigate to RecipeDetailScreen with:                                  │
+│   ├── recipe: placeholder                                               │
+│   ├── assumeUnlocked: true                                              │
+│   ├── openDirections: true                                              │
+│   └── isGenerating: true (shows loading skeleton)                       │
+│                                                                         │
+│ USER SEES: Recipe page with title, ingredients, and loading spinner     │
+│            for instructions section                                     │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                     (runs in background)
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│ STEP 5: Phase 2 - Generate Full Recipe (BACKGROUND)                     │
+│ ─────────────────────────────────────────────────────────────────────── │
+│ Function: generateAndFinalizeUnlockPreview()                            │
+│                                                                         │
+│ AI GENERATION (Gemini):                                                 │
+│ ├── Input:                                                              │
+│ │   ├── preview (title, description, ingredients)                       │
+│ │   ├── pantryItems (user's actual ingredients)                         │
+│ │   ├── allergies, dietaryRestrictions                                  │
+│ │   └── strictPantryMatch (based on willingToShop setting)              │
+│ │                                                                       │
+│ └── Output:                                                             │
+│     ├── Full ingredient list with amounts                               │
+│     ├── Step-by-step instructions                                       │
+│     ├── Cooking tips                                                    │
+│     ├── Nutritional info                                                │
+│     └── Equipment needed                                                │
+│                                                                         │
+│ DATABASE UPDATE:                                                        │
+│ └── upsertUnlockedSavedRecipe()                                         │
+│     └── savedRecipes/{recipeId}: {instructions: [...], ...}             │
+│                                                                         │
+│ Time: ~3-8 seconds depending on complexity                              │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│ STEP 6: Recipe Detail Updates (REALTIME)                                │
+│ ─────────────────────────────────────────────────────────────────────── │
+│ • RecipeDetailScreen listens to savedRecipesProvider                    │
+│ • When instructions arrive:                                             │
+│   ├── Loading skeleton disappears                                       │
+│   └── Full recipe with instructions appears                             │
+│                                                                         │
+│ USER SEES: Complete recipe with all instructions                        │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Carrot Deduction Details
+
+#### For Free Users
+
+| Step | Action | Carrot Balance |
+|------|--------|----------------|
+| Before | User has 3 carrots | 3/5 |
+| Step 3 | Deduct 1 carrot (atomic transaction) | 2/5 |
+| After | Recipe unlocked | 2/5 |
+
+#### For Premium Users
+
+| Step | Action | Carrot Balance |
+|------|--------|----------------|
+| Before | Premium - unlimited | ∞ |
+| Step 3 | No deduction, just stats update | ∞ |
+| After | Recipe unlocked | ∞ |
+
+---
+
+### Database Changes (Step 3)
+
+```
+BEFORE SWIPE RIGHT:
+├── users/{userId}/
+│   ├── carrots: { current: 3, max: 5 }
+│   └── stats: { recipesUnlocked: 10 }
+├── users/{userId}/swipeDeck/{recipeId}/
+│   └── { isConsumed: false, ... }
+└── users/{userId}/savedRecipes/{recipeId}/
+    └── (does not exist)
+
+AFTER STEP 3 (Reserve):
+├── users/{userId}/
+│   ├── carrots: { current: 2, max: 5 }  ← Deducted
+│   └── stats: { recipesUnlocked: 11 }   ← Incremented
+├── users/{userId}/swipeDeck/{recipeId}/
+│   └── { isConsumed: true, ... }        ← Marked consumed
+├── users/{userId}/savedRecipes/{recipeId}/
+│   └── { isUnlocked: true,              ← Created
+│         instructions: [],              ← Empty (placeholder)
+│         generationStatus: 'pending' }
+└── users/{userId}/transactions/{recipeId}/
+    └── { type: 'spend', amount: -1 }    ← Transaction log
+
+AFTER STEP 5 (Generate):
+├── users/{userId}/savedRecipes/{recipeId}/
+│   └── { isUnlocked: true,
+│         instructions: ['Step 1...'],   ← Filled by AI
+│         generationStatus: 'ready' }
+```
+
+---
+
+### Error Handling
+
+| Error | When | User Experience |
+|-------|------|-----------------|
+| **Out of Carrots** | Step 3 returns false | Shows "Out of Carrots! 🥕", card restored |
+| **Network Error** | Transaction fails | Shows error snackbar, card restored |
+| **AI Generation Fails** | Step 5 throws | Recipe page shows error, carrot already spent |
+| **User Cancels Dialog** | Step 2 | Card unswipes back to deck |
+
+### Undo/Restore Logic
+
+If unlock fails or user cancels:
+```dart
+Future<void> undoLastSwipeAndRestore() async {
+  _dismissedCardIds.remove(preview.id);  // Remove from local dismissed
+  await _swiperController.unswipe();      // Animate card back
+}
+```
+
+---
+
+### Code Files Involved
+
+| File | Responsibility |
+|------|----------------|
+| `swipe_screen.dart` | UI handling, dialog, navigation |
+| `pantry_first_swipe_deck_provider.dart` | State coordination |
+| `pantry_first_swipe_deck_service.dart` | Business logic |
+| `database_service.dart` | Firestore transactions |
+| `ai_recipe_service.dart` | Gemini AI generation |
+| `recipe_detail_screen.dart` | Displays recipe + loading state |
+
+---
+
+### Timeline Summary
+
+```
+T+0.0s   User swipes right
+T+0.1s   Dialog appears (if needed)
+T+0.5s   User confirms
+T+0.6s   Carrot deducted (atomic transaction)
+T+0.7s   Navigate to recipe detail
+T+0.8s   User sees placeholder recipe + loading spinner
+T+1.0s   AI generation starts
+T+4.0s   AI returns full recipe (average)
+T+4.1s   Recipe saved to database
+T+4.2s   UI updates with full instructions
+```
+
+**Total time from swipe to full recipe: ~4-8 seconds**
+**Time to see recipe page: ~0.7 seconds** (instant feedback!)
+
+---
+
+### Why Two-Phase Design?
+
+| Single-Phase (Bad) | Two-Phase (Current) |
+|-------------------|---------------------|
+| User waits 4-8s staring at swipe screen | User sees recipe page in <1s |
+| If AI fails, user confused | If AI fails, user already on recipe page with error |
+| Poor UX | Great UX - instant feedback |
 
 ---
 

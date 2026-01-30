@@ -303,6 +303,186 @@ Return JSON with this exact format:
     );
   }
 
+  /// PHASE 2 STREAMING: Generate recipe with progressive step updates
+  /// This provides faster UX by generating steps incrementally.
+  /// 
+  /// The [onStepsUpdate] callback is called each time new steps are available.
+  /// Steps are generated in batches for faster perceived loading.
+  Future<Recipe> generateFullRecipeProgressive({
+    required RecipePreview preview,
+    required List<String> pantryItems,
+    required List<String> allergies,
+    required List<String> dietaryRestrictions,
+    required bool showCalories,
+    bool strictPantryMatch = true,
+    required Future<void> Function(List<String> steps, bool isComplete) onStepsUpdate,
+  }) async {
+    if (_apiKey.isEmpty) {
+      throw Exception('Kitchen is closed: GEMINI_API_KEY missing in .env');
+    }
+
+    // Step 1: Generate quick version (first 3 steps only) - faster response
+    _onStatus?.call('Preparing your recipe...');
+    
+    final quickPrompt = _buildQuickRecipePrompt(
+      preview: preview,
+      pantryItems: pantryItems,
+      allergies: allergies,
+      dietaryRestrictions: dietaryRestrictions,
+      strictPantryMatch: strictPantryMatch,
+      maxSteps: 3,
+    );
+
+    final quickResponse = await _callGemini(
+      quickPrompt,
+      model: _fullRecipeModel,
+      systemPrompt: _systemPromptFullRecipeQuick,
+    );
+
+    // Parse quick response
+    final quickInstructions = List<String>.from(quickResponse['instructions'] ?? []);
+    final ingredients = List<String>.from(quickResponse['ingredients'] ?? []);
+    
+    // Notify UI with first steps
+    if (quickInstructions.isNotEmpty) {
+      await onStepsUpdate(quickInstructions, false);
+    }
+
+    // Step 2: Generate remaining steps
+    _onStatus?.call('Adding more detail...');
+    
+    final remainingPrompt = _buildRemainingStepsPrompt(
+      preview: preview,
+      existingSteps: quickInstructions,
+      pantryItems: pantryItems,
+      allergies: allergies,
+      dietaryRestrictions: dietaryRestrictions,
+    );
+
+    final remainingResponse = await _callGemini(
+      remainingPrompt,
+      model: _fullRecipeModel,
+      systemPrompt: _systemPromptRemainingSteps,
+    );
+
+    // Merge all steps
+    final remainingSteps = List<String>.from(remainingResponse['instructions'] ?? []);
+    final allSteps = [...quickInstructions, ...remainingSteps];
+    
+    // Notify UI with complete steps
+    await onStepsUpdate(allSteps, true);
+
+    return Recipe(
+      id: preview.id,
+      title: quickResponse['title'] ?? preview.title,
+      description: quickResponse['description'] ?? preview.vibeDescription,
+      imageUrl: preview.imageUrl ?? 'https://images.unsplash.com/photo-1737032571846-445ec57a41da?q=80',
+      ingredients: ingredients,
+      instructions: allSteps,
+      timeMinutes: quickResponse['timeMinutes'] ?? preview.estimatedTimeMinutes,
+      calories: showCalories ? (quickResponse['calories'] ?? preview.calories) : 0,
+      equipment: List<String>.from(quickResponse['equipment'] ?? preview.equipmentIcons),
+      energyLevel: preview.energyLevel,
+      ingredientIds: preview.ingredients.isNotEmpty
+          ? preview.ingredients.map((e) => e.toLowerCase().trim()).toList()
+          : preview.mainIngredients.map((e) => e.toLowerCase().trim()).toList(),
+    );
+  }
+
+  // Quick recipe system prompt (for first 3 steps)
+  static const String _systemPromptFullRecipeQuick = '''
+You are a Michelin-star Executive Chef creating professional-grade recipes.
+Generate a QUICK version with only the FIRST 3 STEPS of the cooking process.
+
+Return JSON with this exact format:
+{
+  "title": "Recipe Name",
+  "description": "Brief appetizing description",
+  "ingredients": ["1 cup ingredient with exact amount", "2 tbsp another ingredient"],
+  "instructions": ["Step 1: Prep work", "Step 2: Initial cooking", "Step 3: Main cooking begins"],
+  "timeMinutes": 25,
+  "calories": 450,
+  "equipment": ["pan", "pot"]
+}
+
+CRITICAL: Return ONLY 3 instructions maximum. These should be the first 3 steps of the recipe.
+''';
+
+  // Remaining steps system prompt
+  static const String _systemPromptRemainingSteps = '''
+You are a Michelin-star Executive Chef continuing a recipe that's already in progress.
+Generate the REMAINING steps to complete the recipe.
+
+Return JSON with this exact format:
+{
+  "instructions": ["Step 4: Continue cooking", "Step 5: Final cooking", "Step 6: Plating and serving"]
+}
+
+Do NOT repeat any of the existing steps. Continue from where we left off.
+''';
+
+  /// Build prompt for quick recipe (first 3 steps only)
+  String _buildQuickRecipePrompt({
+    required RecipePreview preview,
+    required List<String> pantryItems,
+    required List<String> allergies,
+    required List<String> dietaryRestrictions,
+    bool strictPantryMatch = true,
+    int maxSteps = 3,
+  }) {
+    final pantryRule = strictPantryMatch
+        ? 'CRITICAL: Use ONLY these pantry ingredients: [${pantryItems.join(', ')}].'
+        : 'Prioritize: [${pantryItems.join(', ')}], may add common staples.';
+
+    return '''
+$pantryRule
+
+Create a QUICK VERSION recipe based on this preview:
+- Title: ${preview.title}
+- Description: ${preview.vibeDescription}
+- Main Ingredients: ${preview.ingredients.join(', ')}
+- Meal Type: ${preview.mealType}
+- Energy Level: ${preview.energyLevel}/3
+
+Allergies to AVOID: ${allergies.isNotEmpty ? allergies.join(', ') : 'None'}
+Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'None'}
+
+IMPORTANT: 
+- Return ONLY the first $maxSteps steps of the cooking instructions.
+- Include full ingredient list with amounts.
+- These first steps should cover prep and initial cooking.
+''';
+  }
+
+  /// Build prompt for remaining steps
+  String _buildRemainingStepsPrompt({
+    required RecipePreview preview,
+    required List<String> existingSteps,
+    required List<String> pantryItems,
+    required List<String> allergies,
+    required List<String> dietaryRestrictions,
+  }) {
+    return '''
+Continue this recipe that's already in progress:
+
+Recipe: ${preview.title}
+Description: ${preview.vibeDescription}
+Ingredients: ${preview.ingredients.join(', ')}
+
+STEPS ALREADY COMPLETED:
+${existingSteps.asMap().entries.map((e) => 'Step ${e.key + 1}: ${e.value}').join('\n')}
+
+Generate the REMAINING steps to complete this recipe.
+- Do NOT repeat the steps above
+- Continue the step numbering from ${existingSteps.length + 1}
+- Include all remaining steps until the dish is complete (typically 3-6 more steps)
+- Include plating and serving as the final step
+
+Allergies to AVOID: ${allergies.isNotEmpty ? allergies.join(', ') : 'None'}
+Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'None'}
+''';
+  }
+
   /// Legacy: Generate complete recipe in one step (for AI Hub flow)
   Future<Recipe> generateRecipe({
     required List<String> pantryItems,
