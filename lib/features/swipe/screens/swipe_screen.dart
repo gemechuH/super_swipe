@@ -24,6 +24,7 @@ import 'package:super_swipe/features/auth/providers/auth_provider.dart';
 import 'package:super_swipe/features/swipe/providers/pantry_first_swipe_deck_provider.dart';
 import 'package:super_swipe/features/swipe/services/pantry_first_swipe_deck_service.dart';
 import 'package:super_swipe/features/swipe/widgets/recipe_preview_card.dart';
+import 'package:super_swipe/features/swipe/widgets/swipe_filters_panel.dart';
 import 'package:super_swipe/services/database/database_provider.dart';
 
 class SwipeScreen extends ConsumerStatefulWidget {
@@ -80,6 +81,29 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
       return;
     }
     unawaited(_refreshEnergy(energyLevel: _selectedEnergyLevel));
+  }
+
+  /// Show filters panel as a bottom sheet
+  void _showFiltersPanel(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.75,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (context, scrollController) => SwipeFiltersPanel(
+          onFiltersChanged: () {
+            // Invalidate the deck provider to trigger regeneration with new filters
+            ref.invalidate(
+              pantryFirstSwipeDeckProvider(_selectedEnergyLevel),
+            );
+          },
+        ),
+      ),
+    );
   }
 
   String _norm(String value) => value.toLowerCase().trim();
@@ -1118,6 +1142,13 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
+          // Filter button (only for pantry-first deck)
+          if (_usePantryFirstDeck)
+            IconButton(
+              tooltip: 'Filters',
+              onPressed: () => _showFiltersPanel(context),
+              icon: const SwipeFilterBadge(),
+            ),
           IconButton(
             tooltip: 'Refresh deck',
             onPressed: _deckLoading ? null : _refreshCurrentDeck,

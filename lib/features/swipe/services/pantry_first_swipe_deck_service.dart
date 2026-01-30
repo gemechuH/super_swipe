@@ -393,6 +393,16 @@ class PantryFirstSwipeDeckService {
           strictPantryMatch: !willingToShop,
         );
 
+        // Handle rate limit (empty response)
+        if (previews.isEmpty) {
+          _logWarn('AI returned empty response (likely rate limited), attempt ${attempt + 1}');
+          // Wait a bit longer before next attempt
+          await Future.delayed(const Duration(seconds: 10));
+          continue;
+        }
+
+        _logInfo('AI returned ${previews.length} previews');
+
         for (final p in previews) {
           final ideaKey = buildIdeaKey(
             energyLevel: energyLevel,

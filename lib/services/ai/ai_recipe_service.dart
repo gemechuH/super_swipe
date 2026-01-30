@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:collection';
-import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
@@ -578,7 +577,7 @@ Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'No
       },
     };
 
-    const maxRetries = 2;
+    const maxRetries = 5; // Increased from 2 to 5 for better rate limit handling
     for (var attempt = 0; attempt <= maxRetries; attempt++) {
       var acquiredPermit = false;
       try {
@@ -602,9 +601,15 @@ Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'No
           }
 
           if (response.statusCode == 429 && attempt < maxRetries) {
-            _onStatus?.call('The Chef is preparing more ideas... one moment!');
-            final seconds = Random().nextInt(3) + 2;
-            await Future.delayed(Duration(seconds: seconds));
+            // Exponential backoff: 5s, 10s, 20s, 40s, 80s
+            final waitSeconds = 5 * (1 << attempt); // 2^attempt * 5
+            _onStatus?.call('AI is busy, waiting ${waitSeconds}s... (${attempt + 1}/${maxRetries + 1})');
+            
+            if (kDebugMode) {
+              debugPrint('[AI Rate Limit] Waiting ${waitSeconds}s before retry ${attempt + 1}');
+            }
+            
+            await Future.delayed(Duration(seconds: waitSeconds));
             continue;
           }
 
@@ -614,9 +619,12 @@ Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'No
           }
 
           if (response.statusCode == 429) {
-            throw Exception(
-              'The Chef is preparing more ideas... one moment! (Rate limited)',
-            );
+            // After all retries exhausted, return empty result instead of throwing
+            if (kDebugMode) {
+              debugPrint('[AI Rate Limit] All retries exhausted, returning empty result');
+            }
+            // Return empty JSON that will be handled gracefully by caller
+            return {'previews': []};
           }
 
           throw Exception('AI Error (${response.statusCode}): $errorMessage');
@@ -651,11 +659,18 @@ Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'No
           cleanJson = cleanJson.substring(startIndex, endIndex + 1);
         }
 
+        // 3. Additional cleaning: Fix common JSON issues
+        cleanJson = _cleanJsonString(cleanJson);
+
         try {
           return jsonDecode(cleanJson) as Map<String, dynamic>;
         } catch (e) {
           if (kDebugMode) {
-            debugPrint('JSON parse error. Raw content:\n$cleanJson\n');
+            debugPrint('━━━ JSON PARSE ERROR ━━━');
+            debugPrint('Error: $e');
+            debugPrint('Raw JSON (first 1000 chars):');
+            debugPrint(cleanJson.substring(0, cleanJson.length > 1000 ? 1000 : cleanJson.length));
+            debugPrint('━━━━━━━━━━━━━━━━━━━━━━━');
           }
           throw FormatException('Failed to parse recipe: $e');
         }
@@ -669,6 +684,28 @@ Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'No
     }
 
     throw Exception('Unexpected Error: exhausted retries');
+  }
+
+  /// Clean common JSON formatting issues from AI output
+  String _cleanJsonString(String json) {
+    var cleaned = json;
+    
+    // Fix trailing commas before closing brackets/braces
+    cleaned = cleaned.replaceAll(RegExp(r',(\s*[}\]])'), r'$1');
+    
+    // Fix missing commas between array elements (common AI error)
+    cleaned = cleaned.replaceAll(RegExp(r'"\s*\n\s*"'), '",\n"');
+    
+    // Fix unescaped quotes in strings (basic approach)
+    // This is tricky and may not catch all cases
+    
+    // Remove any trailing commas in objects
+    cleaned = cleaned.replaceAll(RegExp(r',(\s*})'), r'$1');
+    
+    // Remove any trailing commas in arrays
+    cleaned = cleaned.replaceAll(RegExp(r',(\s*])'), r'$1');
+    
+    return cleaned;
   }
 
   /// DEBUG: Fetch and print available models
