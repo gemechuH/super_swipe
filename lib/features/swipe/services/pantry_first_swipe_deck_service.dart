@@ -141,9 +141,10 @@ class PantryFirstSwipeDeckService {
     required String inputsSignature,
     bool force = false,
   }) async {
-    // Endless deck behavior: when the user reaches 10 remaining, generate 10
-    // more in the background.
-    if (!force && remaining != 10) return false;
+    // Endless deck behavior: when the user reaches 5 or fewer remaining cards,
+    // generate 10 more in the background. This gives enough buffer to keep
+    // swiping while generation happens.
+    if (!force && remaining > 5) return false;
 
     final lockKey = _lockKey(userId, energyLevel, inputsSignature);
     if (_generationLocks.contains(lockKey)) {

@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:super_swipe/core/models/recipe_preview.dart';
 import 'package:super_swipe/core/models/recipe.dart';
@@ -11,6 +13,13 @@ import 'package:super_swipe/services/ai/ai_recipe_service.dart';
 import 'package:super_swipe/services/database/database_provider.dart';
 import 'package:super_swipe/services/database/database_service.dart';
 
+void _logProvider(String message) {
+  if (kDebugMode) {
+    developer.log(message, name: 'SwipeDeckProvider');
+    debugPrint('[SwipeDeckProvider] $message');
+  }
+}
+
 final pantryFirstSwipeDeckServiceProvider =
     Provider<PantryFirstSwipeDeckService>((ref) {
       final db = ref.watch(databaseServiceProvider);
@@ -21,6 +30,17 @@ final pantryFirstSwipeDeckServiceProvider =
         aiRecipeService: ai,
       );
     });
+
+/// Tracks whether a background refill is in progress for each energy level.
+/// Key: energyLevel, Value: isRefilling
+final swipeDeckRefillingProvider = StateProvider.family<bool, int>(
+  (ref, energyLevel) => false,
+);
+
+/// Tracks the last time a refill was attempted (to prevent rapid retries).
+/// Key: energyLevel, Value: DateTime of last attempt
+final _swipeDeckLastRefillAttemptProvider =
+    StateProvider.family<DateTime?, int>((ref, energyLevel) => null);
 
 final pantryFirstSwipeDeckProvider =
     AutoDisposeAsyncNotifierProviderFamily<
@@ -93,15 +113,70 @@ class PantryFirstSwipeDeckController
   }
 
   Future<void> maybeTriggerRefillForVisibleRemaining(int remaining) async {
-    // Trigger when the user remains with 10 un-swiped cards.
-    if (remaining != 10) return;
+    // Trigger when the user remains with 5 or fewer un-swiped cards.
+    // This gives enough buffer for generation to complete before running out.
+    if (remaining > 5) return;
+
+    await _doRefill(force: false);
+  }
+
+  /// Triggers refill when UI has no visible cards - called from UI as a failsafe.
+  /// Note: UI may have dismissed cards locally that provider doesn't know about,
+  /// so we don't check provider deck state here - just trust the UI.
+  Future<void> triggerRefillIfEmpty() async {
+    final isAlreadyRefilling = ref.read(swipeDeckRefillingProvider(arg));
+    if (isAlreadyRefilling) {
+      // Even if refilling, ensure we refresh UI after it completes
+      return;
+    }
+
+    // Check cooldown to prevent rapid retries (3 second cooldown - reduced from 5)
+    final lastAttempt = ref.read(_swipeDeckLastRefillAttemptProvider(arg));
+    if (lastAttempt != null) {
+      final elapsed = DateTime.now().difference(lastAttempt);
+      if (elapsed.inSeconds < 3) {
+        // Cooldown active - but still try to refresh state
+        // This ensures UI updates even if generation was recent
+        await refresh();
+        return;
+      }
+    }
+
+    await _doRefill(force: true);
+  }
+
+  /// Forces a refill immediately, bypassing cooldown. Use for user-initiated actions.
+  Future<void> forceRefillNow() async {
+    final isAlreadyRefilling = ref.read(swipeDeckRefillingProvider(arg));
+    if (isAlreadyRefilling) return;
+
+    // Clear cooldown to allow immediate generation
+    ref.read(_swipeDeckLastRefillAttemptProvider(arg).notifier).state = null;
+    await _doRefill(force: true);
+  }
+
+  Future<void> _doRefill({required bool force}) async {
+    _logProvider('_doRefill called (energy=$arg, force=$force)');
 
     final user = ref.read(authProvider).user;
-    if (user == null || user.isAnonymous == true) return;
+    if (user == null || user.isAnonymous == true) {
+      _logProvider('_doRefill aborted: no valid user');
+      return;
+    }
 
     final profile = ref.read(userProfileProvider).value;
     final pantryItems = ref.read(pantryItemsProvider).value;
-    if (profile == null || pantryItems == null) return;
+    if (profile == null || pantryItems == null) {
+      _logProvider('_doRefill aborted: missing profile or pantry');
+      return;
+    }
+
+    // Check if already refilling
+    final isAlreadyRefilling = ref.read(swipeDeckRefillingProvider(arg));
+    if (isAlreadyRefilling) {
+      _logProvider('_doRefill aborted: already refilling');
+      return;
+    }
 
     final includeBasics = profile.preferences.pantryDiscovery.includeBasics;
     final willingToShop = profile.preferences.pantryDiscovery.willingToShop;
@@ -115,62 +190,55 @@ class PantryFirstSwipeDeckController
       mealType: profile.preferences.defaultMealType,
     );
 
-    final svc = ref.read(pantryFirstSwipeDeckServiceProvider);
-    final didRefill = await svc.maybeTriggerRefill(
-      userId: user.uid,
-      energyLevel: arg,
-      remaining: remaining,
-      pantryItems: pantryItems.map((p) => p.normalizedName).toList(),
-      allergies: profile.preferences.allergies,
-      dietaryRestrictions: profile.preferences.dietaryRestrictions,
-      preferredCuisines: profile.preferences.preferredCuisines,
-      mealType: profile.preferences.defaultMealType,
-      includeBasics: includeBasics,
-      willingToShop: willingToShop,
-      inputsSignature: signature,
-    );
+    // Set refilling state to true and record attempt time
+    _logProvider('Starting refill (energy=$arg)');
+    ref.read(swipeDeckRefillingProvider(arg).notifier).state = true;
+    ref.read(_swipeDeckLastRefillAttemptProvider(arg).notifier).state =
+        DateTime.now();
 
-    if (!didRefill) return;
-    await refresh();
+    try {
+      final svc = ref.read(pantryFirstSwipeDeckServiceProvider);
+      final result = await svc.maybeTriggerRefill(
+        userId: user.uid,
+        energyLevel: arg,
+        remaining: 0, // Always pass 0 to ensure generation happens
+        pantryItems: pantryItems.map((p) => p.normalizedName).toList(),
+        allergies: profile.preferences.allergies,
+        dietaryRestrictions: profile.preferences.dietaryRestrictions,
+        preferredCuisines: profile.preferences.preferredCuisines,
+        mealType: profile.preferences.defaultMealType,
+        includeBasics: includeBasics,
+        willingToShop: willingToShop,
+        inputsSignature: signature,
+        force: force,
+      );
+
+      _logProvider('Refill service returned: $result (energy=$arg)');
+
+      // Always refresh after generation attempt to pick up any new cards
+      _logProvider('Refreshing deck state (energy=$arg)');
+      await refresh();
+
+      // Log final deck state
+      final finalDeck = state.value ?? [];
+      _logProvider(
+        'After refresh: deck has ${finalDeck.length} cards (energy=$arg)',
+      );
+    } catch (e, st) {
+      _logProvider('Refill failed: $e');
+      if (kDebugMode) {
+        debugPrint('Refill stacktrace: $st');
+      }
+    } finally {
+      // Always reset refilling state
+      _logProvider('Refill complete, resetting isRefilling (energy=$arg)');
+      ref.read(swipeDeckRefillingProvider(arg).notifier).state = false;
+    }
   }
 
   Future<void> topUpNow() async {
-    final user = ref.read(authProvider).user;
-    if (user == null || user.isAnonymous == true) return;
-
-    final profile = ref.read(userProfileProvider).value;
-    final pantryItems = ref.read(pantryItemsProvider).value;
-    if (profile == null || pantryItems == null) return;
-
-    final includeBasics = profile.preferences.pantryDiscovery.includeBasics;
-    final willingToShop = profile.preferences.pantryDiscovery.willingToShop;
-    final signature = buildSwipeInputsSignature(
-      pantryIngredientNames: pantryItems.map((p) => p.normalizedName),
-      includeBasics: includeBasics,
-      willingToShop: willingToShop,
-      allergies: profile.preferences.allergies,
-      dietaryRestrictions: profile.preferences.dietaryRestrictions,
-      preferredCuisines: profile.preferences.preferredCuisines,
-      mealType: profile.preferences.defaultMealType,
-    );
-
-    final svc = ref.read(pantryFirstSwipeDeckServiceProvider);
-    await svc.maybeTriggerRefill(
-      userId: user.uid,
-      energyLevel: arg,
-      remaining: 10,
-      pantryItems: pantryItems.map((p) => p.normalizedName).toList(),
-      allergies: profile.preferences.allergies,
-      dietaryRestrictions: profile.preferences.dietaryRestrictions,
-      preferredCuisines: profile.preferences.preferredCuisines,
-      mealType: profile.preferences.defaultMealType,
-      includeBasics: includeBasics,
-      willingToShop: willingToShop,
-      inputsSignature: signature,
-      force: true,
-    );
-
-    await refresh();
+    // Force a refill regardless of current deck state
+    await _doRefill(force: true);
   }
 
   Future<void> hardRefresh() async {

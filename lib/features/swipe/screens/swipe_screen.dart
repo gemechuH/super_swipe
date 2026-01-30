@@ -344,8 +344,8 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     if (previousIndex >= deck.length) return;
 
     // Trigger refill based on remaining *after* this swipe removes a card.
-    // Desired behavior: start with 20, then when the user remains with 10
-    // un-swiped cards, generate +10 in the background (repeat forever).
+    // When user has 5 or fewer cards remaining, generate +10 in background.
+    // This provides buffer time for generation while user keeps swiping.
     final remainingAfterSwipe = (deck.length - 1).clamp(0, 1000000);
 
     final swiped = deck[previousIndex];
@@ -353,11 +353,32 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
       _dismissedCardIds.add(swiped.id);
     });
 
-    unawaited(
-      ref
-          .read(pantryFirstSwipeDeckProvider(_selectedEnergyLevel).notifier)
-          .maybeTriggerRefillForVisibleRemaining(remainingAfterSwipe),
-    );
+    if (kDebugMode) {
+      debugPrint(
+        '[SwipeScreen] Swipe ended: '
+        'remaining=$remainingAfterSwipe, '
+        'deckLength=${deck.length}, '
+        'dismissedIds=${_dismissedCardIds.length}',
+      );
+    }
+
+    // Trigger refill - use forceRefillNow if this was the last card
+    if (remainingAfterSwipe == 0) {
+      if (kDebugMode) {
+        debugPrint('[SwipeScreen] Last card swiped! Forcing immediate refill.');
+      }
+      unawaited(
+        ref
+            .read(pantryFirstSwipeDeckProvider(_selectedEnergyLevel).notifier)
+            .forceRefillNow(),
+      );
+    } else {
+      unawaited(
+        ref
+            .read(pantryFirstSwipeDeckProvider(_selectedEnergyLevel).notifier)
+            .maybeTriggerRefillForVisibleRemaining(remainingAfterSwipe),
+      );
+    }
 
     if (activity.direction == AxisDirection.left) {
       unawaited(_handlePreviewLeftSwipe(swiped));
@@ -737,6 +758,11 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
         .where((p) => !_dismissedCardIds.contains(p.id))
         .toList(growable: false);
 
+    // Watch refilling state for background generation indicator
+    final isRefilling = ref.watch(
+      swipeDeckRefillingProvider(_selectedEnergyLevel),
+    );
+
     final usingPreview = _usePantryFirstDeck;
     final activeDeckCount = usingPreview
         ? visiblePreviewDeck.length
@@ -746,8 +772,45 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
       _scheduleInitialLoadIfNeeded();
     }
 
+    // SAFETY: Clean up dismissed IDs that no longer exist in provider
+    // This prevents stale dismissed IDs from blocking new cards
+    if (previewDeck.isNotEmpty && _dismissedCardIds.isNotEmpty) {
+      final providerIds = previewDeck.map((p) => p.id).toSet();
+      final staleIds = _dismissedCardIds.difference(providerIds);
+      if (staleIds.isNotEmpty && kDebugMode) {
+        debugPrint(
+          '[SwipeScreen] Cleaning ${staleIds.length} stale dismissed IDs',
+        );
+      }
+      // Don't clear during build, but schedule for next frame
+      if (staleIds.length == _dismissedCardIds.length) {
+        // All dismissed IDs are stale - will be cleaned after refill
+      }
+    }
+
+    // DEBUG: Log current state to trace empty deck issues
+    if (kDebugMode) {
+      debugPrint(
+        '[SwipeScreen] Build state: '
+        'previewDeck=${previewDeck.length}, '
+        'visible=${visiblePreviewDeck.length}, '
+        'dismissed=${_dismissedCardIds.length}, '
+        'refilling=$isRefilling, '
+        'loading=${previewDeckAsync.isLoading}',
+      );
+    }
+
     Widget deckWidget;
     if (usingPreview) {
+      // CRITICAL: Determine if we need to show empty/loading state
+      // ANY of these conditions means we need to show the loading state
+      final providerDeckEmpty = previewDeck.isEmpty;
+      final visibleDeckEmpty = visiblePreviewDeck.isEmpty;
+      final allCardsDismissed =
+          previewDeck.isNotEmpty && visiblePreviewDeck.isEmpty;
+      final hasNoVisibleCards =
+          providerDeckEmpty || visibleDeckEmpty || allCardsDismissed;
+
       if (previewDeckAsync.isLoading && previewDeck.isEmpty) {
         deckWidget = Center(
           child: SingleChildScrollView(
@@ -864,90 +927,150 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
             ),
           ),
         );
-      } else if (visiblePreviewDeck.isEmpty) {
-        deckWidget = Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.auto_awesome_rounded,
-                      size: 56,
-                      color: AppTheme.textSecondary,
+      } else if (hasNoVisibleCards) {
+        // CRITICAL: Deck is empty - MUST show feedback and trigger refill
+        if (kDebugMode) {
+          debugPrint(
+            '[SwipeScreen] Empty deck detected! providerEmpty=$providerDeckEmpty, visibleEmpty=$visibleDeckEmpty, isRefilling=$isRefilling',
+          );
+        }
+
+        // DO NOT clear dismissed IDs during build - causes race condition!
+        // Instead, clear them in post-frame callback AFTER triggering refill
+        if (!isRefilling) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            if (kDebugMode) {
+              debugPrint(
+                '[SwipeScreen] Triggering auto-refill and clearing dismissed IDs...',
+              );
+            }
+            // Clear dismissed IDs BEFORE refill so new cards won't be filtered
+            setState(() {
+              _dismissedCardIds.clear();
+              _swiperRebuildToken++; // Force swiper rebuild when cards arrive
+            });
+            unawaited(
+              ref
+                  .read(
+                    pantryFirstSwipeDeckProvider(_selectedEnergyLevel).notifier,
+                  )
+                  .triggerRefillIfEmpty(),
+            );
+          });
+        }
+
+        // ALWAYS show the loading UI - this MUST be visible
+        deckWidget = _buildEmptyDeckLoadingState(context, isRefilling);
+      } else if (visiblePreviewDeck.isNotEmpty) {
+        // Show swiper ONLY when there are actually cards to show
+        // SAFETY: Double-check we have cards before rendering swiper
+        final cardCount = visiblePreviewDeck.length;
+        if (kDebugMode) {
+          debugPrint('[SwipeScreen] Showing swiper with $cardCount cards');
+        }
+
+        deckWidget = Stack(
+          children: [
+            AppinioSwiper(
+              key: ValueKey(
+                'preview_${_selectedEnergyLevel}_${_swiperRebuildToken}_$cardCount',
+              ),
+              controller: _swiperController,
+              cardCount: cardCount,
+              onSwipeEnd: (previousIndex, targetIndex, activity) =>
+                  _onPreviewSwipeEnd(
+                    visiblePreviewDeck,
+                    previousIndex,
+                    targetIndex,
+                    activity,
+                  ),
+              cardBuilder: (context, index) {
+                // Safety check: ensure index is valid
+                if (index >= visiblePreviewDeck.length) {
+                  return const SizedBox.shrink();
+                }
+                return RecipePreviewCard(
+                  preview: visiblePreviewDeck[index],
+                  onShowDirections: () =>
+                      _handlePreviewShowDirections(visiblePreviewDeck[index]),
+                );
+              },
+            ),
+            // Subtle loading indicator when refilling in background
+            if (isRefilling)
+              Positioned(
+                top: 8,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'You\'ve reached the end of this batch',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: AppTheme.textPrimary,
-                      ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(16),
                     ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Tap to generate 10 more ideas, or try changing energy/pantry.',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _refreshCurrentDeck,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.primaryColor,
-                          foregroundColor: Colors.white,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: AppInlineLoading(
+                            size: 14,
+                            baseColor: Color(0xFFE6E6E6),
+                            highlightColor: Color(0xFFF7F7F7),
+                          ),
                         ),
-                        child: const Text('Generate 10 more ideas'),
-                      ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Loading more…',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: () => context.go(AppRoutes.pantry),
-                        child: const Text('Go to Pantry'),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: TextButton(
-                        onPressed: () => context.go(AppRoutes.aiGenerate),
-                        child: const Text('Generate a recipe'),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ),
+          ],
         );
       } else {
-        deckWidget = AppinioSwiper(
-          key: ValueKey('preview_${_selectedEnergyLevel}_$_swiperRebuildToken'),
-          controller: _swiperController,
-          cardCount: visiblePreviewDeck.length,
-          onSwipeEnd: (previousIndex, targetIndex, activity) =>
-              _onPreviewSwipeEnd(
-                visiblePreviewDeck,
-                previousIndex,
-                targetIndex,
-                activity,
-              ),
-          cardBuilder: (context, index) => RecipePreviewCard(
-            preview: visiblePreviewDeck[index],
-            onShowDirections: () =>
-                _handlePreviewShowDirections(visiblePreviewDeck[index]),
-          ),
-        );
+        // FALLBACK: This should NEVER happen, but if it does, show clear feedback
+        // This catches any edge case we might have missed
+        if (kDebugMode) {
+          debugPrint(
+            '[SwipeScreen] FALLBACK triggered! '
+            'visiblePreviewDeck.length=${visiblePreviewDeck.length}, '
+            'activeDeckCount=$activeDeckCount',
+          );
+        }
+
+        // Trigger refill in post-frame callback (don't modify state during build)
+        if (!isRefilling) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            setState(() {
+              _dismissedCardIds.clear();
+              _swiperRebuildToken++;
+            });
+            unawaited(
+              ref
+                  .read(
+                    pantryFirstSwipeDeckProvider(_selectedEnergyLevel).notifier,
+                  )
+                  .forceRefillNow(),
+            );
+          });
+        }
+        // ALWAYS show loading state as fallback - never leave empty
+        deckWidget = _buildEmptyDeckLoadingState(context, isRefilling);
       }
     } else {
       final showLoading =
@@ -1414,6 +1537,159 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// Shows a prominent loading state when deck is empty and generating more.
+  /// This ensures users always see feedback instead of a blank screen.
+  /// CRITICAL: This widget MUST always render visibly - no collapse allowed.
+  Widget _buildEmptyDeckLoadingState(BuildContext context, bool isRefilling) {
+    if (kDebugMode) {
+      debugPrint(
+        '[SwipeScreen] Building empty deck loading state (isRefilling=$isRefilling)',
+      );
+    }
+
+    return Container(
+      // CRITICAL: Force minimum height to prevent collapse
+      constraints: const BoxConstraints(minHeight: 400),
+      alignment: Alignment.center,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 420),
+          margin: const EdgeInsets.symmetric(horizontal: 8),
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: AppTheme.mediumShadow,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Animated loading indicator - ALWAYS visible
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Center(
+                  child: SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 3,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        AppTheme.primaryColor,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              // Clear status message
+              Text(
+                isRefilling
+                    ? 'Creating more ideas…'
+                    : 'Getting fresh recipes ready…',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                isRefilling
+                    ? 'Hold tight! New recipes tailored to your pantry are on the way.'
+                    : 'Our AI is cooking up personalized ideas just for you.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppTheme.textSecondary,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 8),
+              // Additional helper text
+              Text(
+                'This usually takes a few seconds.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppTheme.textSecondary.withValues(alpha: 0.7),
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+              const SizedBox(height: 24),
+              // ALWAYS show button - use force refill to bypass cooldown
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: isRefilling
+                      ? null // Disable when already refilling
+                      : () {
+                          if (kDebugMode) {
+                            debugPrint(
+                              '[SwipeScreen] User tapped Generate more ideas',
+                            );
+                          }
+                          // Use force refill to bypass cooldown
+                          unawaited(
+                            ref
+                                .read(
+                                  pantryFirstSwipeDeckProvider(
+                                    _selectedEnergyLevel,
+                                  ).notifier,
+                                )
+                                .forceRefillNow(),
+                          );
+                        },
+                  icon: isRefilling
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white70,
+                            ),
+                          ),
+                        )
+                      : const Icon(Icons.auto_awesome_rounded, size: 18),
+                  label: Text(
+                    isRefilling ? 'Generating…' : 'Generate more ideas',
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => context.go(AppRoutes.pantry),
+                  icon: const Icon(Icons.kitchen_outlined, size: 18),
+                  label: const Text('Update Pantry'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
