@@ -11,6 +11,7 @@ import 'package:super_swipe/features/swipe/providers/swipe_filters_provider.dart
 import 'package:super_swipe/features/swipe/services/pantry_first_swipe_deck_service.dart';
 import 'package:super_swipe/features/swipe/services/swipe_inputs_signature.dart';
 import 'package:super_swipe/services/ai/ai_recipe_service.dart';
+import 'package:super_swipe/services/image/image_search_service.dart';
 import 'package:super_swipe/services/database/database_provider.dart';
 import 'package:super_swipe/services/database/database_service.dart';
 
@@ -26,9 +27,11 @@ final pantryFirstSwipeDeckServiceProvider =
       final db = ref.watch(databaseServiceProvider);
       final persistence = DatabaseSwipeDeckPersistence(db);
       final ai = AiRecipeService();
+      final imageSearch = ImageSearchService();
       return PantryFirstSwipeDeckService(
         persistence: persistence,
         aiRecipeService: ai,
+        imageSearchService: imageSearch,
       );
     });
 

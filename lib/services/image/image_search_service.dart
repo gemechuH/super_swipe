@@ -114,6 +114,20 @@ class ImageSearchService {
     }
   }
 
+  static const List<String> fallbackAssets = [
+    'assets/images/salad.jpg',
+    'assets/images/pasta.jpg',
+    'assets/images/curry.jpg',
+    'assets/images/stirfry.jpg',
+    'assets/images/toast.jpg',
+    'assets/images/smoothie.jpg',
+  ];
+
+  /// Get deterministic local asset fallback based on ID (matches RecipePreviewCard)
+  static String getDeterministicFallbackAsset(String id) {
+    return fallbackAssets[id.hashCode.abs() % fallbackAssets.length];
+  }
+
   /// Simple fallback image based on meal type
   static String getFallbackImage(String mealType) {
     const fallbacks = {

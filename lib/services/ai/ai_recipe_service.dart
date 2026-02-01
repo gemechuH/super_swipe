@@ -9,6 +9,8 @@ import 'package:super_swipe/core/models/recipe.dart';
 import 'package:super_swipe/core/models/recipe_preview.dart';
 import 'package:super_swipe/features/swipe/models/swipe_filters.dart';
 
+import 'package:super_swipe/services/image/image_search_service.dart';
+
 /// Google Gemini Powered AI Recipe Service
 /// Migrated from OpenAI to resolve quota issues.
 class AiRecipeService {
@@ -299,7 +301,8 @@ Return JSON with this exact format:
       response,
       preview.energyLevel,
       showCalories,
-      existingImageUrl: preview.imageUrl,
+      existingImageUrl: preview.imageUrl ?? 
+          ImageSearchService.getDeterministicFallbackAsset(preview.id),
       forcedId: preview.id,
       fallbackEquipment: preview.equipmentIcons,
       fallbackIngredientIds: preview.ingredients.isNotEmpty
@@ -377,11 +380,15 @@ Return JSON with this exact format:
     // Notify UI with complete steps
     await onStepsUpdate(allSteps, true);
 
+    // For legacy cards (no image), use deterministic asset to match Swipe UI
+    final imageUrl = preview.imageUrl ?? 
+        ImageSearchService.getDeterministicFallbackAsset(preview.id);
+
     return Recipe(
       id: preview.id,
       title: quickResponse['title'] ?? preview.title,
       description: quickResponse['description'] ?? preview.vibeDescription,
-      imageUrl: preview.imageUrl ?? 'https://images.unsplash.com/photo-1737032571846-445ec57a41da?q=80',
+      imageUrl: imageUrl,
       ingredients: ingredients,
       instructions: allSteps,
       timeMinutes: quickResponse['timeMinutes'] ?? preview.estimatedTimeMinutes,

@@ -7,6 +7,7 @@ import 'package:super_swipe/features/swipe/models/swipe_filters.dart';
 import 'package:super_swipe/features/swipe/services/idea_key.dart';
 import 'package:super_swipe/features/swipe/services/swipe_inputs_signature.dart';
 import 'package:super_swipe/services/ai/ai_recipe_service.dart';
+import 'package:super_swipe/services/image/image_search_service.dart';
 
 class OutOfCarrotsException implements Exception {
   final String message;
@@ -20,6 +21,7 @@ class OutOfCarrotsException implements Exception {
 class PantryFirstSwipeDeckService {
   final SwipeDeckPersistence _persistence;
   final AiRecipeService _aiRecipeService;
+  final ImageSearchService _imageSearchService;
 
   static final Set<String> _generationLocks = <String>{};
 
@@ -29,8 +31,10 @@ class PantryFirstSwipeDeckService {
   const PantryFirstSwipeDeckService({
     required SwipeDeckPersistence persistence,
     required AiRecipeService aiRecipeService,
+    required ImageSearchService imageSearchService,
   }) : _persistence = persistence,
-       _aiRecipeService = aiRecipeService;
+       _aiRecipeService = aiRecipeService,
+       _imageSearchService = imageSearchService;
 
   void _logInfo(String message) {
     developer.log(message, name: 'PantryFirstSwipeDeckService');
@@ -428,9 +432,20 @@ class PantryFirstSwipeDeckService {
           );
           if (exists) continue;
 
+          // Fetch unique image from Unsplash (or fallback logic)
+          final imageResult = await _imageSearchService.searchRecipeImage(
+            recipeTitle: p.title,
+            ingredients: p.mainIngredients,
+          );
+
+          // Use fetched image URL, or fall back to meal-type specific default
+          final imageUrl = imageResult?.imageUrl ??
+              ImageSearchService.getFallbackImage(p.mealType);
+
           created.add(
             p.copyWith(
               id: ideaKey,
+              imageUrl: imageUrl, // Update with distinct image
               energyLevel: energyLevel,
               inputsSignature: inputsSignature,
             ),
