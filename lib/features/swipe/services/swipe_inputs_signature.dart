@@ -2,8 +2,9 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 import 'package:super_swipe/core/config/assumed_seasonings.dart';
+import 'package:super_swipe/features/swipe/models/swipe_filters.dart';
 
-const String kPantryFirstSwipePromptVersion = 'pantry_first_swipe_v1';
+const String kPantryFirstSwipePromptVersion = 'pantry_first_swipe_v2';
 
 String buildSwipeInputsSignature({
   required Iterable<String> pantryIngredientNames,
@@ -14,6 +15,8 @@ String buildSwipeInputsSignature({
   List<String> preferredCuisines = const <String>[],
   String mealType = '',
   String promptVersion = kPantryFirstSwipePromptVersion,
+  // Swipe filter panel options
+  SwipeFilters? swipeFilters,
 }) {
   final normalized =
       pantryIngredientNames
@@ -47,6 +50,18 @@ String buildSwipeInputsSignature({
           .toList(growable: false)
         ..sort();
 
+  // Build filter signature if filters are provided
+  final filterPayload = swipeFilters != null
+      ? <String, dynamic>{
+          'diets': swipeFilters.diets.map((d) => d.name).toList()..sort(),
+          'timeFilter': swipeFilters.timeFilter.name,
+          'mealType': swipeFilters.mealType?.name ?? '',
+          'cookingMethods':
+              swipeFilters.cookingMethods.map((m) => m.name).toList()..sort(),
+          'customText': swipeFilters.customText.toLowerCase().trim(),
+        }
+      : <String, dynamic>{};
+
   final payload = <String, dynamic>{
     'v': promptVersion,
     'includeBasics': includeBasics,
@@ -56,6 +71,7 @@ String buildSwipeInputsSignature({
     'dietaryRestrictions': normalizedDietary,
     'preferredCuisines': normalizedCuisines,
     'pantry': normalized,
+    'filters': filterPayload,
   };
 
   final bytes = utf8.encode(jsonEncode(payload));

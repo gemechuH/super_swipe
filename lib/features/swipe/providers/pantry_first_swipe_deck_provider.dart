@@ -7,6 +7,7 @@ import 'package:super_swipe/core/models/recipe_preview.dart';
 import 'package:super_swipe/core/models/recipe.dart';
 import 'package:super_swipe/core/providers/user_data_providers.dart';
 import 'package:super_swipe/features/auth/providers/auth_provider.dart';
+import 'package:super_swipe/features/swipe/providers/swipe_filters_provider.dart';
 import 'package:super_swipe/features/swipe/services/pantry_first_swipe_deck_service.dart';
 import 'package:super_swipe/features/swipe/services/swipe_inputs_signature.dart';
 import 'package:super_swipe/services/ai/ai_recipe_service.dart';
@@ -58,6 +59,9 @@ class PantryFirstSwipeDeckController
 
     final profile = ref.watch(userProfileProvider).value;
     final pantryAsync = ref.watch(pantryItemsProvider);
+    
+    // Watch swipe filters - this is the key integration!
+    final swipeFilters = ref.watch(swipeFiltersProvider);
 
     final pantryItems = pantryAsync.maybeWhen(
       data: (items) => items,
@@ -68,6 +72,8 @@ class PantryFirstSwipeDeckController
 
     final includeBasics = profile.preferences.pantryDiscovery.includeBasics;
     final willingToShop = profile.preferences.pantryDiscovery.willingToShop;
+    
+    // Include swipe filters in signature so deck regenerates when filters change
     final signature = buildSwipeInputsSignature(
       pantryIngredientNames: pantryItems.map((p) => p.normalizedName),
       includeBasics: includeBasics,
@@ -76,7 +82,12 @@ class PantryFirstSwipeDeckController
       dietaryRestrictions: profile.preferences.dietaryRestrictions,
       preferredCuisines: profile.preferences.preferredCuisines,
       mealType: profile.preferences.defaultMealType,
+      swipeFilters: swipeFilters,
     );
+    
+    if (kDebugMode) {
+      _logProvider('Build with filters: $swipeFilters, signature: ${signature.substring(0, 16)}');
+    }
 
     var isDisposed = false;
     ref.onDispose(() => isDisposed = true);
@@ -94,6 +105,7 @@ class PantryFirstSwipeDeckController
       includeBasics: includeBasics,
       willingToShop: willingToShop,
       inputsSignature: signature,
+      swipeFilters: swipeFilters,
     );
 
     final deck = await svc.getDeck(
@@ -166,6 +178,8 @@ class PantryFirstSwipeDeckController
 
     final profile = ref.read(userProfileProvider).value;
     final pantryItems = ref.read(pantryItemsProvider).value;
+    final swipeFilters = ref.read(swipeFiltersProvider);
+    
     if (profile == null || pantryItems == null) {
       _logProvider('_doRefill aborted: missing profile or pantry');
       return;
@@ -188,10 +202,11 @@ class PantryFirstSwipeDeckController
       dietaryRestrictions: profile.preferences.dietaryRestrictions,
       preferredCuisines: profile.preferences.preferredCuisines,
       mealType: profile.preferences.defaultMealType,
+      swipeFilters: swipeFilters,
     );
 
     // Set refilling state to true and record attempt time
-    _logProvider('Starting refill (energy=$arg)');
+    _logProvider('Starting refill (energy=$arg) with filters: $swipeFilters');
     ref.read(swipeDeckRefillingProvider(arg).notifier).state = true;
     ref.read(_swipeDeckLastRefillAttemptProvider(arg).notifier).state =
         DateTime.now();
@@ -211,6 +226,7 @@ class PantryFirstSwipeDeckController
         willingToShop: willingToShop,
         inputsSignature: signature,
         force: force,
+        swipeFilters: swipeFilters,
       );
 
       _logProvider('Refill service returned: $result (energy=$arg)');

@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 
 import 'package:super_swipe/core/models/recipe.dart';
 import 'package:super_swipe/core/models/recipe_preview.dart';
+import 'package:super_swipe/features/swipe/models/swipe_filters.dart';
 import 'package:super_swipe/features/swipe/services/idea_key.dart';
 import 'package:super_swipe/features/swipe/services/swipe_inputs_signature.dart';
 import 'package:super_swipe/services/ai/ai_recipe_service.dart';
@@ -81,6 +82,7 @@ class PantryFirstSwipeDeckService {
     required bool includeBasics,
     required bool willingToShop,
     required String inputsSignature,
+    SwipeFilters? swipeFilters,
   }) async {
     // Gemini can return fewer unique previews than requested.
     // Keep trying (within a small cap) until we actually reach the target.
@@ -115,6 +117,7 @@ class PantryFirstSwipeDeckService {
         willingToShop: willingToShop,
         inputsSignature: inputsSignature,
         existingCardIds: existing.map((e) => e.id).toSet(),
+        swipeFilters: swipeFilters,
       );
 
       if (createdCount <= 0) return;
@@ -140,6 +143,7 @@ class PantryFirstSwipeDeckService {
     required bool willingToShop,
     required String inputsSignature,
     bool force = false,
+    SwipeFilters? swipeFilters,
   }) async {
     // Endless deck behavior: when the user reaches 5 or fewer remaining cards,
     // generate 10 more in the background. This gives enough buffer to keep
@@ -173,6 +177,7 @@ class PantryFirstSwipeDeckService {
       willingToShop: willingToShop,
       inputsSignature: inputsSignature,
       existingCardIds: existing.map((e) => e.id).toSet(),
+      swipeFilters: swipeFilters,
     );
 
     return createdCount > 0;
@@ -349,6 +354,7 @@ class PantryFirstSwipeDeckService {
     required bool willingToShop,
     required String inputsSignature,
     required Set<String> existingCardIds,
+    SwipeFilters? swipeFilters,
   }) async {
     if (count <= 0) return 0;
 
@@ -362,7 +368,7 @@ class PantryFirstSwipeDeckService {
     _generationLocks.add(lockKey);
 
     try {
-      _logInfo('Generation started (energy=$energyLevel, target=$count)');
+      _logInfo('Generation started (energy=$energyLevel, target=$count, filters=$swipeFilters)');
 
       final created = <RecipePreview>[];
       final seenIdeaKeys = <String>{...existingCardIds};
@@ -391,6 +397,7 @@ class PantryFirstSwipeDeckService {
           preferredCuisines: preferredCuisines,
           mealType: mealType,
           strictPantryMatch: !willingToShop,
+          swipeFilters: swipeFilters,
         );
 
         // Handle rate limit (empty response)

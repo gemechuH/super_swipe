@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:super_swipe/core/config/swipe_constants.dart';
 import 'package:super_swipe/core/models/recipe.dart';
 import 'package:super_swipe/core/models/recipe_preview.dart';
+import 'package:super_swipe/features/swipe/models/swipe_filters.dart';
 
 /// Google Gemini Powered AI Recipe Service
 /// Migrated from OpenAI to resolve quota issues.
@@ -215,10 +216,14 @@ Return JSON with this exact format:
     List<String> preferredCuisines = const [],
     String? mealType,
     bool strictPantryMatch = true,
+    SwipeFilters? swipeFilters,
   }) async {
     if (_apiKey.isEmpty) {
       throw Exception('Kitchen is closed: GEMINI_API_KEY missing in .env');
     }
+    
+    // Override mealType with filter if set
+    final effectiveMealType = swipeFilters?.mealType?.promptValue ?? mealType;
 
     final userPrompt = _buildPreviewBatchPrompt(
       count: count,
@@ -227,9 +232,10 @@ Return JSON with this exact format:
       dietaryRestrictions: dietaryRestrictions,
       cravings: cravings,
       energyLevel: energyLevel,
-      mealType: mealType,
+      mealType: effectiveMealType,
       strictPantryMatch: strictPantryMatch,
       preferredCuisines: preferredCuisines,
+      swipeFilters: swipeFilters,
     );
 
     final response = await _callGemini(
@@ -247,7 +253,7 @@ Return JSON with this exact format:
           .map(
             (p) => p.copyWith(
               energyLevel: energyLevel,
-              mealType: mealType ?? p.mealType,
+              mealType: effectiveMealType ?? p.mealType,
             ),
           )
           .toList();
@@ -257,7 +263,7 @@ Return JSON with this exact format:
     return [
       RecipePreview.fromJson(response).copyWith(
         energyLevel: energyLevel,
-        mealType: mealType ?? response['meal_type'] ?? 'dinner',
+        mealType: effectiveMealType ?? response['meal_type'] ?? 'dinner',
       ),
     ];
   }
@@ -818,6 +824,7 @@ Create a recipe PREVIEW (not full recipe) for:
     String? mealType,
     bool strictPantryMatch = true,
     List<String> preferredCuisines = const [],
+    SwipeFilters? swipeFilters,
   }) {
     final pantryRule = strictPantryMatch
         ? 'CRITICAL: Use ONLY these pantry ingredients: [${pantryItems.join(', ')}].'
@@ -827,11 +834,16 @@ Create a recipe PREVIEW (not full recipe) for:
         ? 'Preferred cuisines: ${preferredCuisines.join(', ')}'
         : 'Preferred cuisines: Any';
 
+    // Build filter constraints block
+    final filterConstraints = _buildFilterConstraints(swipeFilters);
+
     return '''
 $pantryRule
 
 $cuisineNote
 Meal Type: ${mealType ?? 'Any'}
+
+$filterConstraints
 
 Generate EXACTLY $count DISTINCT recipe previews.
 
@@ -862,6 +874,56 @@ Context:
 - Allergies to AVOID: ${allergies.isNotEmpty ? allergies.join(', ') : 'None'}
 - Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'None'}
         - Energy Level: ${EnergyLevel.fromInt(energyLevel).promptLine}
+''';
+  }
+
+  /// Build filter constraints for the AI prompt from SwipeFilters
+  String _buildFilterConstraints(SwipeFilters? filters) {
+    if (filters == null || !filters.hasActiveFilters) {
+      return '';
+    }
+
+    final constraints = <String>[];
+
+    // Diet constraints (HARD REQUIREMENTS)
+    if (filters.diets.isNotEmpty) {
+      constraints.add('STRICT DIETARY REQUIREMENTS (MUST FOLLOW):');
+      for (final diet in filters.diets) {
+        constraints.add('  - ${diet.promptConstraint}');
+      }
+    }
+
+    // Time constraint
+    if (filters.timeFilter != SwipeTimeFilter.anyTime && 
+        filters.timeFilter.maxMinutes != null) {
+      constraints.add(
+        'TIME CONSTRAINT: Recipe MUST be completable in ${filters.timeFilter.maxMinutes} minutes or less (total cook + prep time).',
+      );
+    }
+
+    // Cooking method preferences
+    if (filters.cookingMethods.isNotEmpty) {
+      final methods = filters.cookingMethods.map((m) => m.displayName).join(', ');
+      constraints.add(
+        'COOKING METHOD PREFERENCE: Strongly prefer recipes using: $methods',
+      );
+    }
+
+    // Custom preferences
+    if (filters.customText.trim().isNotEmpty) {
+      constraints.add(
+        'CUSTOM PREFERENCES: ${filters.customText.trim()}',
+      );
+    }
+
+    if (constraints.isEmpty) {
+      return '';
+    }
+
+    return '''
+=== FILTER PANEL REQUIREMENTS ===
+${constraints.join('\n')}
+=================================
 ''';
   }
 
