@@ -96,9 +96,24 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
         expand: false,
         builder: (context, scrollController) => SwipeFiltersPanel(
           onFiltersChanged: () {
+            // Reset UI state (same pattern as energy level changes)
+            setState(() {
+              _dismissedCardIds.clear();
+              _swiperRebuildToken++;
+            });
+            
             // Invalidate the deck provider to trigger regeneration with new filters
             ref.invalidate(
               pantryFirstSwipeDeckProvider(_selectedEnergyLevel),
+            );
+            
+            // Force immediate refill with new filters
+            unawaited(
+              ref
+                  .read(
+                    pantryFirstSwipeDeckProvider(_selectedEnergyLevel).notifier,
+                  )
+                  .forceRefillNow(),
             );
           },
         ),
