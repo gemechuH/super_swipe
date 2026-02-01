@@ -44,16 +44,19 @@ final _swipeDeckLastRefillAttemptProvider =
     StateProvider.family<DateTime?, int>((ref, energyLevel) => null);
 
 final pantryFirstSwipeDeckProvider =
-    AutoDisposeAsyncNotifierProviderFamily<
+    AsyncNotifierProviderFamily<
       PantryFirstSwipeDeckController,
       List<RecipePreview>,
       int
     >(PantryFirstSwipeDeckController.new);
 
 class PantryFirstSwipeDeckController
-    extends AutoDisposeFamilyAsyncNotifier<List<RecipePreview>, int> {
+    extends FamilyAsyncNotifier<List<RecipePreview>, int> {
   @override
   Future<List<RecipePreview>> build(int energyLevel) async {
+    // Keep this provider alive even if no UI is watching it (for background generation)
+    ref.keepAlive();
+    
     final user = ref.watch(authProvider).user;
     if (user == null || user.isAnonymous == true) return <RecipePreview>[];
 

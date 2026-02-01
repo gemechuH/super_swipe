@@ -9,6 +9,7 @@ import 'package:super_swipe/core/router/app_router.dart';
 import 'package:super_swipe/core/theme/app_theme.dart';
 import 'package:super_swipe/core/widgets/loading/app_loading.dart';
 import 'package:super_swipe/features/auth/providers/auth_provider.dart';
+import 'package:super_swipe/features/swipe/providers/pantry_first_swipe_deck_provider.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -66,6 +67,9 @@ class HomeScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Preload the swipe deck (Energy Level 2) so it's ready when user navigates
+                  const _SwipeDeckPreloader(),
+
                   const SizedBox(height: 40),
 
                   // 1. Header with personalized greeting
@@ -731,5 +735,42 @@ class HomeScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+}
+
+/// Invisible widget that triggers the swipe deck generation in the background
+class _SwipeDeckPreloader extends ConsumerStatefulWidget {
+  const _SwipeDeckPreloader();
+
+  @override
+  ConsumerState<_SwipeDeckPreloader> createState() => _SwipeDeckPreloaderState();
+}
+
+class _SwipeDeckPreloaderState extends ConsumerState<_SwipeDeckPreloader> {
+  // We'll warm up the default energy level (2 - Medium)
+  static const int _defaultEnergyLevel = 2;
+
+  @override
+  void initState() {
+    super.initState();
+    // Schedule the read for after the first frame to avoid build-phase issues
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _triggerPreload();
+    });
+  }
+
+  void _triggerPreload() {
+    // Just valid reading the provider triggers the build() method, 
+    // which calls ensureInitialDeck()
+    ref.read(pantryFirstSwipeDeckProvider(_defaultEnergyLevel));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // We also watch it here to ensure it stays active if the user changes pantry items
+    // ignoring the value to avoid unnecessary rebuilds of this widget (using select)
+    ref.watch(pantryFirstSwipeDeckProvider(_defaultEnergyLevel).select((_) => 0));
+    
+    return const SizedBox.shrink();
   }
 }
