@@ -603,6 +603,20 @@ class DatabaseService {
     }
   }
 
+  /// Returns recent swipe history for review (consumed cards).
+  Future<List<RecipePreview>> getRecentSwipeHistory(
+    String userId, {
+    int limit = 10,
+  }) async {
+    final snap = await _swipeDeck(userId)
+        .where('isConsumed', isEqualTo: true)
+        .orderBy('consumedAt', descending: true)
+        .limit(limit)
+        .get();
+
+    return snap.docs.map(RecipePreview.fromFirestore).toList(growable: false);
+  }
+
   /// Marks a swipe card as disliked (left swipe) and consumed.
   ///
   /// This permanently removes it from the swipe deck.

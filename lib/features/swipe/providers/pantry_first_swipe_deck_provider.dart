@@ -370,6 +370,14 @@ class PantryFirstSwipeDeckController
     unawaited(refresh());
     return recipe;
   }
+
+  Future<List<RecipePreview>> fetchRecentHistory({int limit = 10}) async {
+    final user = ref.read(authProvider).user;
+    if (user == null || user.isAnonymous == true) return [];
+    
+    final svc = ref.read(pantryFirstSwipeDeckServiceProvider);
+    return svc.getRecentHistory(user.uid, limit: limit);
+  }
 }
 
 class DatabaseSwipeDeckPersistence implements SwipeDeckPersistence {
@@ -381,6 +389,12 @@ class DatabaseSwipeDeckPersistence implements SwipeDeckPersistence {
   Future<List<RecipePreview>> getUnconsumedSwipeCards(String userId) {
     return _db.getUnconsumedSwipeCards(userId);
   }
+
+  @override
+  Future<List<RecipePreview>> getRecentSwipeHistory(String userId, {int limit = 10}) {
+    return _db.getRecentSwipeHistory(userId, limit: limit);
+  }
+
 
   @override
   Future<bool> hasDeckSignatureMismatch(

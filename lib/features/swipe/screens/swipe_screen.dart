@@ -58,6 +58,10 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
       <int, DocumentSnapshot?>{};
   final Set<int> _loadingMoreEnergy = <int>{};
 
+  // Batch Replay State
+  List<RecipePreview> _replayCache = [];
+  bool _isReplaying = false;
+
   @override
   void dispose() {
     _swiperController.dispose();
@@ -133,6 +137,8 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     if (_deckForEnergy(energyLevel).isNotEmpty) return;
     await _refreshEnergy(energyLevel: energyLevel);
   }
+
+
 
   Future<void> _refreshEnergy({required int energyLevel}) async {
     if (_deckLoading) return;
@@ -843,16 +849,54 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
 
     Widget deckWidget;
     if (usingPreview) {
+      // 1. CACHE LOGIC - Always keep a copy of the current batch for restart functionality
+      if (previewDeck.isNotEmpty && (_replayCache.isEmpty || previewDeck.first.id != _replayCache.first.id)) {
+        // Cache the current batch (done in post-frame to avoid setState during build)
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          final currentPreview = ref.read(pantryFirstSwipeDeckProvider(_selectedEnergyLevel)).value ?? [];
+          if (currentPreview.isEmpty) return;
+          
+          final shouldUpdate = _replayCache.isEmpty || currentPreview.first.id != _replayCache.first.id;
+          if (shouldUpdate) {
+            setState(() {
+              _replayCache = List.of(currentPreview);
+              if (_isReplaying) {
+                _isReplaying = false;
+                _dismissedCardIds.clear();
+                _swiperRebuildToken++;
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Fresh ideas ready!'),
+                    backgroundColor: AppTheme.primaryColor,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
+            });
+          }
+        });
+      }
+
       // CRITICAL: Determine if we need to show empty/loading state
-      // ANY of these conditions means we need to show the loading state
       final providerDeckEmpty = previewDeck.isEmpty;
       final visibleDeckEmpty = visiblePreviewDeck.isEmpty;
-      final allCardsDismissed =
-          previewDeck.isNotEmpty && visiblePreviewDeck.isEmpty;
-      final hasNoVisibleCards =
-          providerDeckEmpty || visibleDeckEmpty || allCardsDismissed;
+      final allCardsDismissed = previewDeck.isNotEmpty && visiblePreviewDeck.isEmpty;
+      
+      // If we are replaying, we are NOT empty in the UI sense
+      final hasNoVisibleCards = (providerDeckEmpty || visibleDeckEmpty || allCardsDismissed) && !_isReplaying;
 
-      if (previewDeckAsync.isLoading && previewDeck.isEmpty) {
+      // Determine active deck
+      final currentDeck = _isReplaying ? _replayCache : visiblePreviewDeck;
+      final currentCardCount = currentDeck.length;
+
+      // NOTE: Auto-replay is disabled. Users must use explicit buttons to replay.
+      // - Undo button: goes back to previous card
+      // - Restart button: goes back to first card in batch
+
+      if (previewDeckAsync.isLoading && previewDeck.isEmpty && !_isReplaying) {
+        // ... (existing loading code)
         // ... (existing loading code)
         deckWidget = Center(
           child: SingleChildScrollView(
@@ -1070,38 +1114,66 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
 
         // ALWAYS show the loading UI - this MUST be visible
         deckWidget = _buildEmptyDeckLoadingState(context, isRefilling);
-      } else if (visiblePreviewDeck.isNotEmpty) {
+      } else if (currentDeck.isNotEmpty) {
         // Show swiper ONLY when there are actually cards to show
-        // SAFETY: Double-check we have cards before rendering swiper
-        final cardCount = visiblePreviewDeck.length;
-        if (kDebugMode) {
-          debugPrint('[SwipeScreen] Showing swiper with $cardCount cards');
-        }
+        final cardCount = currentDeck.length;
 
         deckWidget = Stack(
           children: [
+            if (_isReplaying)
+              Positioned(
+                 top: 60,
+                 left: 0, 
+                 right: 0,
+                 child: Center(
+                   child: Container(
+                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                     decoration: BoxDecoration(
+                       color: Colors.amber.shade100,
+                       borderRadius: BorderRadius.circular(20),
+                       border: Border.all(color: Colors.amber.shade300),
+                     ),
+                     child: Row(
+                       mainAxisSize: MainAxisSize.min,
+                       children: [
+                         Icon(Icons.history_rounded, size: 16, color: Colors.amber.shade900),
+                         const SizedBox(width: 8),
+                         Text(
+                           'Reviewing recent swipes while we cook...',
+                           style: TextStyle(
+                             color: Colors.amber.shade900, 
+                             fontWeight: FontWeight.bold,
+                             fontSize: 12,
+                           ),
+                         ),
+                       ],
+                     ),
+                   ),
+                 ),
+              ),
+
             AppinioSwiper(
               key: ValueKey(
-                'preview_${_selectedEnergyLevel}_${_swiperRebuildToken}_$cardCount',
+                'preview_${_selectedEnergyLevel}_${_swiperRebuildToken}_${_isReplaying}_$cardCount',
               ),
               controller: _swiperController,
               cardCount: cardCount,
-              onSwipeEnd: (previousIndex, targetIndex, activity) =>
+              onSwipeEnd: (previousIndex, targetIndex, activity) {
+                  // If reviewing history, we might want different logic?
+                  // For now, re-swiping right on history behaves like a new "I Made This" intent
                   _onPreviewSwipeEnd(
-                    visiblePreviewDeck,
+                    currentDeck,
                     previousIndex,
                     targetIndex,
                     activity,
-                  ),
+                  );
+              },
               cardBuilder: (context, index) {
-                // Safety check: ensure index is valid
-                if (index >= visiblePreviewDeck.length) {
-                  return const SizedBox.shrink();
-                }
+                if (index >= currentDeck.length) return const SizedBox.shrink();
                 return RecipePreviewCard(
-                  preview: visiblePreviewDeck[index],
+                  preview: currentDeck[index],
                   onShowDirections: () =>
-                      _handlePreviewShowDirections(visiblePreviewDeck[index]),
+                      _handlePreviewShowDirections(currentDeck[index]),
                 );
               },
             ),
@@ -1123,7 +1195,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
-                      children: [
+                       children: [
                         const SizedBox(
                           width: 14,
                           height: 14,
@@ -1135,7 +1207,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          'Loading more…',
+                          'Creating fresh ideas…',
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(
                                 color: Colors.white,
@@ -1155,8 +1227,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
         if (kDebugMode) {
           debugPrint(
             '[SwipeScreen] FALLBACK triggered! '
-            'visiblePreviewDeck.length=${visiblePreviewDeck.length}, '
-            'activeDeckCount=$activeDeckCount',
+            'currentDeck=${currentDeck.length}, ',
           );
         }
 
@@ -1305,10 +1376,8 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                       horizontal: 16,
                       vertical: 12,
                     ),
-                    child: Wrap(
-                      alignment: WrapAlignment.center,
-                      spacing: AppTheme.spacingXL,
-                      runSpacing: 12,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
                         _buildActionButton(
                           icon: Icons.close,
@@ -1317,6 +1386,41 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                               (_unlockFlowInProgress || activeDeckCount == 0)
                               ? null
                               : () => _swiperController.swipeLeft(),
+                        ),
+                        // UNDO BUTTON - Go back to previous swipe
+                        Tooltip(
+                          message: 'Undo last swipe',
+                          child: _buildActionButton(
+                            icon: Icons.rotate_left_rounded,
+                            color: Colors.orange,
+                            isSmall: true,
+                            onPressed: _dismissedCardIds.isEmpty
+                                ? null
+                                : () => _swiperController.unswipe(),
+                          ),
+                        ),
+                        // RESTART BATCH BUTTON - Go back to first card in batch
+                        Tooltip(
+                          message: 'Start over from first card',
+                          child: _buildActionButton(
+                            icon: Icons.skip_previous_rounded,
+                            color: Colors.teal,
+                            isSmall: true,
+                            onPressed: _dismissedCardIds.isEmpty
+                                ? null
+                                : () {
+                                    setState(() {
+                                      _dismissedCardIds.clear();
+                                      _swiperRebuildToken++;
+                                    });
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Back to first card!'),
+                                        duration: Duration(seconds: 1),
+                                      ),
+                                    );
+                                  },
+                          ),
                         ),
                         _buildActionButton(
                           icon: Icons.info_outline_rounded,

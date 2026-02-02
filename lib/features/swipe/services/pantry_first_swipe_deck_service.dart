@@ -487,10 +487,19 @@ class PantryFirstSwipeDeckService {
       _generationLocks.remove(lockKey);
     }
   }
+
+  Future<List<RecipePreview>> getRecentHistory(
+    String userId, {
+    int limit = 10,
+  }) async {
+    return _persistence.getRecentSwipeHistory(userId, limit: limit);
+  }
 }
 
 abstract class SwipeDeckPersistence {
   Future<List<RecipePreview>> getUnconsumedSwipeCards(String userId);
+
+  Future<List<RecipePreview>> getRecentSwipeHistory(String userId, {int limit = 10});
 
   Future<bool> hasDeckSignatureMismatch(
     String userId, {
