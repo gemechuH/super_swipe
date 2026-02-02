@@ -30,7 +30,7 @@ class RecipePreviewCard extends StatelessWidget {
         final isCompact = maxH.isFinite && maxH < 420;
         final imageHeight = isCompact
             ? 140.0
-            : (maxH.isFinite ? (maxH * 0.68).clamp(220.0, 360.0) : 300.0);
+            : (maxH.isFinite ? (maxH * 0.55).clamp(180.0, 320.0) : 260.0);
         final padding = isCompact ? 12.0 : 18.0;
         final titleSize = isCompact ? 18.0 : 22.0;
 

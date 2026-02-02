@@ -125,6 +125,27 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                   .forceRefillNow(),
             );
           },
+          initialEnergyLevel: _selectedEnergyLevel,
+          onEnergyLevelChanged: (next) {
+             if (next == _selectedEnergyLevel) return;
+             final oldLevel = _selectedEnergyLevel;
+             setState(() {
+               _selectedEnergyLevel = next;
+               _dismissedCardIds.clear();
+               _swiperRebuildToken++;
+             });
+             
+             // If manual swipe mode, load energy immediately
+             if (!_usePantryFirstDeck) {
+               unawaited(_ensureEnergyLoaded(next));
+             }
+             
+             // If we just changed energy, we might want to refresh provider if using pantry first
+             if (_usePantryFirstDeck && oldLevel != next) {
+               // The provider family depends on energy level, so this happens automatically
+               // by virtue of reading the new provider. But we might need to pre-warm it.
+             }
+          },
         ),
       ),
     );
@@ -1343,24 +1364,11 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                     horizontal: 16,
                     vertical: 8,
                   ),
-                  child: MasterEnergySlider(
-                    value: _selectedEnergyLevel,
-                    onChanged: (next) {
-                      if (next == _selectedEnergyLevel) return;
-                      setState(() {
-                        _selectedEnergyLevel = next;
-                        _dismissedCardIds.clear();
-                        _swiperRebuildToken++;
-                      });
-                      if (!_usePantryFirstDeck) {
-                        unawaited(_ensureEnergyLoaded(next));
-                      }
-                    },
-                  ),
+                  child: const SizedBox(height: 12),
                 ),
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(0, 0, 0, 110),
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 110),
                     child: deckWidget,
                   ),
                 ),
@@ -2042,8 +2050,8 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 8),

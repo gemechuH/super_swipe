@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:super_swipe/core/config/swipe_constants.dart';
 import 'package:super_swipe/core/theme/app_theme.dart';
 import 'package:super_swipe/features/swipe/models/swipe_filters.dart';
 import 'package:super_swipe/features/swipe/providers/swipe_filters_provider.dart';
@@ -7,8 +8,15 @@ import 'package:super_swipe/features/swipe/providers/swipe_filters_provider.dart
 /// A bottom sheet panel for configuring swipe filters
 class SwipeFiltersPanel extends ConsumerStatefulWidget {
   final VoidCallback? onFiltersChanged;
+  final int initialEnergyLevel;
+  final ValueChanged<int>? onEnergyLevelChanged;
 
-  const SwipeFiltersPanel({super.key, this.onFiltersChanged});
+  const SwipeFiltersPanel({
+    super.key,
+    this.onFiltersChanged,
+    this.initialEnergyLevel = 2,
+    this.onEnergyLevelChanged,
+  });
 
   @override
   ConsumerState<SwipeFiltersPanel> createState() => _SwipeFiltersPanelState();
@@ -16,11 +24,13 @@ class SwipeFiltersPanel extends ConsumerStatefulWidget {
 
 class _SwipeFiltersPanelState extends ConsumerState<SwipeFiltersPanel> {
   late TextEditingController _customTextController;
+  late int _currentEnergyLevel;
   String? _previousSignature;
 
   @override
   void initState() {
     super.initState();
+    _currentEnergyLevel = widget.initialEnergyLevel;
     _customTextController = TextEditingController(
       text: ref.read(swipeFiltersProvider).customText,
     );
@@ -94,6 +104,72 @@ class _SwipeFiltersPanelState extends ConsumerState<SwipeFiltersPanel> {
                 ],
               ),
               const SizedBox(height: 20),
+
+              // ENERGY LEVEL SECTION (Moved from main screen)
+              _SectionHeader(
+                title: 'Energy Level',
+                subtitle: 'How elaborate should recipes be?',
+                icon: Icons.bolt_rounded,
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.grey[200]!),
+                ),
+                child: Column(
+                  children: [
+                    SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        activeTrackColor: AppTheme.primaryColor,
+                        inactiveTrackColor: AppTheme.primaryColor.withValues(alpha: 0.2),
+                        thumbColor: AppTheme.primaryColor,
+                        trackHeight: 6,
+                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
+                      ),
+                      child: Slider(
+                        value: _currentEnergyLevel.toDouble(),
+                        min: 0,
+                        max: 4,
+                        divisions: 4,
+                        label: EnergyLevel.fromInt(_currentEnergyLevel).sliderLabel,
+                        onChanged: (v) {
+                          final newVal = v.round();
+                          if (newVal != _currentEnergyLevel) {
+                            setState(() => _currentEnergyLevel = newVal);
+                            widget.onEnergyLevelChanged?.call(newVal);
+                          }
+                        },
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            EnergyLevel.fromInt(_currentEnergyLevel).sliderLabel,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          Text(
+                            EnergyLevel.fromInt(_currentEnergyLevel).promptScale,
+                            style: TextStyle(
+                              color: AppTheme.textSecondary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
 
               // DIET SECTION (Hard Constraints)
               _SectionHeader(
@@ -354,6 +430,8 @@ class _SectionHeader extends StatelessWidget {
 Future<void> showSwipeFiltersPanel(
   BuildContext context, {
   VoidCallback? onFiltersChanged,
+  int initialEnergyLevel = 2,
+  ValueChanged<int>? onEnergyLevelChanged,
 }) async {
   await showModalBottomSheet(
     context: context,
@@ -364,7 +442,11 @@ Future<void> showSwipeFiltersPanel(
       minChildSize: 0.5,
       maxChildSize: 0.95,
       builder: (context, scrollController) {
-        return SwipeFiltersPanel(onFiltersChanged: onFiltersChanged);
+        return SwipeFiltersPanel(
+          onFiltersChanged: onFiltersChanged,
+          initialEnergyLevel: initialEnergyLevel,
+          onEnergyLevelChanged: onEnergyLevelChanged,
+        );
       },
     ),
   );
