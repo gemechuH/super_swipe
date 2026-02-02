@@ -247,6 +247,10 @@ class PantryFirstSwipeDeckController
         'After refresh: deck has ${finalDeck.length} cards (energy=$arg)',
       );
     } catch (e, st) {
+      if (e is GeminiRateLimitException) {
+         _logProvider('Refill hit Rate Limit! Propagating to UI.');
+         state = AsyncValue<List<RecipePreview>>.error(e, st).copyWithPrevious(state);
+      }
       _logProvider('Refill failed: $e');
       if (kDebugMode) {
         debugPrint('Refill stacktrace: $st');

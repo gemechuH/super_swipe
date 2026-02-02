@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:super_swipe/services/ai/ai_recipe_service.dart';
+
 import 'package:appinio_swiper/appinio_swiper.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -851,6 +853,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
           providerDeckEmpty || visibleDeckEmpty || allCardsDismissed;
 
       if (previewDeckAsync.isLoading && previewDeck.isEmpty) {
+        // ... (existing loading code)
         deckWidget = Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
@@ -900,6 +903,72 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                           foregroundColor: Colors.white,
                         ),
                         child: const Text('Generate a recipe'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      } else if (previewDeckAsync.hasError &&
+          previewDeckAsync.error is GeminiRateLimitException) {
+        deckWidget = Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.traffic_rounded,
+                      size: 56,
+                      color: AppTheme.warningColor,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Chef is busy right now',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'High traffic in the kitchen. Upgrade to Pro for priority access or try again in a moment.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          // TODO: Route to upgrade screen
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Coming soon: Pro Plan!'),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primaryColor,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Upgrade to Pro'),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: _refreshCurrentDeck,
+                        child: const Text('Retry'),
                       ),
                     ),
                   ],

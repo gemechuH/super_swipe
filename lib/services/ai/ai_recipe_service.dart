@@ -11,6 +11,12 @@ import 'package:super_swipe/features/swipe/models/swipe_filters.dart';
 
 import 'package:super_swipe/services/image/image_search_service.dart';
 
+class GeminiRateLimitException implements Exception {
+  const GeminiRateLimitException();
+  @override
+  String toString() => 'Gemini API Rate Limit Reached';
+}
+
 /// Google Gemini Powered AI Recipe Service
 /// Migrated from OpenAI to resolve quota issues.
 class AiRecipeService {
@@ -632,12 +638,11 @@ Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'No
           }
 
           if (response.statusCode == 429) {
-            // After all retries exhausted, return empty result instead of throwing
+            // After all retries exhausted, THROW specific exception
             if (kDebugMode) {
-              debugPrint('[AI Rate Limit] All retries exhausted, returning empty result');
+              debugPrint('[AI Rate Limit] All retries exhausted.');
             }
-            // Return empty JSON that will be handled gracefully by caller
-            return {'previews': []};
+            throw const GeminiRateLimitException();
           }
 
           throw Exception('AI Error (${response.statusCode}): $errorMessage');
