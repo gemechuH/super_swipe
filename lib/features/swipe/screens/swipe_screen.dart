@@ -61,6 +61,9 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
   // Batch Replay State
   List<RecipePreview> _replayCache = [];
   bool _isReplaying = false;
+  
+  // Track dismissed card order for undo functionality
+  final List<String> _dismissedCardHistory = <String>[];
 
   @override
   void dispose() {
@@ -398,6 +401,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     final swiped = deck[previousIndex];
     setState(() {
       _dismissedCardIds.add(swiped.id);
+      _dismissedCardHistory.add(swiped.id);
     });
 
     if (kDebugMode) {
@@ -1394,9 +1398,16 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                             icon: Icons.rotate_left_rounded,
                             color: Colors.orange,
                             isSmall: true,
-                            onPressed: _dismissedCardIds.isEmpty
+                            onPressed: _dismissedCardHistory.isEmpty
                                 ? null
-                                : () => _swiperController.unswipe(),
+                                : () {
+                                    final lastId = _dismissedCardHistory.removeLast();
+                                    setState(() {
+                                      _dismissedCardIds.remove(lastId);
+                                      _swiperRebuildToken++;
+                                    });
+                                    _swiperController.unswipe();
+                                  },
                           ),
                         ),
                         // RESTART BATCH BUTTON - Go back to first card in batch
@@ -1411,6 +1422,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                                 : () {
                                     setState(() {
                                       _dismissedCardIds.clear();
+                                      _dismissedCardHistory.clear();
                                       _swiperRebuildToken++;
                                     });
                                     ScaffoldMessenger.of(context).showSnackBar(
