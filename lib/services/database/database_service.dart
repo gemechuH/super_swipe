@@ -733,22 +733,41 @@ class DatabaseService {
     if (usedIngredients.isEmpty) return;
 
     await _firestore.runTransaction((transaction) async {
-      final consumedItems = <Map<String, dynamic>>[];
-
+      // 1. Aggregate usage by pantryItemId to avoid duplicate reads/writes
+      //    (e.g., if recipe uses "Salt" twice, we want to deduct 2 total)
+      final aggregatedUsage = <String, int>{};
       for (final used in usedIngredients) {
         final pantryItemId = used['pantryItemId'] as String?;
-        final quantityUsed = (used['quantity'] as num?)?.toInt() ?? 1;
+        final quantity = (used['quantity'] as num?)?.toInt() ?? 1;
 
-        if (pantryItemId == null) continue;
+        if (pantryItemId != null) {
+          aggregatedUsage[pantryItemId] =
+              (aggregatedUsage[pantryItemId] ?? 0) + quantity;
+        }
+      }
 
+      // 2. Phase 1: READ all documents
+      final pantrySnapshots =
+          <String, DocumentSnapshot<Map<String, dynamic>>>{};
+      for (final pantryItemId in aggregatedUsage.keys) {
         final pantryRef = _userPantry(userId).doc(pantryItemId);
-        final pantrySnap = await transaction.get(pantryRef);
+        final snap = await transaction.get(pantryRef);
+        pantrySnapshots[pantryItemId] = snap;
+      }
 
-        if (!pantrySnap.exists) continue;
+      // 3. Phase 2: CALCULATE & WRITE
+      final consumedItems = <Map<String, dynamic>>[];
 
-        final currentQty =
-            (pantrySnap.data()?['quantity'] as num?)?.toInt() ?? 0;
-        final newQty = (currentQty - quantityUsed).clamp(0, 9999);
+      for (final entry in aggregatedUsage.entries) {
+        final pantryItemId = entry.key;
+        final totalQtyUsed = entry.value;
+
+        final snap = pantrySnapshots[pantryItemId];
+        if (snap == null || !snap.exists) continue;
+
+        final currentQty = (snap.data()?['quantity'] as num?)?.toInt() ?? 0;
+        final newQty = (currentQty - totalQtyUsed).clamp(0, 9999);
+        final pantryRef = _userPantry(userId).doc(pantryItemId);
 
         if (newQty <= 0) {
           // Delete if depleted
@@ -763,13 +782,13 @@ class DatabaseService {
 
         consumedItems.add({
           'pantryItemId': pantryItemId,
-          'name': pantrySnap.data()?['name'] ?? '',
-          'quantity': quantityUsed,
-          'unit': pantrySnap.data()?['unit'] ?? 'pieces',
+          'name': snap.data()?['name'] ?? '',
+          'quantity': totalQtyUsed,
+          'unit': snap.data()?['unit'] ?? 'pieces',
         });
       }
 
-      // Create audit log
+      // 4. Create audit log
       if (consumedItems.isNotEmpty) {
         final logRef = _pantryLogs(userId).doc();
         transaction.set(logRef, {
