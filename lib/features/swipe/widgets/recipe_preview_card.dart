@@ -30,9 +30,9 @@ class RecipePreviewCard extends StatelessWidget {
         final isCompact = maxH.isFinite && maxH < 420;
         final imageHeight = isCompact
             ? 140.0
-            : (maxH.isFinite ? (maxH * 0.55).clamp(180.0, 320.0) : 260.0);
-        final padding = isCompact ? 12.0 : 18.0;
-        final titleSize = isCompact ? 18.0 : 22.0;
+            : (maxH.isFinite ? (maxH * 0.5).clamp(160.0, 300.0) : 240.0);
+        final padding = isCompact ? 10.0 : 16.0;
+        final titleSize = isCompact ? 16.0 : 20.0;
 
         final hasNetworkImage =
             preview.imageUrl != null && preview.imageUrl!.isNotEmpty;
@@ -85,7 +85,7 @@ class RecipePreviewCard extends StatelessWidget {
                           children: [
                             Text(
                               preview.title,
-                              maxLines: 2,
+                              maxLines: 3,
                               overflow: TextOverflow.ellipsis,
                               style: Theme.of(context).textTheme.titleLarge
                                   ?.copyWith(
@@ -94,7 +94,7 @@ class RecipePreviewCard extends StatelessWidget {
                                     height: 1.1,
                                   ),
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 6),
                             Text(
                               preview.vibeDescription,
                               maxLines: isCompact ? 2 : 3,
@@ -105,11 +105,11 @@ class RecipePreviewCard extends StatelessWidget {
                                     height: 1.35,
                                   ),
                             ),
-                            const SizedBox(height: 12),
-                            Wrap(spacing: 8, runSpacing: 8, children: chips),
+                            const SizedBox(height: 10),
+                            Wrap(spacing: 6, runSpacing: 6, children: chips),
                             if (!isCompact &&
                                 preview.mainIngredients.isNotEmpty) ...[
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 10),
                               Text(
                                 preview.mainIngredients.take(4).join(' • '),
                                 maxLines: 1,
