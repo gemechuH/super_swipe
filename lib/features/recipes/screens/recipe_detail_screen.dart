@@ -747,6 +747,9 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
               backgroundColor: AppTheme.successColor,
             ),
           );
+          
+          // Redirect to Recipes page (per user request)
+          context.go(AppRoutes.recipes);
         }
       }
     } catch (e) {

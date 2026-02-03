@@ -57,6 +57,9 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
   final Map<int, DocumentSnapshot?> _lastDocByEnergy =
       <int, DocumentSnapshot?>{};
   final Set<int> _loadingMoreEnergy = <int>{};
+  
+  // Loading state for right-swipe generation
+  bool _showLoadingOverlay = false;
 
   // Batch Replay State
   List<RecipePreview> _replayCache = [];
@@ -576,29 +579,41 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
         return;
       }
 
-      final notifier = ref.read(
-        pantryFirstSwipeDeckProvider(_selectedEnergyLevel).notifier,
-      );
+      // Show loading overlay immediately after confirmation
+      setState(() => _showLoadingOverlay = true);
 
-      await notifier.reserveUnlockPreview(preview, unlockSource: 'swipe_right');
+      try {
+        final notifier = ref.read(
+          pantryFirstSwipeDeckProvider(_selectedEnergyLevel).notifier,
+        );
 
-      if (!mounted) return;
+        await notifier.reserveUnlockPreview(preview, unlockSource: 'swipe_right');
 
-      final placeholder = _placeholderRecipeFromPreview(preview);
-      _openRecipeDetailById(
-        preview.id,
-        recipe: placeholder,
-        assumeUnlocked: true,
-        openDirections: true,
-        isGenerating: true,
-      );
+        if (!mounted) return;
 
-      unawaited(
-        notifier.generateAndFinalizeUnlockPreview(
-          preview,
-          unlockSource: 'swipe_right',
-        ),
-      );
+        final placeholder = _placeholderRecipeFromPreview(preview);
+        _openRecipeDetailById(
+          preview.id,
+          recipe: placeholder,
+          assumeUnlocked: true,
+          openDirections: true,
+          isGenerating: true,
+        );
+
+        unawaited(
+          notifier.generateAndFinalizeUnlockPreview(
+            preview,
+            unlockSource: 'swipe_right',
+          ),
+        );
+      } catch (e) {
+        // If something fails, hide overlay and restore
+        if (mounted) setState(() => _showLoadingOverlay = false);
+        await undoLastSwipeAndRestore();
+      } finally {
+        // Ensuring overlay is removed if we didn't navigate away (or if navigation popped back)
+        if (mounted) setState(() => _showLoadingOverlay = false);
+      }
     } on OutOfCarrotsException {
       if (mounted) _showOutOfCarrots();
       await undoLastSwipeAndRestore();
@@ -873,7 +888,88 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     }
 
     Widget deckWidget;
-    if (usingPreview) {
+    
+    // 0. ERROR HANDLING (Priority)
+    // Catch rate limit errors first to avoid red screens or confusing loading states
+    if (previewDeckAsync.hasError &&
+        previewDeckAsync.error is GeminiRateLimitException) {
+      deckWidget = Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                   Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppTheme.warningColor.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.hourglass_empty_rounded,
+                      size: 48,
+                      color: AppTheme.warningColor,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Chef is a bit overwhelmed! 👨‍🍳',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.textPrimary,
+                        ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'We hit the AI rate limit. Please wait a moment for the kitchen to cool down.',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppTheme.textSecondary,
+                          height: 1.5,
+                        ),
+                  ),
+                  const SizedBox(height: 24),
+                  // Action Buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                             // Retry
+                             ref.refresh(pantryFirstSwipeDeckProvider(_selectedEnergyLevel));
+                          },
+                          child: const Text('Try Again'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            // Link to Pro (mock)
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Pro Plan coming soon! 🚀')),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.primaryColor,
+                            foregroundColor: Colors.white,
+                          ),
+                          child: const Text('Upgrade to Pro'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    } else if (usingPreview) {
       // 1. CACHE LOGIC - Always keep a copy of the current batch for restart functionality
       if (previewDeck.isNotEmpty && (_replayCache.isEmpty || previewDeck.first.id != _replayCache.first.id)) {
         // Cache the current batch (done in post-frame to avoid setState during build)
@@ -980,72 +1076,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
             ),
           ),
         );
-      } else if (previewDeckAsync.hasError &&
-          previewDeckAsync.error is GeminiRateLimitException) {
-        deckWidget = Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.traffic_rounded,
-                      size: 56,
-                      color: AppTheme.warningColor,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Chef is busy right now',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: AppTheme.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'High traffic in the kitchen. Upgrade to Pro for priority access or try again in a moment.',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          // TODO: Route to upgrade screen
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Coming soon: Pro Plan!'),
-                            ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.primaryColor,
-                          foregroundColor: Colors.white,
-                        ),
-                        child: const Text('Upgrade to Pro'),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: _refreshCurrentDeck,
-                        child: const Text('Retry'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
+
       } else if (previewDeckAsync.hasError) {
         deckWidget = Center(
           child: SingleChildScrollView(
@@ -1380,7 +1411,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: AppTheme.backgroundColor.withValues(alpha: 0.92),
+                    color: AppTheme.backgroundColor.withOpacity(0.92),
                     borderRadius: BorderRadius.circular(18),
                   ),
                   child: Padding(
@@ -1775,6 +1806,38 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                 ),
               ),
             ),
+            
+            // Loading Overlay for Right Swipe Generation
+            if (_showLoadingOverlay)
+              Container(
+                color: Colors.black.withValues(alpha: 0.7),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 3,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Cooking up details... 🍳',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Preparing your full recipe',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Colors.white70,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
           ],
         ),
       ),
