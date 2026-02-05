@@ -68,8 +68,22 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
   // Track dismissed card order for undo functionality
   final List<String> _dismissedCardHistory = <String>[];
 
+  // Navigation tracking to close filters on tab switch
+  bool _isFilterOpen = false;
+  NavigatorState? _savedNavigator;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _savedNavigator = Navigator.of(context);
+  }
+
   @override
   void dispose() {
+    // Ensure filter panel closes if user navigates away (e.g. tabs)
+    if (_isFilterOpen) {
+      _savedNavigator?.maybePop();
+    }
     _swiperController.dispose();
     super.dispose();
   }
@@ -97,6 +111,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
 
   /// Show filters panel as a bottom sheet
   void _showFiltersPanel(BuildContext context) {
+    _isFilterOpen = true;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -151,7 +166,11 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
           },
         ),
       ),
-    );
+    ).whenComplete(() {
+      if (mounted) {
+        _isFilterOpen = false;
+      }
+    });
   }
 
   String _norm(String value) => value.toLowerCase().trim();
@@ -1051,24 +1070,26 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                       ),
                     ),
                     const SizedBox(height: 18),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: () => context.go(AppRoutes.pantry),
-                        child: const Text('Go to Pantry'),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () => context.go(AppRoutes.aiGenerate),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.primaryColor,
-                          foregroundColor: Colors.white,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => context.go(AppRoutes.pantry),
+                            child: const Text('Update Pantry'),
+                          ),
                         ),
-                        child: const Text('Generate a recipe'),
-                      ),
+                        const SizedBox(width: 18),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () => context.go(AppRoutes.aiGenerate),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.primaryColor,
+                              foregroundColor: Colors.white,
+                            ),
+                            child: const Text('Write Prompt'),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

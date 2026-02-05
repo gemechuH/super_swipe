@@ -683,9 +683,38 @@ Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'No
         try {
           return jsonDecode(cleanJson) as Map<String, dynamic>;
         } catch (e) {
+          // First failure - try to extract position and fix
           if (kDebugMode) {
-            debugPrint('━━━ JSON PARSE ERROR ━━━');
+            debugPrint('━━━ JSON PARSE ERROR (attempt 1) ━━━');
             debugPrint('Error: $e');
+          }
+          
+          // Try to extract error position from the exception message
+          // Format: "at position NNNN" or "position NNNN"
+          int? errorPos;
+          final posMatch = RegExp(r'position\s*(\d+)').firstMatch(e.toString());
+          if (posMatch != null) {
+            errorPos = int.tryParse(posMatch.group(1) ?? '');
+          }
+          
+          // Attempt to fix the JSON if we know the error position
+          if (errorPos != null && errorPos > 0) {
+            final fixedJson = _attemptJsonFix(cleanJson, errorPos);
+            if (fixedJson != cleanJson) {
+              try {
+                if (kDebugMode) {
+                  debugPrint('Attempting repair at position $errorPos...');
+                }
+                return jsonDecode(fixedJson) as Map<String, dynamic>;
+              } catch (e2) {
+                if (kDebugMode) {
+                  debugPrint('Repair attempt failed: $e2');
+                }
+              }
+            }
+          }
+          
+          if (kDebugMode) {
             debugPrint('Raw JSON (first 1000 chars):');
             debugPrint(cleanJson.substring(0, cleanJson.length > 1000 ? 1000 : cleanJson.length));
             debugPrint('━━━━━━━━━━━━━━━━━━━━━━━');
@@ -712,10 +741,29 @@ Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'No
     cleaned = cleaned.replaceAll(RegExp(r',(\s*[}\]])'), r'$1');
     
     // Fix missing commas between array elements (common AI error)
+    // Pattern 1: "value" followed by newline/whitespace then "value"
     cleaned = cleaned.replaceAll(RegExp(r'"\s*\n\s*"'), '",\n"');
     
-    // Fix unescaped quotes in strings (basic approach)
-    // This is tricky and may not catch all cases
+    // Pattern 2: "value" followed by whitespace then "value" (same line)
+    cleaned = cleaned.replaceAll(RegExp(r'"\s{2,}"'), '", "');
+    
+    // Pattern 3: } followed by newline/whitespace then { (objects in array)
+    cleaned = cleaned.replaceAll(RegExp(r'}\s*\n\s*\{'), '},\n{');
+    
+    // Pattern 4: ] followed by newline/whitespace then [ (arrays in array)
+    cleaned = cleaned.replaceAll(RegExp(r']\s*\n\s*\['), '],\n[');
+    
+    // Pattern 5: "value" followed by newline then { (string then object)
+    cleaned = cleaned.replaceAll(RegExp(r'"\s*\n\s*\{'), '",\n{');
+    
+    // Pattern 6: } followed by newline then "key": (object then key)
+    cleaned = cleaned.replaceAll(RegExp(r'}\s*\n\s*"'), '},\n"');
+    
+    // Pattern 7: ] followed by newline then "key": (array then key)
+    cleaned = cleaned.replaceAll(RegExp(r']\s*\n\s*"'), '],\n"');
+    
+    // Pattern 8: number/boolean/null followed by newline then "key":
+    cleaned = cleaned.replaceAll(RegExp(r'(\d|true|false|null)\s*\n\s*"'), r'$1,\n"');
     
     // Remove any trailing commas in objects
     cleaned = cleaned.replaceAll(RegExp(r',(\s*})'), r'$1');
@@ -724,6 +772,35 @@ Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'No
     cleaned = cleaned.replaceAll(RegExp(r',(\s*])'), r'$1');
     
     return cleaned;
+  }
+  
+  /// Attempt to fix JSON at a specific error position
+  String _attemptJsonFix(String json, int errorPosition) {
+    if (errorPosition <= 0 || errorPosition >= json.length) {
+      return json;
+    }
+    
+    // Look backwards from error position to find what's missing
+    var searchStart = (errorPosition - 50).clamp(0, json.length);
+    var context = json.substring(searchStart, errorPosition);
+    
+    // Common case: missing comma between array elements
+    // Find the last quote or closing brace/bracket before error
+    final lastQuote = context.lastIndexOf('"');
+    final lastBrace = context.lastIndexOf('}');
+    final lastBracket = context.lastIndexOf(']');
+    
+    final lastDelimiter = [lastQuote, lastBrace, lastBracket]
+        .where((i) => i >= 0)
+        .fold(-1, (a, b) => a > b ? a : b);
+    
+    if (lastDelimiter >= 0) {
+      // Insert comma after the delimiter
+      final insertPos = searchStart + lastDelimiter + 1;
+      return '${json.substring(0, insertPos)},${json.substring(insertPos)}';
+    }
+    
+    return json;
   }
 
   /// DEBUG: Fetch and print available models
