@@ -3,7 +3,7 @@ enum EnergyLevel {
     0,
     sliderLabel: '😴 Sleepy',
     sliderDescription: 'Quick & easy (under 15 min)',
-    summaryLabel: 'Zero (Ready-made)',
+    summaryLabel: 'Zero (-made)',
   ),
   level1(
     1,

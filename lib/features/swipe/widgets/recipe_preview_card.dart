@@ -85,7 +85,7 @@ class RecipePreviewCard extends StatelessWidget {
                           children: [
                             Text(
                               preview.title,
-                              maxLines: 3,
+                              maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: Theme.of(context).textTheme.titleLarge
                                   ?.copyWith(
@@ -95,15 +95,17 @@ class RecipePreviewCard extends StatelessWidget {
                                   ),
                             ),
                             const SizedBox(height: 6),
-                            Text(
-                              preview.vibeDescription,
-                              maxLines: isCompact ? 2 : 3,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(
-                                    color: AppTheme.textSecondary,
-                                    height: 1.35,
-                                  ),
+                            Flexible(
+                              child: Text(
+                                preview.vibeDescription,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(
+                                      color: AppTheme.textSecondary,
+                                      height: 1.35,
+                                    ),
+                              ),
                             ),
                             const SizedBox(height: 10),
                             Wrap(spacing: 6, runSpacing: 6, children: chips),

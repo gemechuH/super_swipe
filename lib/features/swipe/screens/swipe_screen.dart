@@ -1063,33 +1063,11 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      'We’re generating 20 recipes to get you started.',
+                      'Finding recipes that match your pantry.',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: AppTheme.textSecondary,
                       ),
-                    ),
-                    const SizedBox(height: 18),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () => context.go(AppRoutes.pantry),
-                            child: const Text('Update Pantry'),
-                          ),
-                        ),
-                        const SizedBox(width: 18),
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () => context.go(AppRoutes.aiGenerate),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppTheme.primaryColor,
-                              foregroundColor: Colors.white,
-                            ),
-                            child: const Text('Write Prompt'),
-                          ),
-                        ),
-                      ],
                     ),
                   ],
                 ),
@@ -1997,19 +1975,38 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => context.go(AppRoutes.pantry),
-                  icon: const Icon(Icons.kitchen_outlined, size: 18),
-                  label: const Text('Update Pantry'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => context.go(AppRoutes.pantry),
+                      
+                      label: const Text('Update Pantry'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => context.go(AppRoutes.aiGenerate),
+                      
+                      label: const Text('My Idea'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
