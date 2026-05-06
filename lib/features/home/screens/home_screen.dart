@@ -21,8 +21,22 @@ class HomeScreen extends ConsumerWidget {
     final pantryCount = ref.watch(pantryCountProvider);
     final savedRecipesAsync = ref.watch(savedRecipesProvider);
 
+    final size = MediaQuery.of(context).size;
+    final h = size.height;
+    final w = size.width;
+
+    // Responsive font sizes
+    final double greetingSize = h < 680
+        ? 24
+        : h < 780
+        ? 28
+        : 32;
+    final double subtitleSize = h < 680 ? 13 : 14;
+    final double buttonHeight = h < 680 ? 52 : 56;
+    final double sectionTitleSize = h < 680 ? 18 : 20;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFFFFBF5), // Warm cream background
+      backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -33,7 +47,7 @@ class HomeScreen extends ConsumerWidget {
         ],
       ),
       body: SafeArea(
-        top: false, // AppBar handles top safe area
+        top: false,
         child: userProfileAsync.when(
           loading: () => _buildLoadingState(),
           error: (error, stack) => _buildErrorState(context, error, ref),
@@ -46,60 +60,52 @@ class HomeScreen extends ConsumerWidget {
               );
             }
 
-            // Get display name
             String displayName;
             if (authState.user?.isAnonymous == true) {
-              displayName = 'Guest User';
+              displayName = 'Guest';
             } else {
               displayName = userProfile.displayName.split(' ').first;
             }
 
-            // Get real-time data from Firestore
             final carrotCount = userProfile.carrots.current;
             final maxCarrots = userProfile.carrots.max;
             final recipesUnlocked = userProfile.stats.recipesUnlocked;
-            final totalCarrotsSpent = userProfile.stats.totalCarrotsSpent;
             final subscription = userProfile.subscriptionStatus.toLowerCase();
             final isPremium = subscription == 'premium';
 
             return SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 28.0),
+              padding: EdgeInsets.symmetric(horizontal: w * 0.06),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Preload the swipe deck (Energy Level 2) so it's ready when user navigates
                   const _SwipeDeckPreloader(),
+                  SizedBox(height: h * 0.03),
 
-                  const SizedBox(height: 40),
-
-                  // 1. Header with personalized greeting
-                  Center(
-                    child: Text(
-                      'Welcome back,\n$displayName',
-                      style: GoogleFonts.dmSerifDisplay(
-                        fontSize: 40,
-                        height: 1.1,
-                        color: const Color(0xFF2D2621),
-                      ),
-                      textAlign: TextAlign.center,
+                  // ── Greeting ─────────────────────────────────────
+                  Text(
+                    'Welcome back, $displayName',
+                    style: GoogleFonts.dmSerifDisplay(
+                      fontSize: greetingSize,
+                      height: 1.2,
+                      color: AppTheme.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: h * 0.01),
                   Text(
                     'Ready to find your next meal?',
                     style: TextStyle(
-                      fontSize: 22,
-                      color: Colors.grey[700],
-                      fontWeight: FontWeight.w700,
+                      fontSize: subtitleSize,
+                      color: AppTheme.textSecondary,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
 
-                  const SizedBox(height: 32),
+                  SizedBox(height: h * 0.03),
 
-                  // 2. Swipe for Supper Button
+                  // ── Swipe Button ─────────────────────────────────
                   SizedBox(
                     width: double.infinity,
-                    height: 64,
+                    height: buttonHeight,
                     child: ElevatedButton(
                       onPressed: () => context.push(AppRoutes.swipe),
                       style: ElevatedButton.styleFrom(
@@ -107,35 +113,36 @@ class HomeScreen extends ConsumerWidget {
                         foregroundColor: Colors.white,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
+                          borderRadius: BorderRadius.circular(buttonHeight / 2),
                         ),
                       ),
-                      child: const Text(
+                      child: Text(
                         'Swipe for Supper',
-                        style: TextStyle(
-                          fontSize: 22,
+                        style: GoogleFonts.inter(
+                          fontSize: h < 680 ? 15 : 16,
                           fontWeight: FontWeight.w700,
+                          letterSpacing: 0.3,
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  const Center(
+                  SizedBox(height: h * 0.012),
+                  Center(
                     child: Text(
-                      'Unlimited swipes, Unlock instructions\nwhen you\'re ready to cook.',
+                      'Unlimited swipes • Unlock when ready to cook',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 16,
-                        color: Color(0xFF6B6B6B),
+                        fontSize: h < 680 ? 12 : 13,
+                        color: AppTheme.textSecondary,
                         height: 1.4,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ),
 
-                  const SizedBox(height: 32),
+                  SizedBox(height: h * 0.03),
 
-                  // 2.5 Latest Recipes Section (up to 3)
+                  // ── Latest Recipes (Horizontal Scroll) ───────────
                   savedRecipesAsync.when(
                     data: (recipes) {
                       if (recipes.isEmpty) return const SizedBox.shrink();
@@ -148,166 +155,136 @@ class HomeScreen extends ConsumerWidget {
                           Text(
                             'Latest Recipes',
                             style: GoogleFonts.dmSerifDisplay(
-                              fontSize: 24,
-                              color: const Color(0xFF2D2621),
+                              fontSize: sectionTitleSize,
+                              color: AppTheme.textPrimary,
                             ),
                           ),
-                          const SizedBox(height: 16),
-                          ...latestRecipes.map(
-                            (recipe) => Padding(
-                              padding: const EdgeInsets.only(bottom: 16),
-                              child: _buildVerticalRecipeCard(context, recipe),
+                          SizedBox(height: h * 0.015),
+                          SizedBox(
+                            height: 140,
+                            child: ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: latestRecipes.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(width: 12),
+                              itemBuilder: (context, index) =>
+                                  _buildHorizontalRecipeCard(
+                                    context,
+                                    latestRecipes[index],
+                                    w,
+                                  ),
                             ),
                           ),
-                          const SizedBox(height: 16),
+                          SizedBox(height: h * 0.025),
                         ],
                       );
                     },
                     loading: () => const SizedBox.shrink(),
-                    error: (error, stackTrace) => const SizedBox.shrink(),
+                    error: (_, __) => const SizedBox.shrink(),
                   ),
 
-                  // 3. Pantry Summary Card (Real-time data)
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
-                          blurRadius: 16,
-                          offset: const Offset(0, 4),
+                  // ── Pantry + Stats Row ───────────────────────────
+                  Row(
+                    children: [
+                      // Pantry card
+                      Expanded(
+                        child: _buildCompactCard(
+                          icon: Icons.kitchen_rounded,
+                          iconColor: Colors.orange,
+                          title: 'Pantry',
+                          value: '$pantryCount',
+                          label: 'items',
+                          onTap: () => context.go(AppRoutes.pantry),
                         ),
-                      ],
-                    ),
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.kitchen_rounded,
-                              size: 32,
-                              color: Colors.orange[700],
-                            ),
-                            const SizedBox(width: 12),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Your Pantry',
-                                  style: GoogleFonts.dmSerifDisplay(
-                                    fontSize: 20,
-                                    color: const Color(0xFF2D2621),
-                                  ),
-                                ),
-                                Text(
-                                  '$pantryCount ingredient${pantryCount == 1 ? '' : 's'}',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                      ),
+                      const SizedBox(width: 12),
+                      // Stats card
+                      Expanded(
+                        child: _buildCompactCard(
+                          icon: Icons.restaurant_rounded,
+                          iconColor: AppTheme.primaryColor,
+                          title: 'Recipes',
+                          value: '$recipesUnlocked',
+                          label: 'unlocked',
+                          onTap: () => context.go(AppRoutes.recipes),
                         ),
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: () => context.go(AppRoutes.pantry),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.orange[50],
-                              foregroundColor: Colors.orange[700],
-                              elevation: 0,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                            ),
-                            child: const Text('Manage Pantry'),
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
 
-                  const SizedBox(height: 40),
+                  SizedBox(height: h * 0.03),
 
-                  // 4. Weekly Activity (Real-time carrots)
+                  // ── Weekly Activity ──────────────────────────────
                   Text(
-                    'Your Weekly Activity',
+                    'Weekly Activity',
                     style: GoogleFonts.dmSerifDisplay(
-                      fontSize: 24,
-                      color: const Color(0xFF2D2621),
+                      fontSize: sectionTitleSize,
+                      color: AppTheme.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: h * 0.015),
                   if (!isPremium) ...[
-                    // Free users: 5 carrots/week + upsell placeholder
                     _buildCarrotDisplay(carrotCount, maxCarrots),
-                    const SizedBox(height: 12),
+                    SizedBox(height: h * 0.01),
                     Text(
-                      '$carrotCount of $maxCarrots unlocks remaining this week ',
+                      '$carrotCount of $maxCarrots unlocks remaining',
                       style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey[600],
-                        fontWeight: FontWeight.w600,
+                        fontSize: subtitleSize,
+                        color: AppTheme.textSecondary,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    SizedBox(height: h * 0.015),
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
                         color: Colors.orange.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: Colors.orange.withValues(alpha: 0.25),
+                          color: Colors.orange.withValues(alpha: 0.20),
                         ),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.star_rounded, color: Colors.orange),
-                          const SizedBox(width: 10),
-                          const Expanded(
-                            child: Text(
-                              'Upgrade to Premium for unlimited unlocks (no carrot limit).',
-                              style: TextStyle(fontWeight: FontWeight.w600),
-                            ),
+                          const Icon(
+                            Icons.star_rounded,
+                            color: Colors.orange,
+                            size: 20,
                           ),
-                          TextButton(
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Premium upgrade coming soon.'),
-                                ),
-                              );
-                            },
-                            child: const Text('Learn More'),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Upgrade to Premium for unlimited unlocks',
+                              style: TextStyle(
+                                fontSize: subtitleSize,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ),
                         ],
                       ),
                     ),
                   ] else ...[
-                    // Premium users: unlimited unlocks (no carrot UX)
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
                         color: Colors.amber.withValues(alpha: 0.10),
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: Colors.amber.withValues(alpha: 0.25),
+                          color: Colors.amber.withValues(alpha: 0.20),
                         ),
                       ),
                       child: Row(
                         children: [
-                          const Text('⭐', style: TextStyle(fontSize: 20)),
+                          const Text('⭐', style: TextStyle(fontSize: 18)),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              'Premium: Unlimited unlocks • $recipesUnlocked unlocked',
-                              style: const TextStyle(
+                              'Premium: Unlimited • $recipesUnlocked unlocked',
+                              style: TextStyle(
+                                fontSize: subtitleSize,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -317,55 +294,7 @@ class HomeScreen extends ConsumerWidget {
                     ),
                   ],
 
-                  const SizedBox(height: 40),
-
-                  // 5. Statistics Card (Real-time from Firestore)
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
-                          blurRadius: 16,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Your Stats',
-                          style: GoogleFonts.dmSerifDisplay(
-                            fontSize: 20,
-                            color: const Color(0xFF2D2621),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          children: [
-                            _buildStatItem(
-                              icon: Icons.restaurant_rounded,
-                              label: 'Recipes',
-                              value: '$recipesUnlocked',
-                              color: Colors.orange,
-                            ),
-                            _buildStatItem(
-                              icon: Icons.eco_rounded,
-                              label: 'Spent',
-                              value: '$totalCarrotsSpent',
-                              color: Colors.green,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 40),
+                  SizedBox(height: h * 0.04),
                 ],
               ),
             );
@@ -405,37 +334,43 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildVerticalRecipeCard(BuildContext context, recipe) {
+  Widget _buildHorizontalRecipeCard(
+    BuildContext context,
+    recipe,
+    double screenWidth,
+  ) {
     return GestureDetector(
       onTap: () =>
           context.push('${AppRoutes.recipes}/${recipe.id}', extra: recipe),
       child: Container(
+        width: screenWidth * 0.65,
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
+              color: Colors.black.withValues(alpha: 0.06),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
           ],
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Image
             ClipRRect(
-              borderRadius: const BorderRadius.horizontal(
-                left: Radius.circular(16),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(16),
               ),
               child: SizedBox(
-                width: 100,
-                height: 100,
+                height: 80,
+                width: double.infinity,
                 child: recipe.imageUrl.startsWith('http')
                     ? CachedNetworkImage(
                         imageUrl: recipe.imageUrl,
                         fit: BoxFit.cover,
-                        memCacheWidth: 300,
+                        memCacheWidth: 400,
                         placeholder: (context, url) =>
                             Container(color: Colors.grey.shade200),
                         errorWidget: (context, url, error) => Container(
@@ -450,73 +385,116 @@ class HomeScreen extends ConsumerWidget {
               ),
             ),
             // Content
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      recipe.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.dmSerifDisplay(
-                        fontSize: 18,
-                        color: const Color(0xFF2D2621),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    recipe.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.dmSerifDisplay(
+                      fontSize: 15,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.access_time,
+                        size: 12,
+                        color: Colors.grey[500],
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      recipe.description.isNotEmpty
-                          ? recipe.description
-                          : 'A delicious recipe from your cookbook',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey[600],
-                        height: 1.3,
+                      const SizedBox(width: 4),
+                      Text(
+                        '${recipe.timeMinutes} min',
+                        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.access_time,
-                          size: 14,
-                          color: Colors.grey[500],
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${recipe.timeMinutes} min',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Icon(
-                          Icons.local_fire_department,
-                          size: 14,
-                          color: Colors.grey[500],
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${recipe.calories} kcal',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                      const SizedBox(width: 12),
+                      Icon(
+                        Icons.local_fire_department,
+                        size: 12,
+                        color: Colors.grey[500],
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${recipe.calories} kcal',
+                        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-            const Padding(
-              padding: EdgeInsets.only(right: 12),
-              child: Icon(Icons.chevron_right, color: Colors.grey),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompactCard({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String value,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: iconColor.withValues(alpha: 0.10),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: iconColor, size: 22),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              style: GoogleFonts.dmSerifDisplay(
+                fontSize: 16,
+                color: AppTheme.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+              ],
             ),
           ],
         ),
@@ -743,7 +721,8 @@ class _SwipeDeckPreloader extends ConsumerStatefulWidget {
   const _SwipeDeckPreloader();
 
   @override
-  ConsumerState<_SwipeDeckPreloader> createState() => _SwipeDeckPreloaderState();
+  ConsumerState<_SwipeDeckPreloader> createState() =>
+      _SwipeDeckPreloaderState();
 }
 
 class _SwipeDeckPreloaderState extends ConsumerState<_SwipeDeckPreloader> {
@@ -760,7 +739,7 @@ class _SwipeDeckPreloaderState extends ConsumerState<_SwipeDeckPreloader> {
   }
 
   void _triggerPreload() {
-    // Just valid reading the provider triggers the build() method, 
+    // Just valid reading the provider triggers the build() method,
     // which calls ensureInitialDeck()
     ref.read(pantryFirstSwipeDeckProvider(_defaultEnergyLevel));
   }
@@ -769,8 +748,10 @@ class _SwipeDeckPreloaderState extends ConsumerState<_SwipeDeckPreloader> {
   Widget build(BuildContext context) {
     // We also watch it here to ensure it stays active if the user changes pantry items
     // ignoring the value to avoid unnecessary rebuilds of this widget (using select)
-    ref.watch(pantryFirstSwipeDeckProvider(_defaultEnergyLevel).select((_) => 0));
-    
+    ref.watch(
+      pantryFirstSwipeDeckProvider(_defaultEnergyLevel).select((_) => 0),
+    );
+
     return const SizedBox.shrink();
   }
 }
