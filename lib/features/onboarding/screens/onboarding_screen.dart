@@ -77,7 +77,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                           fontSize: bodySize,
                           height: 1.6,
                           color: AppTheme.textSecondary,
-                          fontWeight: FontWeight.w400,
+                          fontWeight: FontWeight.w600,
                           letterSpacing: 0.1,
                         ),
                       ),
