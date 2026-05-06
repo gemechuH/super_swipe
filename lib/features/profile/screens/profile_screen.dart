@@ -14,6 +14,9 @@ class ProfileScreen extends ConsumerWidget {
     final userProfileAsync = ref.watch(userProfileProvider);
     final pantryCount = ref.watch(pantryCountProvider);
 
+    final size = MediaQuery.of(context).size;
+    final h = size.height;
+
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
@@ -21,12 +24,12 @@ class ProfileScreen extends ConsumerWidget {
         elevation: 0,
         title: const Text(
           'Profile',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
         ),
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings_outlined),
+            icon: const Icon(Icons.settings_outlined, size: 20),
             onPressed: () {},
           ),
         ],
@@ -39,21 +42,21 @@ class ProfileScreen extends ConsumerWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
-                const SizedBox(height: 16),
+                Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+                const SizedBox(height: 12),
                 Text(
                   'Error loading profile',
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: Colors.grey[800],
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Text(
                   error.toString(),
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey[600]),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
               ],
             ),
@@ -70,7 +73,6 @@ class ProfileScreen extends ConsumerWidget {
               ? 'Guest User'
               : userProfile.displayName;
 
-          // Real-time Firestore data
           final recipesUnlocked = userProfile.stats.recipesUnlocked;
           final totalCarrotsSpent = userProfile.stats.totalCarrotsSpent;
           final dietaryRestrictions =
@@ -78,23 +80,32 @@ class ProfileScreen extends ConsumerWidget {
           final allergies = userProfile.preferences.allergies;
 
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(AppTheme.spacingL),
+            padding: EdgeInsets.symmetric(
+              horizontal: size.width * 0.05,
+              vertical: h * 0.015,
+            ),
             physics: const BouncingScrollPhysics(),
             child: Column(
               children: [
-                // 1. User Card with real data
+                // 1. Compact User Card
                 Container(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     color: AppTheme.surfaceColor,
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: AppTheme.softShadow,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: Row(
                     children: [
                       Container(
-                        width: 70,
-                        height: 70,
+                        width: 50,
+                        height: 50,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: AppTheme.primaryLight,
@@ -108,13 +119,13 @@ class ProfileScreen extends ConsumerWidget {
                             _getInitials(displayName),
                             style: const TextStyle(
                               color: AppTheme.primaryDark,
-                              fontSize: 24,
+                              fontSize: 18,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -122,29 +133,31 @@ class ProfileScreen extends ConsumerWidget {
                             Text(
                               displayName,
                               style: const TextStyle(
-                                fontSize: 20,
+                                fontSize: 16,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 2),
                             Text(
                               user?.email ?? '',
                               style: TextStyle(
                                 color: Colors.grey.shade500,
-                                fontSize: 14,
+                                fontSize: 12,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 2),
                             Text(
                               userProfile.subscriptionStatus == 'premium'
-                                  ? '⭐ Premium Member'
+                                  ? '⭐ Premium'
                                   : 'Free Plan',
                               style: TextStyle(
                                 color:
                                     userProfile.subscriptionStatus == 'premium'
                                     ? Colors.amber[700]
                                     : Colors.grey[600],
-                                fontSize: 12,
+                                fontSize: 11,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -152,26 +165,30 @@ class ProfileScreen extends ConsumerWidget {
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.edit_outlined, size: 20),
-                        onPressed: () {
-                          // TODO: Implement profile edit
-                        },
+                        icon: const Icon(Icons.edit_outlined, size: 18),
+                        onPressed: () {},
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
                       ),
                     ],
                   ),
                 ),
 
-                const SizedBox(height: AppTheme.spacingL),
+                SizedBox(height: h * 0.015),
 
-                // 2. Real-time Stats from Firestore
+                // 2. Compact Stats Row
                 Row(
                   children: [
                     Expanded(
-                      child: _buildStat('$pantryCount', 'Pantry', Colors.blue),
+                      child: _buildCompactStat(
+                        '$pantryCount',
+                        'Pantry',
+                        Colors.blue,
+                      ),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 10),
                     Expanded(
-                      child: _buildStat(
+                      child: _buildCompactStat(
                         '$recipesUnlocked',
                         'Recipes',
                         Colors.red,
@@ -180,75 +197,76 @@ class ProfileScreen extends ConsumerWidget {
                   ],
                 ),
 
-                const SizedBox(height: AppTheme.spacingL),
+                SizedBox(height: h * 0.015),
 
-                // 3. Carrots Stats
+                // 3. Compact Carrots Card
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     color: AppTheme.surfaceColor,
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: AppTheme.softShadow,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Weekly Carrots',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
                       ),
-                      const SizedBox(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '${userProfile.carrots.current} / ${userProfile.carrots.max}',
-                                style: const TextStyle(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.orange,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Remaining this week',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                            ],
+                          const Text(
+                            'Weekly Carrots',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
                           ),
-                          Column(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Colors.orange.shade50,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Text(
-                                  '🥕',
-                                  style: TextStyle(fontSize: 32),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Total Spent: $totalCarrotsSpent',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.grey[600],
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
+                          const SizedBox(height: 6),
+                          Text(
+                            '${userProfile.carrots.current} / ${userProfile.carrots.max}',
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Remaining',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                      Column(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.shade50,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Text(
+                              '🥕',
+                              style: TextStyle(fontSize: 24),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Spent: $totalCarrotsSpent',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey[600],
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ],
                       ),
@@ -256,16 +274,22 @@ class ProfileScreen extends ConsumerWidget {
                   ),
                 ),
 
-                const SizedBox(height: AppTheme.spacingL),
+                SizedBox(height: h * 0.015),
 
-                // 4. Dietary Preferences from Firestore
+                // 4. Compact Dietary Preferences
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     color: AppTheme.surfaceColor,
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: AppTheme.softShadow,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -273,60 +297,66 @@ class ProfileScreen extends ConsumerWidget {
                       const Text(
                         'Dietary Preferences',
                         style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 10),
                       if (dietaryRestrictions.isEmpty &&
                           (allergies.isEmpty || allergies.first == ''))
                         Text(
                           'No dietary restrictions set',
                           style: TextStyle(
                             color: Colors.grey[600],
-                            fontSize: 14,
+                            fontSize: 12,
                           ),
                         )
                       else
                         Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
+                          spacing: 6,
+                          runSpacing: 6,
                           children: [
                             ...dietaryRestrictions
                                 .where((r) => r.isNotEmpty)
-                                .map((r) => _buildFilterChip(r, true)),
+                                .map((r) => _buildSmallChip(r, true)),
                             ...allergies
                                 .where((a) => a.isNotEmpty)
-                                .map((a) => _buildFilterChip('No $a', true)),
-                            _buildAddChip(),
+                                .map((a) => _buildSmallChip('No $a', true)),
+                            _buildSmallAddChip(),
                           ],
                         ),
                     ],
                   ),
                 ),
 
-                const SizedBox(height: AppTheme.spacingL),
+                SizedBox(height: h * 0.015),
 
-                // 5. Menu Options
+                // 5. Compact Menu Options
                 Container(
                   decoration: BoxDecoration(
                     color: AppTheme.surfaceColor,
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: AppTheme.softShadow,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: Column(
                     children: [
-                      _buildMenuItem(
+                      _buildCompactMenuItem(
                         Icons.favorite_border_rounded,
                         'My Favorites',
                       ),
-                      _buildDivider(),
-                      _buildMenuItem(
+                      _buildThinDivider(),
+                      _buildCompactMenuItem(
                         Icons.shopping_bag_outlined,
                         'Shopping List',
                       ),
-                      _buildDivider(),
-                      _buildMenuItem(
+                      _buildThinDivider(),
+                      _buildCompactMenuItem(
                         Icons.help_outline_rounded,
                         'Help & Support',
                       ),
@@ -334,9 +364,9 @@ class ProfileScreen extends ConsumerWidget {
                   ),
                 ),
 
-                SizedBox(height: MediaQuery.of(context).size.height * 0.13),
+                SizedBox(height: h * 0.02),
 
-                // 6. Sign Out
+                // 6. Compact Sign Out
                 TextButton(
                   onPressed: () async {
                     await ref.read(authProvider.notifier).signOut();
@@ -345,27 +375,30 @@ class ProfileScreen extends ConsumerWidget {
                     foregroundColor: AppTheme.errorColor,
                     backgroundColor: AppTheme.surfaceColor,
                     padding: const EdgeInsets.symmetric(
-                      vertical: 12,
-                      horizontal: 24,
+                      vertical: 10,
+                      horizontal: 20,
                     ),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.logout_rounded, size: 20),
-                      SizedBox(width: 8),
+                      Icon(Icons.logout_rounded, size: 16),
+                      SizedBox(width: 6),
                       Text(
                         'Sign Out',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
                       ),
                     ],
                   ),
                 ),
 
-                const SizedBox(height: 100),
+                SizedBox(height: h * 0.02),
               ],
             ),
           );
@@ -374,28 +407,28 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildStat(String value, String label, MaterialColor color) {
+  Widget _buildCompactStat(String value, String label, MaterialColor color) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
         color: color.shade50,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         children: [
           Text(
             value,
             style: TextStyle(
-              fontSize: 20,
+              fontSize: 18,
               fontWeight: FontWeight.w800,
               color: color.shade700,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Text(
             label,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 11,
               color: color.shade700,
               fontWeight: FontWeight.w600,
             ),
@@ -405,56 +438,60 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildFilterChip(String label, bool isSelected) {
+  Widget _buildSmallChip(String label, bool isSelected) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: isSelected ? AppTheme.primaryColor : Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Text(
         label,
         style: TextStyle(
           color: isSelected ? Colors.white : Colors.black87,
           fontWeight: FontWeight.w600,
-          fontSize: 13,
+          fontSize: 11,
         ),
       ),
     );
   }
 
-  Widget _buildAddChip() {
+  Widget _buildSmallAddChip() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
       ),
-      child: const Icon(Icons.add, size: 16, color: Colors.grey),
+      child: const Icon(Icons.add, size: 14, color: Colors.grey),
     );
   }
 
-  Widget _buildMenuItem(IconData icon, String title) {
+  Widget _buildCompactMenuItem(IconData icon, String title) {
     return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
       leading: Container(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
           color: Colors.grey.shade50,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(8),
         ),
-        child: Icon(icon, color: Colors.black87, size: 20),
+        child: Icon(icon, color: Colors.black87, size: 18),
       ),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-      trailing: const Icon(Icons.chevron_right, size: 20, color: Colors.grey),
+      title: Text(
+        title,
+        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+      ),
+      trailing: const Icon(Icons.chevron_right, size: 18, color: Colors.grey),
       onTap: () {},
     );
   }
 
-  Widget _buildDivider() {
+  Widget _buildThinDivider() {
     return const Divider(
       height: 1,
-      indent: 70,
-      endIndent: 20,
+      indent: 56,
+      endIndent: 16,
       color: Color(0xFFF5F5F5),
     );
   }
