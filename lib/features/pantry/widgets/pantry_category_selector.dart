@@ -194,18 +194,17 @@ class _PantryCategorySelectorContentState
   @override
   Widget build(BuildContext context) {
     final hasChanges = _checkForChanges();
+    final screenHeight = MediaQuery.of(context).size.height;
 
     return SizedBox(
-      height:
-          MediaQuery.of(context).size.height *
-          0.80, // 80% to ensure button visible
+      height: screenHeight * 0.85,
       child: Column(
         children: [
-          const SizedBox(height: 12),
+          SizedBox(height: screenHeight * 0.005),
           // Handle
           Container(
             width: 40,
-            height: 4,
+            height: 3,
             decoration: BoxDecoration(
               color: Colors.grey.shade300,
               borderRadius: BorderRadius.circular(4),
@@ -214,18 +213,25 @@ class _PantryCategorySelectorContentState
 
           // Header
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+            padding: EdgeInsets.fromLTRB(
+              16,
+              screenHeight * 0.008,
+              16,
+              screenHeight * 0.004,
+            ),
             child: Row(
               children: [
                 const Expanded(
                   child: Text(
                     'Select Ingredients',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                   ),
                 ),
                 IconButton(
                   onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close_rounded),
+                  icon: const Icon(Icons.close_rounded, size: 22),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
                 ),
               ],
             ),
@@ -233,7 +239,7 @@ class _PantryCategorySelectorContentState
 
           // Custom Input
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            padding: EdgeInsets.fromLTRB(16, 0, 16, screenHeight * 0.008),
             child: Row(
               children: [
                 Expanded(
@@ -241,34 +247,41 @@ class _PantryCategorySelectorContentState
                     controller: _customController,
                     enabled: !widget.isApplying,
                     textInputAction: TextInputAction.done,
+                    style: const TextStyle(fontSize: 12),
                     decoration: InputDecoration(
                       hintText: 'Type to add item...',
+                      hintStyle: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[400],
+                      ),
                       isDense: true,
                       filled: true,
                       fillColor: Colors.grey.shade100,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
                       ),
                     ),
                     onSubmitted: (_) => _addCustomItem(),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 ElevatedButton(
                   onPressed: widget.isApplying ? null : _addCustomItem,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primaryColor,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 14,
-                    ),
+                    padding: const EdgeInsets.all(10),
+                    minimumSize: const Size(36, 36),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Icon(Icons.add_rounded),
+                  child: const Icon(Icons.add_rounded, size: 18),
                 ),
               ],
             ),
@@ -282,6 +295,15 @@ class _PantryCategorySelectorContentState
             labelColor: AppTheme.primaryColor,
             unselectedLabelColor: AppTheme.textSecondary,
             indicatorColor: AppTheme.primaryColor,
+            dividerColor: Colors.transparent,
+            labelStyle: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+            unselectedLabelStyle: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
             tabs: _tabs.map((c) => Tab(text: c)).toList(),
           ),
 
@@ -298,11 +320,16 @@ class _PantryCategorySelectorContentState
             ),
           ),
 
-          // Action Button - Wrapped in SafeArea to ensure visibility
+          // Action Button
           SafeArea(
-            minimum: const EdgeInsets.only(bottom: 16),
+            minimum: EdgeInsets.only(bottom: screenHeight * 0.01),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              padding: EdgeInsets.fromLTRB(
+                16,
+                screenHeight * 0.006,
+                16,
+                screenHeight * 0.01,
+              ),
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
@@ -311,22 +338,29 @@ class _PantryCategorySelectorContentState
                       : _handleApply,
                   icon: widget.isApplying
                       ? const SizedBox(
-                          width: 18,
-                          height: 18,
+                          width: 16,
+                          height: 16,
                           child: AppInlineLoading(
-                            size: 18,
+                            size: 16,
                             baseColor: Color(0xFFEFEFEF),
                             highlightColor: Color(0xFFFFFFFF),
                           ),
                         )
-                      : const Icon(Icons.check_rounded),
-                  label: Text(_getButtonLabel()),
+                      : const Icon(Icons.check_rounded, size: 14),
+                  label: Text(
+                    _getButtonLabel(),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primaryColor,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    disabledBackgroundColor: Colors.grey.shade300,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                 ),
@@ -360,7 +394,6 @@ class _PantryCategorySelectorContentState
   }
 
   Widget _buildCustomTab() {
-    // Combine existing custom norms and manually added norms
     final items =
         <String>{..._customExistingNorms, ..._customManualNorms}.toList()..sort(
           (a, b) => (_labelByNorm[a] ?? a).compareTo(_labelByNorm[b] ?? b),
@@ -375,14 +408,14 @@ class _PantryCategorySelectorContentState
             children: [
               Icon(
                 Icons.add_circle_outline_rounded,
-                size: 48,
+                size: 40,
                 color: Colors.grey.shade400,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               Text(
                 'Type an ingredient above to add a custom item',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey.shade600),
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
               ),
             ],
           ),
@@ -390,15 +423,15 @@ class _PantryCategorySelectorContentState
       );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       itemCount: items.length,
-      separatorBuilder: (context, index) => const Divider(height: 1),
       itemBuilder: (context, index) {
         final key = items[index];
         final isSelected = _selectedByNorm.containsKey(key);
         return CheckboxListTile(
           value: isSelected,
+          dense: true,
           onChanged: widget.isApplying
               ? null
               : (v) => setState(() {
@@ -408,9 +441,18 @@ class _PantryCategorySelectorContentState
                     _selectedByNorm.remove(key);
                   }
                 }),
-          title: Text(_labelByNorm[key] ?? key),
+          title: Text(
+            _labelByNorm[key] ?? key,
+            style: const TextStyle(fontSize: 13),
+          ),
           subtitle: _getSubtitle(key),
           controlAffinity: ListTileControlAffinity.leading,
+          activeColor: AppTheme.primaryColor,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 10,
+            vertical: 0,
+          ),
+          visualDensity: const VisualDensity(horizontal: 0, vertical: -3),
         );
       },
     );
@@ -418,9 +460,9 @@ class _PantryCategorySelectorContentState
 
   Widget _buildCategoryView(PantryCategory category) {
     return ListView.separated(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       itemCount: category.subCategories.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 8),
+      separatorBuilder: (context, index) => const SizedBox(height: 2),
       itemBuilder: (context, index) {
         final subCategory = category.subCategories[index];
         return Container(
@@ -432,14 +474,23 @@ class _PantryCategorySelectorContentState
           child: Theme(
             data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
             child: ExpansionTile(
+              tilePadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 0,
+              ),
+              childrenPadding: EdgeInsets.zero,
               title: Text(
                 subCategory.title,
                 style: const TextStyle(
                   fontWeight: FontWeight.w600,
-                  fontSize: 16,
+                  fontSize: 12,
                 ),
               ),
-              childrenPadding: EdgeInsets.zero,
+              trailing: Icon(
+                Icons.keyboard_arrow_down_rounded,
+                size: 18,
+                color: Colors.grey[600],
+              ),
               children: subCategory.items.map((item) {
                 final key = _norm(item);
                 final isSelected = _selectedByNorm.containsKey(key);
@@ -456,12 +507,26 @@ class _PantryCategorySelectorContentState
                             _selectedByNorm.remove(key);
                           }
                         }),
-                  title: Text(item),
-                  // Optional: show status if relevant
+                  title: Text(
+                    item,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
                   subtitle: _getSubtitle(key),
                   controlAffinity: ListTileControlAffinity.leading,
                   activeColor: AppTheme.primaryColor,
-                  contentPadding: const EdgeInsets.only(left: 16, right: 8),
+                  contentPadding: const EdgeInsets.only(
+                    left: 10,
+                    right: 6,
+                    top: 0,
+                    bottom: 0,
+                  ),
+                  visualDensity: const VisualDensity(
+                    horizontal: 0,
+                    vertical: -3,
+                  ),
                 );
               }).toList(),
             ),
@@ -472,8 +537,18 @@ class _PantryCategorySelectorContentState
   }
 
   Text? _getSubtitle(String key) {
-    if (_activeInPantryByNorm.containsKey(key)) return const Text('In pantry');
-    if (_depletedInPantryByNorm.containsKey(key)) return const Text('Depleted');
+    if (_activeInPantryByNorm.containsKey(key)) {
+      return Text(
+        'In pantry',
+        style: TextStyle(fontSize: 10, color: Colors.green[700]),
+      );
+    }
+    if (_depletedInPantryByNorm.containsKey(key)) {
+      return Text(
+        'Depleted',
+        style: TextStyle(fontSize: 10, color: Colors.orange[700]),
+      );
+    }
     return null;
   }
 }
