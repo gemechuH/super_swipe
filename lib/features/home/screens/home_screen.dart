@@ -66,11 +66,8 @@ class HomeScreen extends ConsumerWidget {
           error: (error, stack) => _buildErrorState(context, error, ref),
           data: (userProfile) {
             if (userProfile == null) {
-              return _buildErrorState(
-                context,
-                'Profile not found. Please sign in.',
-                ref,
-              );
+              // Show loading instead of error during initial profile creation
+              return _buildLoadingState();
             }
 
             final carrotCount = userProfile.carrots.current;
@@ -189,10 +186,29 @@ class HomeScreen extends ConsumerWidget {
 
                   SizedBox(height: h * 0.024),
 
-                  // ── Latest Recipes (Better Cards) ────────────────
+                  // ── Latest Recipes Section ───────────────────────
                   savedRecipesAsync.when(
                     data: (recipes) {
-                      if (recipes.isEmpty) return const SizedBox.shrink();
+                      if (recipes.isEmpty) {
+                        // Empty state for new users
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Latest Recipes',
+                              style: GoogleFonts.inter(
+                                fontSize: sectionTitleSize,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.textPrimary,
+                                letterSpacing: -0.3,
+                              ),
+                            ),
+                            SizedBox(height: h * 0.015),
+                            _buildEmptyRecipesState(context, h),
+                            SizedBox(height: h * 0.01),
+                          ],
+                        );
+                      }
 
                       final latestRecipes = recipes.take(5).toList();
 
@@ -233,6 +249,93 @@ class HomeScreen extends ConsumerWidget {
             );
           },
         ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyRecipesState(BuildContext context, double screenHeight) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(
+        vertical: screenHeight * 0.04,
+        horizontal: 24,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppTheme.primaryColor.withValues(alpha: 0.2),
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryColor.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Text('🍽️', style: TextStyle(fontSize: 48)),
+          ),
+          SizedBox(height: screenHeight * 0.02),
+          Text(
+            'No recipes yet!',
+            style: GoogleFonts.inter(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textPrimary,
+            ),
+          ),
+          SizedBox(height: screenHeight * 0.008),
+          Text(
+            'Start swiping to discover meals you\'ll love',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              color: AppTheme.textSecondary,
+              height: 1.4,
+            ),
+          ),
+          SizedBox(height: screenHeight * 0.01),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              onPressed: () => context.push(AppRoutes.swipe),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryColor,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Start Swiping',
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.arrow_forward_rounded, size: 20),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -287,81 +390,6 @@ class HomeScreen extends ConsumerWidget {
             style: GoogleFonts.inter(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: Colors.amber.shade900,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTopCarrotBadge(int current, int max) {
-    final remaining = max - current;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.orange.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.orange.withValues(alpha: 0.3),
-          width: 1.5,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text('🥕', style: TextStyle(fontSize: 16)),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '$current/$max',
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.orange.shade900,
-                  height: 1.1,
-                ),
-              ),
-              Text(
-                '$remaining left this week',
-                style: GoogleFonts.inter(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.orange.shade800,
-                  height: 1.2,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTopPremiumBadge() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.amber.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.amber.withValues(alpha: 0.3),
-          width: 1.5,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text('⭐', style: TextStyle(fontSize: 16)),
-          const SizedBox(width: 8),
-          Text(
-            'Premium',
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
               color: Colors.amber.shade900,
             ),
           ),
@@ -535,77 +563,6 @@ class HomeScreen extends ConsumerWidget {
                   label,
                   style: GoogleFonts.inter(
                     fontSize: 10,
-                    fontWeight: FontWeight.w400,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSimpleCard({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String value,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, color: iconColor, size: 18),
-                const SizedBox(width: 6),
-                Text(
-                  title,
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: AppTheme.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Text(
-                  value,
-                  style: GoogleFonts.inter(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textPrimary,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  label,
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
                     fontWeight: FontWeight.w400,
                     color: Colors.grey[600],
                   ),
