@@ -118,7 +118,7 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
                             style: Theme.of(context).textTheme.headlineMedium
                                 ?.copyWith(
                                   fontWeight: FontWeight.w800,
-                                  fontSize: 32,
+                                  fontSize: 24,
                                 ),
                           ),
                         ),
@@ -127,7 +127,7 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
                           children: [
                             Expanded(
                               child: Container(
-                                height: 48,
+                                height: 40,
                                 decoration: BoxDecoration(
                                   color: AppTheme.surfaceColor,
                                   borderRadius: BorderRadius.circular(30),
@@ -163,8 +163,8 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
                             ),
                             const SizedBox(width: AppTheme.spacingM),
                             Container(
-                              height: 48,
-                              width: 48,
+                              height: 40,
+                              width: 40,
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(30),
@@ -191,7 +191,7 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
                             ),
                             const Text(
                               'Show depleted items',
-                              style: TextStyle(fontWeight: FontWeight.w600),
+                              style: TextStyle(fontWeight: FontWeight.w500),
                             ),
                           ],
                         ),
@@ -221,7 +221,7 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
                                     child: Text(
                                       'Discovery settings',
                                       style: TextStyle(
-                                        fontWeight: FontWeight.w700,
+                                        fontWeight: FontWeight.w600,
                                       ),
                                     ),
                                   ),
@@ -429,10 +429,10 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
                             _showQuantityEditor(item);
                           },
                           child: Container(
-                            margin: const EdgeInsets.only(bottom: 12),
+                            margin: const EdgeInsets.only(bottom: 10),
                             padding: const EdgeInsets.symmetric(
                               horizontal: 16,
-                              vertical: 14,
+                              vertical: 12,
                             ),
                             decoration: BoxDecoration(
                               color: AppTheme.surfaceColor,
@@ -448,7 +448,7 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
                             child: Row(
                               children: [
                                 _buildIconForItem(item.name),
-                                const SizedBox(width: 16),
+                                const SizedBox(width: 14),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment:
@@ -457,8 +457,8 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
                                       Text(
                                         item.name,
                                         style: const TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 14,
                                           color: AppTheme.textPrimary,
                                         ),
                                       ),
@@ -467,8 +467,8 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
                                         '${item.quantity}',
                                         style: const TextStyle(
                                           color: AppTheme.textSecondary,
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w500,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w400,
                                         ),
                                       ),
                                     ],
