@@ -715,67 +715,107 @@ class HomeScreen extends ConsumerWidget {
     WidgetRef ref,
     AuthState authState,
   ) {
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
+      barrierColor: Colors.black.withValues(alpha: 0.5),
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircleAvatar(
+                radius: 40,
+                backgroundColor: AppTheme.primaryLight.withValues(alpha: 0.3),
+                backgroundImage: authState.user?.photoURL != null
+                    ? NetworkImage(authState.user!.photoURL!)
+                    : null,
+                child: authState.user?.photoURL == null
+                    ? Icon(Icons.person, size: 40, color: AppTheme.primaryColor)
+                    : null,
               ),
-            ),
-            CircleAvatar(
-              radius: 40,
-              backgroundColor: AppTheme.primaryLight.withValues(alpha: 0.3),
-              backgroundImage: authState.user?.photoURL != null
-                  ? NetworkImage(authState.user!.photoURL!)
-                  : null,
-              child: authState.user?.photoURL == null
-                  ? Icon(Icons.person, size: 40, color: AppTheme.primaryColor)
-                  : null,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              authState.user?.displayName ?? 'User',
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              authState.user?.email ?? 'Guest',
-              style: const TextStyle(color: AppTheme.textSecondary),
-            ),
-            const SizedBox(height: 24),
-            ListTile(
-              leading: const Icon(Icons.person_outline),
-              title: const Text('View Profile'),
-              onTap: () {
-                Navigator.pop(context);
-                context.push(AppRoutes.profile);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.logout),
-              title: const Text('Sign Out'),
-              onTap: () async {
-                Navigator.pop(context);
-                await ref.read(authProvider.notifier).signOut();
-                if (context.mounted) context.go(AppRoutes.login);
-              },
-            ),
-            const SizedBox(height: 16),
-          ],
+              const SizedBox(height: 16),
+              Text(
+                authState.user?.displayName ?? 'User',
+                style: GoogleFonts.inter(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                authState.user?.email ?? 'Guest',
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: AppTheme.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 24),
+              InkWell(
+                onTap: () {
+                  Navigator.pop(context);
+                  context.push(AppRoutes.profile);
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.person_outline,
+                        color: AppTheme.textPrimary,
+                        size: 22,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'View Profile',
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              InkWell(
+                onTap: () async {
+                  Navigator.pop(context);
+                  await ref.read(authProvider.notifier).signOut();
+                  if (context.mounted) context.go(AppRoutes.login);
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.logout, color: AppTheme.textPrimary, size: 22),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Sign Out',
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
