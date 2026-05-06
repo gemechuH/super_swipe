@@ -36,88 +36,99 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bottomPadding = MediaQuery.of(context).padding.bottom + 24;
+
     return Scaffold(
       backgroundColor: const Color(0xFFFFFBF5), // Warm cream background
       body: SafeArea(
         child: Column(
           children: [
-            const SizedBox(height: 60),
-            // Title
-            Text(
-              'Supper Swipe',
-              style: GoogleFonts.dmSerifDisplay(
-                fontSize: 42,
-                color: const Color(0xFF2D2621), // Dark brown/black
-                fontWeight: FontWeight.w400,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Match with your next meal',
-              style: TextStyle(
-                fontSize: 18,
-                color: const Color(0xFF2D2621).withValues(alpha: 0.7),
-                fontWeight: FontWeight.w500,
-                letterSpacing: 0.5,
-              ),
-            ),
+            // Scrollable content area
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    const SizedBox(height: 60),
+                    // Title
+                    Text(
+                      'Supper Swipe',
+                      style: GoogleFonts.dmSerifDisplay(
+                        fontSize: 42,
+                        color: const Color(0xFF2D2621), // Dark brown/black
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Match with your next meal',
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: const Color(0xFF2D2621).withValues(alpha: 0.7),
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
 
-            const Spacer(),
+                    const SizedBox(height: 40),
 
-            // Cards Row
-            SizedBox(
-              height: 300,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Left Card
-                  _buildFoodCard(
-                    image:
-                        'https://images.unsplash.com/photo-1563379926898-05f4575a45d8?auto=format&fit=crop&w=200&q=60',
-                    isCenter: false,
-                    isLike: false,
-                  ),
-                  const SizedBox(width: 12),
-                  // Center Card
-                  _buildFoodCard(
-                    image:
-                        'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?auto=format&fit=crop&w=200&q=60',
-                    isCenter: true,
-                    isLike: true,
-                  ),
-                  const SizedBox(width: 12),
-                  // Right Card
-                  _buildFoodCard(
-                    image:
-                        'https://images.unsplash.com/photo-1555126634-323283e090fa?auto=format&fit=crop&w=200&q=60',
-                    isCenter: false,
-                    isLike: false,
-                  ),
-                ],
-              ),
-            ),
+                    // Cards Row
+                    SizedBox(
+                      height: 300,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // Left Card
+                          _buildFoodCard(
+                            image:
+                                'https://images.unsplash.com/photo-1563379926898-05f4575a45d8?auto=format&fit=crop&w=200&q=60',
+                            isCenter: false,
+                            isLike: false,
+                          ),
+                          const SizedBox(width: 12),
+                          // Center Card
+                          _buildFoodCard(
+                            image:
+                                'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?auto=format&fit=crop&w=200&q=60',
+                            isCenter: true,
+                            isLike: true,
+                          ),
+                          const SizedBox(width: 12),
+                          // Right Card
+                          _buildFoodCard(
+                            image:
+                                'https://images.unsplash.com/photo-1555126634-323283e090fa?auto=format&fit=crop&w=200&q=60',
+                            isCenter: false,
+                            isLike: false,
+                          ),
+                        ],
+                      ),
+                    ),
 
-            const SizedBox(height: 40),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40),
-              child: Text(
-                'Swipe right on recipes you love based on ingredients you already have.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 16,
-                  height: 1.5,
-                  color: const Color(0xFF2D2621).withValues(alpha: 0.8),
-                  fontWeight: FontWeight.w400,
+                    const SizedBox(height: 40),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 40),
+                      child: Text(
+                        'Swipe right on recipes you love based on ingredients you already have.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 16,
+                          height: 1.5,
+                          color: const Color(0xFF2D2621).withValues(alpha: 0.8),
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 40),
+                  ],
                 ),
               ),
             ),
 
-            const Spacer(),
-
-            // Get Started Button
+            // Get Started Button — fixed at bottom, never blocked by nav bar
             Padding(
-              padding: const EdgeInsets.only(
-                  left: 40, right: 40, bottom: 80, top: 40),
+              padding: EdgeInsets.only(
+                  left: 40, right: 40, bottom: bottomPadding, top: 16),
               child: SizedBox(
                 width: double.infinity,
                 height: 64,

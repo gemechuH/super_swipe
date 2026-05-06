@@ -25,7 +25,7 @@ class PantryFirstSwipeDeckService {
 
   static final Set<String> _generationLocks = <String>{};
 
-  static const int _initialDeckTarget = 20;
+  static const int _initialDeckTarget = 10; // Reduced from 20 for faster first load
   static const int _refillBatchSize = 10;
 
   const PantryFirstSwipeDeckService({

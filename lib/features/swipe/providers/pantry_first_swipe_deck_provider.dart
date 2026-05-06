@@ -122,6 +122,12 @@ class PantryFirstSwipeDeckController
 
     if (isDisposed) return deck;
 
+    // Smart batch: initial deck is 10 cards for fast loading.
+    // Immediately trigger background refill to generate 10 more while user swipes.
+    if (deck.isNotEmpty) {
+      unawaited(_doRefill(force: false));
+    }
+
     return deck;
   }
 

@@ -63,7 +63,35 @@ class AiRecipeService {
   static const String _fullRecipeModel =
       'gemini-2.5-flash'; // Fallback to Flash due to Pro quota
 
-  String get _apiKey => dotenv.get('GEMINI_API_KEY', fallback: '');
+  // Multi-key rotation: reads GEMINI_API_KEY, GEMINI_API_KEY_2, GEMINI_API_KEY_3
+  static int _currentKeyIndex = 0;
+
+  /// All available Gemini API keys (non-empty only).
+  static List<String> get _apiKeys {
+    final keys = <String>[
+      dotenv.get('GEMINI_API_KEY', fallback: ''),
+      dotenv.get('GEMINI_API_KEY_2', fallback: ''),
+      dotenv.get('GEMINI_API_KEY_3', fallback: ''),
+    ].where((k) => k.isNotEmpty).toList();
+    return keys.isEmpty ? [''] : keys;
+  }
+
+  /// Current active API key.
+  static String get _apiKey {
+    final keys = _apiKeys;
+    return keys[_currentKeyIndex % keys.length];
+  }
+
+  /// Rotate to the next available API key.
+  static void _rotateApiKey() {
+    final keys = _apiKeys;
+    if (keys.length <= 1) return;
+    final oldIndex = _currentKeyIndex % keys.length;
+    _currentKeyIndex = (oldIndex + 1) % keys.length;
+    if (kDebugMode) {
+      debugPrint('[API Key Rotation] Switched from key ${oldIndex + 1} to key ${(_currentKeyIndex % keys.length) + 1} of ${keys.length}');
+    }
+  }
 
   /// Michelin-star Zero-Waste Chef system instruction with strict guardrails
   static const String _systemPromptPreview = '''
@@ -111,13 +139,23 @@ CRITICAL CULINARY RULES (STRICT ENFORCEMENT):
    - If ingredients are incompatible, choose the subset that makes a classic dish. It is better to ignore an ingredient than to ruin the meal.
 4. VIBE CHECK: The dish must sound appetizing to a sane human.
 
+DESCRIPTION QUALITY RULES:
+- "vibe_description" MUST be 2-3 sentences that paint a vivid picture of the dish.
+  - Sentence 1: What makes this dish special (flavor profile, technique, or origin).
+  - Sentence 2: Sensory details (texture, aroma, or visual appeal).
+  - Sentence 3 (optional): Who it is perfect for or when to enjoy it.
+- Example GOOD: "A rustic Italian classic where ripe tomatoes melt into garlic-infused olive oil over al dente spaghetti. The aroma of fresh basil fills the kitchen as parmesan melts into each warm bite. Perfect for a cozy weeknight dinner."
+- Example BAD: "Pasta with tomato sauce."
+
 Return JSON with this exact format:
 {
   "previews": [
     {
       "title": "Recipe Name",
-      "vibe_description": "Brief enticing description of the dish vibe",
-      "ingredients": ["ingredient 1", "ingredient 2", "ingredient 3"],
+      "vibe_description": "2-3 vivid sentences describing the dish experience",
+      "cooking_highlight": "One signature technique or moment, e.g. pan-seared until golden crisp",
+      "difficulty_tag": "weeknight friendly",
+      "ingredients": ["ingredient 1", "ingredient 2"],
       "estimated_time_minutes": 25,
       "calories": 450,
       "equipment_icons": ["pan", "pot"],
@@ -128,6 +166,8 @@ Return JSON with this exact format:
     }
   ]
 }
+
+DIFFICULTY TAG OPTIONS: "no-cook", "5-minute", "weeknight friendly", "worth the effort", "date night worthy", "meal prep champion", "comfort classic", "adventurous"
 ''';
 
   static const String _systemPromptFullRecipe = '''
@@ -572,10 +612,9 @@ Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'No
     required String systemPrompt,
   }) async {
     if (kDebugMode) {
-      debugPrint('AI Chef using model: $model');
+      debugPrint('AI Chef using model: $model (key ${(_currentKeyIndex % _apiKeys.length) + 1}/${_apiKeys.length})');
     }
 
-    final url = Uri.parse('$_baseUrl/$model:generateContent?key=$_apiKey');
     final body = {
       'contents': [
         {
@@ -603,6 +642,9 @@ Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'No
         await _acquireGeminiPermit();
         acquiredPermit = true;
 
+        // Build URL with current key (may change between retries due to rotation)
+        final url = Uri.parse('$_baseUrl/$model:generateContent?key=$_apiKey');
+
         final response = await http.post(
           url,
           headers: {'Content-Type': 'application/json'},
@@ -620,12 +662,15 @@ Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'No
           }
 
           if (response.statusCode == 429 && attempt < maxRetries) {
-            // Exponential backoff: 5s, 10s, 20s, 40s, 80s
-            final waitSeconds = 5 * (1 << attempt); // 2^attempt * 5
-            _onStatus?.call('AI is busy, waiting ${waitSeconds}s... (${attempt + 1}/${maxRetries + 1})');
+            // Rotate to next API key before retrying
+            _rotateApiKey();
+
+            // Exponential backoff: 3s, 6s, 12s, 24s, 48s (reduced since we rotated key)
+            final waitSeconds = 3 * (1 << attempt); // 2^attempt * 3
+            _onStatus?.call('Switching AI key, retrying in ${waitSeconds}s... (${attempt + 1}/${maxRetries + 1})');
             
             if (kDebugMode) {
-              debugPrint('[AI Rate Limit] Waiting ${waitSeconds}s before retry ${attempt + 1}');
+              debugPrint('[AI Rate Limit] Rotated key, waiting ${waitSeconds}s before retry ${attempt + 1}');
             }
             
             await Future.delayed(Duration(seconds: waitSeconds));
@@ -935,34 +980,19 @@ Meal Type: ${mealType ?? 'Any'}
 $filterConstraints
 
 Generate EXACTLY $count DISTINCT recipe previews.
-
-Return JSON with this exact format:
-{
-  "previews": [
-    {
-      "title": "Recipe Name",
-      "vibe_description": "Brief enticing description of the dish vibe",
-      "ingredients": ["ingredient 1", "ingredient 2"],
-      "estimated_time_minutes": 25,
-      "calories": 450,
-      "equipment_icons": ["pan", "pot"],
-      "meal_type": "dinner",
-      "cuisine": "italian",
-      "skill_level": "beginner",
-      "energy_level": 2
-    }
-  ]
-}
+Each preview MUST have a vivid 2-3 sentence vibe_description and a cooking_highlight.
 
 Rules:
 - No quantities in "ingredients".
-- Titles must be unique.
+- Titles must be unique and creative (not generic like "Chicken Stir Fry").
+- vibe_description must be 2-3 sentences painting a vivid picture of the dish.
+- cooking_highlight is the signature cooking moment (e.g. "seared until golden and caramelized").
 
 Context:
 - Cravings: ${cravings.isNotEmpty ? cravings : 'Surprise me!'}
 - Allergies to AVOID: ${allergies.isNotEmpty ? allergies.join(', ') : 'None'}
 - Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'None'}
-        - Energy Level: ${EnergyLevel.fromInt(energyLevel).promptLine}
+- Energy Level: ${EnergyLevel.fromInt(energyLevel).promptLine}
 ''';
   }
 
