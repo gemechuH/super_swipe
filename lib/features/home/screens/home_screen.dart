@@ -117,7 +117,7 @@ class HomeScreen extends ConsumerWidget {
                         ),
                       ),
                       child: Text(
-                        'Swipe for Supper',
+                        'Swipe for Super',
                         style: GoogleFonts.inter(
                           fontSize: h < 680 ? 15 : 16,
                           fontWeight: FontWeight.w700,
