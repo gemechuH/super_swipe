@@ -56,226 +56,255 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
+    final size = MediaQuery.of(context).size;
+    final h = size.height;
+
+    final double titleFontSize = h < 680 ? 22 : 26;
+    final double buttonHeight = h < 680 ? 44 : 48;
+    final double fieldGap = h < 680 ? 6 : 8;
+    final double sectionGap = h < 680 ? 8 : 12;
+    final double horizontalPad = size.width * 0.06;
 
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => context.go(AppRoutes.login),
-        ),
-      ),
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppTheme.spacingL),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Create Account 🎉',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: AppTheme.spacingS),
-                Text(
-                  'Start your journey to smarter pantry management',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppTheme.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: AppTheme.spacingXL),
-                AuthTextField(
-                  controller: _nameController,
-                  label: 'Full Name',
-                  hint: 'Enter your full name',
-                  prefixIcon: Icons.person_outlined,
-                  validator: _validateName,
-                ),
-                const SizedBox(height: AppTheme.spacingM),
-                AuthTextField(
-                  controller: _emailController,
-                  label: 'Email',
-                  hint: 'Enter your email',
-                  prefixIcon: Icons.email_outlined,
-                  keyboardType: TextInputType.emailAddress,
-                  validator: _validateEmail,
-                ),
-                const SizedBox(height: AppTheme.spacingM),
-                AuthTextField(
-                  controller: _passwordController,
-                  label: 'Password',
-                  hint: 'Create a password',
-                  prefixIcon: Icons.lock_outlined,
-                  obscureText: _obscurePassword,
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
-                      color: AppTheme.textLight,
-                    ),
-                    onPressed: () =>
-                        setState(() => _obscurePassword = !_obscurePassword),
-                  ),
-                  validator: _validatePassword,
-                ),
-                const SizedBox(height: AppTheme.spacingM),
-                AuthTextField(
-                  controller: _confirmPasswordController,
-                  label: 'Confirm Password',
-                  hint: 'Confirm your password',
-                  prefixIcon: Icons.lock_outlined,
-                  obscureText: _obscureConfirmPassword,
-                  textInputAction: TextInputAction.done,
-                  onFieldSubmitted: (_) => _handleSignup(),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscureConfirmPassword
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
-                      color: AppTheme.textLight,
-                    ),
-                    onPressed: () => setState(
-                      () => _obscureConfirmPassword = !_obscureConfirmPassword,
-                    ),
-                  ),
-                  validator: _validateConfirmPassword,
-                ),
-                const SizedBox(height: AppTheme.spacingL),
-                Container(
-                  padding: const EdgeInsets.all(AppTheme.spacingM),
-                  decoration: BoxDecoration(
-                    color: AppTheme.secondaryLight.withValues(alpha: 0.3),
-                    borderRadius: AppTheme.borderRadiusMedium,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Password must contain:',
-                        style: Theme.of(context).textTheme.labelMedium
-                            ?.copyWith(color: AppTheme.textSecondary),
-                      ),
-                      const SizedBox(height: AppTheme.spacingS),
-                      _buildRequirement('At least 6 characters'),
-                      _buildRequirement('At least one letter'),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: AppTheme.spacingL),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Checkbox(
-                      value: _agreeToTerms,
-                      onChanged: (value) =>
-                          setState(() => _agreeToTerms = value ?? false),
-                      activeColor: AppTheme.primaryColor,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () =>
-                            setState(() => _agreeToTerms = !_agreeToTerms),
-                        child: Padding(
-                          padding: const EdgeInsets.only(
-                            top: AppTheme.spacingS,
-                          ),
-                          child: RichText(
-                            text: TextSpan(
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: AppTheme.textSecondary),
-                              children: const [
-                                TextSpan(text: 'I agree to the '),
-                                TextSpan(
-                                  text: 'Terms of Service',
-                                  style: TextStyle(
-                                    color: AppTheme.primaryColor,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                TextSpan(text: ' and '),
-                                TextSpan(
-                                  text: 'Privacy Policy',
-                                  style: TextStyle(
-                                    color: AppTheme.primaryColor,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: EdgeInsets.symmetric(horizontal: horizontalPad),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // ── Back button ──────────────────────────────
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: IconButton(
+                            icon: const Icon(
+                              Icons.arrow_back_rounded,
+                              color: AppTheme.textPrimary,
                             ),
+                            padding: EdgeInsets.zero,
+                            onPressed: () => context.go(AppRoutes.login),
                           ),
                         ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppTheme.spacingL),
-                SizedBox(
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: authState.isLoading || !_agreeToTerms
-                        ? null
-                        : _handleSignup,
-                    child: authState.isLoading
-                        ? const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: AppInlineLoading(
-                              size: 24,
-                              baseColor: Color(0xFFEFEFEF),
-                              highlightColor: Color(0xFFFFFFFF),
+
+                        // ── Brand Header ─────────────────────────────
+                        _BrandHeader(titleFontSize: titleFontSize),
+
+                        SizedBox(height: h * 0.03),
+
+                        // ── Fields ───────────────────────────────────
+                        AuthTextField(
+                          controller: _nameController,
+                          label: 'Full Name',
+                          hint: 'Enter your full name',
+                          prefixIcon: Icons.person_outlined,
+                          validator: _validateName,
+                        ),
+                        SizedBox(height: fieldGap),
+                        AuthTextField(
+                          controller: _emailController,
+                          label: 'Email',
+                          hint: 'swipe@example.com',
+                          prefixIcon: Icons.email_outlined,
+                          keyboardType: TextInputType.emailAddress,
+                          validator: _validateEmail,
+                        ),
+                        SizedBox(height: fieldGap),
+                        AuthTextField(
+                          controller: _passwordController,
+                          label: 'Password',
+                          hint: 'Create a password',
+                          prefixIcon: Icons.lock_outlined,
+                          obscureText: _obscurePassword,
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                              color: AppTheme.textLight,
+                              size: 20,
                             ),
-                          )
-                        : const Text('Create Account'),
+                            onPressed: () => setState(
+                              () => _obscurePassword = !_obscurePassword,
+                            ),
+                          ),
+                          validator: _validatePassword,
+                        ),
+                        SizedBox(height: fieldGap),
+                        AuthTextField(
+                          controller: _confirmPasswordController,
+                          label: 'Confirm Password',
+                          hint: 'Re-enter your password',
+                          prefixIcon: Icons.lock_outlined,
+                          obscureText: _obscureConfirmPassword,
+                          textInputAction: TextInputAction.done,
+                          onFieldSubmitted: (_) => _handleSignup(),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscureConfirmPassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                              color: AppTheme.textLight,
+                              size: 20,
+                            ),
+                            onPressed: () => setState(
+                              () => _obscureConfirmPassword =
+                                  !_obscureConfirmPassword,
+                            ),
+                          ),
+                          validator: _validateConfirmPassword,
+                        ),
+
+                        SizedBox(height: sectionGap),
+
+                        // ── Terms checkbox ───────────────────────────
+                        GestureDetector(
+                          onTap: () =>
+                              setState(() => _agreeToTerms = !_agreeToTerms),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: Checkbox(
+                                  value: _agreeToTerms,
+                                  onChanged: (v) => setState(
+                                    () => _agreeToTerms = v ?? false,
+                                  ),
+                                  activeColor: AppTheme.primaryColor,
+                                  materialTapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                  visualDensity: VisualDensity.compact,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: RichText(
+                                  text: TextSpan(
+                                    style: TextStyle(
+                                      fontSize: h < 680 ? 11 : 12,
+                                      color: AppTheme.textSecondary,
+                                    ),
+                                    children: const [
+                                      TextSpan(text: 'I agree to the '),
+                                      TextSpan(
+                                        text: 'Terms of Service',
+                                        style: TextStyle(
+                                          color: AppTheme.primaryColor,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      TextSpan(text: ' and '),
+                                      TextSpan(
+                                        text: 'Privacy Policy',
+                                        style: TextStyle(
+                                          color: AppTheme.primaryColor,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // ── Flexible gap ─────────────────────────────
+                        const Spacer(),
+
+                        // ── Create Account Button ────────────────────
+                        SizedBox(
+                          height: buttonHeight,
+                          child: ElevatedButton(
+                            onPressed: authState.isLoading || !_agreeToTerms
+                                ? null
+                                : _handleSignup,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.primaryColor,
+                              foregroundColor: Colors.white,
+                              disabledBackgroundColor: AppTheme.primaryColor
+                                  .withValues(alpha: 0.4),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  buttonHeight / 2,
+                                ),
+                              ),
+                              elevation: 0,
+                            ),
+                            child: authState.isLoading
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: AppInlineLoading(
+                                      size: 20,
+                                      baseColor: Color(0xFFEFEFEF),
+                                      highlightColor: Color(0xFFFFFFFF),
+                                    ),
+                                  )
+                                : const Text(
+                                    'Create Account',
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                        SizedBox(height: sectionGap),
+
+                        // ── Already have account ─────────────────────
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Already have an account?',
+                              style: TextStyle(
+                                fontSize: h < 680 ? 12 : 13,
+                                color: AppTheme.textSecondary,
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () => context.go(AppRoutes.login),
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 4,
+                                ),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              child: Text(
+                                'Sign In',
+                                style: TextStyle(
+                                  fontSize: h < 680 ? 12 : 13,
+                                  color: AppTheme.primaryColor,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: h * 0.02),
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(height: AppTheme.spacingL),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Already have an account? ',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.textSecondary,
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => context.go(AppRoutes.login),
-                      child: const Text('Sign In'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
-      ),
-    );
-  }
-
-  Widget _buildRequirement(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppTheme.spacingXS),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.check_circle_outline,
-            size: 16,
-            color: AppTheme.secondaryDark,
-          ),
-          const SizedBox(width: AppTheme.spacingS),
-          Text(
-            text,
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
-          ),
-        ],
       ),
     );
   }
@@ -288,7 +317,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
   String? _validateEmail(String? value) {
     if (value == null || value.trim().isEmpty) return 'Please enter your email';
-    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    final emailRegex = RegExp(r'^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,4}$');
     if (!emailRegex.hasMatch(value.trim())) return 'Please enter a valid email';
     return null;
   }
@@ -320,7 +349,6 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       return;
     }
 
-    // Check if there's guest data to migrate
     final guestState = ref.read(guestStateProvider);
     final hasGuestData = guestState.pantry.isNotEmpty;
 
@@ -335,32 +363,88 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     if (!success) return;
     if (!mounted) return;
 
-    {
-      // ==========================================
-      // GUEST-TO-USER MIGRATION
-      // ==========================================
-      // If the user had guest pantry data, migrate it to Firestore now.
-      if (hasGuestData) {
-        final userId = ref.read(authProvider).user?.uid;
-        if (userId != null) {
-          await ref
-              .read(guestStateProvider.notifier)
-              .migrateToFirestore(userId);
-          if (!mounted) return;
-        }
+    if (hasGuestData) {
+      final userId = ref.read(authProvider).user?.uid;
+      if (userId != null) {
+        await ref.read(guestStateProvider.notifier).migrateToFirestore(userId);
+        if (!mounted) return;
       }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            hasGuestData
-                ? 'Account created & pantry synced! 🎉'
-                : 'Account created successfully! 🎉',
-          ),
-          backgroundColor: AppTheme.successColor,
-        ),
-      );
-      context.go(AppRoutes.home);
     }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          hasGuestData
+              ? 'Account created & pantry synced! 🎉'
+              : 'Account created successfully! 🎉',
+        ),
+        backgroundColor: AppTheme.successColor,
+      ),
+    );
+    context.go(AppRoutes.home);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Brand Header — shared style with Login
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _BrandHeader extends StatelessWidget {
+  const _BrandHeader({required this.titleFontSize});
+
+  final double titleFontSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [AppTheme.primaryColor, AppTheme.primaryDark],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.primaryColor.withValues(alpha: 0.35),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: const Center(
+            child: Text('🍽️', style: TextStyle(fontSize: 22)),
+          ),
+        ),
+        const SizedBox(height: 10),
+        ShaderMask(
+          shaderCallback: (bounds) => const LinearGradient(
+            colors: [
+              AppTheme.primaryDark,
+              AppTheme.primaryColor,
+              Color(0xFFFFB5A7),
+            ],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ).createShader(bounds),
+          child: Text(
+            'Super Swipe',
+            style: TextStyle(
+              fontSize: titleFontSize,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+              letterSpacing: -0.5,
+              height: 1.1,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ],
+    );
   }
 }

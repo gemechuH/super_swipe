@@ -35,7 +35,9 @@ class AuthTextField extends StatelessWidget {
       children: [
         Text(
           label,
-          style: Theme.of(context).textTheme.labelLarge?.copyWith(color: AppTheme.textPrimary),
+          style: Theme.of(
+            context,
+          ).textTheme.labelLarge?.copyWith(color: AppTheme.textPrimary),
         ),
         const SizedBox(height: AppTheme.spacingS),
         TextFormField(
@@ -56,4 +58,3 @@ class AuthTextField extends StatelessWidget {
     );
   }
 }
-

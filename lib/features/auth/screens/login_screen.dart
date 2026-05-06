@@ -53,7 +53,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final size = MediaQuery.of(context).size;
     final h = size.height;
 
-    // Responsive values based on screen height
     final double titleFontSize = h < 680 ? 22 : 26;
     final double subtitleFontSize = h < 680 ? 12 : 13;
     final double buttonHeight = h < 680 ? 44 : 48;
@@ -63,238 +62,273 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final double horizontalPad = size.width * 0.06;
 
     return Scaffold(
-      // Avoid resize when keyboard appears — layout stays fixed
-      resizeToAvoidBottomInset: false,
+      // true = Flutter shrinks the body when keyboard opens,
+      // so the ScrollView can scroll the focused field into view
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: horizontalPad),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // ── Header ──────────────────────────────────────────
-                SizedBox(height: h * 0.04),
-                _BrandHeader(titleFontSize: titleFontSize),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              // Keyboard-aware: scrolls just enough to show focused field
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: EdgeInsets.symmetric(horizontal: horizontalPad),
+              child: ConstrainedBox(
+                // Minimum height = full available viewport
+                // so content fills screen when keyboard is closed
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // ── Header ─────────────────────────────────
+                        SizedBox(height: h * 0.04),
+                        _BrandHeader(titleFontSize: titleFontSize),
 
-                // ── Fields ──────────────────────────────────────────
-                SizedBox(height: h * 0.035),
-                AuthTextField(
-                  controller: _emailController,
-                  label: 'Email Address',
-                  hint: 'hello@example.com',
-                  prefixIcon: Icons.email_outlined,
-                  keyboardType: TextInputType.emailAddress,
-                  validator: _validateEmail,
-                ),
-                SizedBox(height: fieldGap),
-                AuthTextField(
-                  controller: _passwordController,
-                  label: 'Password',
-                  hint: 'Enter your password',
-                  prefixIcon: Icons.lock_outline_rounded,
-                  obscureText: _obscurePassword,
-                  textInputAction: TextInputAction.done,
-                  validator: _validatePassword,
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
-                      color: AppTheme.textSecondary,
-                      size: 20,
-                    ),
-                    onPressed: () =>
-                        setState(() => _obscurePassword = !_obscurePassword),
-                  ),
-                  onFieldSubmitted: (_) => _handleLogin(),
-                ),
-
-                // ── Forgot Password ──────────────────────────────────
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: _showForgotPasswordDialog,
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 4,
-                      ),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: Text(
-                      'Forgot Password?',
-                      style: TextStyle(
-                        fontSize: subtitleFontSize,
-                        color: AppTheme.warningColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-
-                // ── Spacer fills remaining space evenly ─────────────
-                const Spacer(),
-
-                // ── Log In Button ────────────────────────────────────
-                SizedBox(
-                  height: buttonHeight,
-                  child: ElevatedButton(
-                    onPressed: authState.isLoading ? null : _handleLogin,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primaryColor,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(buttonHeight / 2),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: authState.isLoading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: AppInlineLoading(
+                        // ── Fields ─────────────────────────────────
+                        SizedBox(height: h * 0.035),
+                        AuthTextField(
+                          controller: _emailController,
+                          label: 'Email Address',
+                          hint: 'swipe@example.com',
+                          prefixIcon: Icons.email_outlined,
+                          keyboardType: TextInputType.emailAddress,
+                          validator: _validateEmail,
+                        ),
+                        SizedBox(height: fieldGap),
+                        AuthTextField(
+                          controller: _passwordController,
+                          label: 'Password',
+                          hint: 'Enter your password',
+                          prefixIcon: Icons.lock_outline_rounded,
+                          obscureText: _obscurePassword,
+                          textInputAction: TextInputAction.done,
+                          validator: _validatePassword,
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                              color: AppTheme.textSecondary,
                               size: 20,
-                              baseColor: Color(0xFFEFEFEF),
-                              highlightColor: Color(0xFFFFFFFF),
                             ),
-                          )
-                        : const Text(
-                            'Log In',
+                            onPressed: () => setState(
+                              () => _obscurePassword = !_obscurePassword,
+                            ),
+                          ),
+                          onFieldSubmitted: (_) => _handleLogin(),
+                        ),
+
+                        // ── Forgot Password ────────────────────────
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: _showForgotPasswordDialog,
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 4,
+                              ),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: Text(
+                              'Forgot Password?',
+                              style: TextStyle(
+                                fontSize: subtitleFontSize,
+                                color: AppTheme.warningColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        // ── Flexible gap — shrinks when keyboard open
+                        const Spacer(),
+
+                        // ── Log In Button ──────────────────────────
+                        SizedBox(
+                          height: buttonHeight,
+                          child: ElevatedButton(
+                            onPressed: authState.isLoading
+                                ? null
+                                : _handleLogin,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.primaryColor,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  buttonHeight / 2,
+                                ),
+                              ),
+                              elevation: 0,
+                            ),
+                            child: authState.isLoading
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: AppInlineLoading(
+                                      size: 20,
+                                      baseColor: Color(0xFFEFEFEF),
+                                      highlightColor: Color(0xFFFFFFFF),
+                                    ),
+                                  )
+                                : const Text(
+                                    'Log In',
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                        SizedBox(height: sectionGap),
+
+                        // ── Sign Up Button ─────────────────────────
+                        SizedBox(
+                          height: buttonHeight,
+                          child: OutlinedButton(
+                            onPressed: () => context.go(AppRoutes.signup),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppTheme.textPrimary,
+                              side: BorderSide(color: Colors.grey.shade400),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  buttonHeight / 2,
+                                ),
+                              ),
+                            ),
+                            child: const Text(
+                              'Sign Up',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: sectionGap),
+
+                        // ── OR Divider ─────────────────────────────
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Divider(color: Colors.grey.shade300),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              child: Text(
+                                'OR',
+                                style: TextStyle(
+                                  color: Colors.grey.shade500,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Divider(color: Colors.grey.shade300),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: sectionGap),
+
+                        // ── Social Buttons ─────────────────────────
+                        Row(
+                          children: [
+                            Expanded(
+                              child: SizedBox(
+                                height: socialButtonHeight,
+                                child: OutlinedButton(
+                                  onPressed: authState.isLoading
+                                      ? null
+                                      : _handleGoogleLogin,
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppTheme.textPrimary,
+                                    side: BorderSide(
+                                      color: Colors.grey.shade400,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(
+                                        socialButtonHeight / 2,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Image.asset(
+                                    'assets/images/google.png',
+                                    height: 22,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: SizedBox(
+                                height: socialButtonHeight,
+                                child: OutlinedButton(
+                                  onPressed: authState.isLoading
+                                      ? null
+                                      : _handleAppleLogin,
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppTheme.textPrimary,
+                                    side: BorderSide(
+                                      color: Colors.grey.shade400,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(
+                                        socialButtonHeight / 2,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Image.asset(
+                                    'assets/images/apple-logo.png',
+                                    height: 22,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: sectionGap * 0.5),
+
+                        // ── Continue as Guest ──────────────────────
+                        TextButton(
+                          onPressed: () async {
+                            await ref
+                                .read(appStateProvider.notifier)
+                                .markWelcomeSeen();
+                            final success = await ref
+                                .read(authProvider.notifier)
+                                .signInAnonymously();
+                            if (!context.mounted) return;
+                            if (success) {
+                              ref
+                                  .read(appStateProvider.notifier)
+                                  .setGuestMode(true);
+                              context.go(AppRoutes.home);
+                            }
+                          },
+                          child: Text(
+                            'Continue as Guest',
                             style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
+                              fontSize: subtitleFontSize + 1,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.warningColor,
                             ),
                           ),
-                  ),
-                ),
-                SizedBox(height: sectionGap),
-
-                // ── Sign Up Button ───────────────────────────────────
-                SizedBox(
-                  height: buttonHeight,
-                  child: OutlinedButton(
-                    onPressed: () => context.go(AppRoutes.signup),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppTheme.textPrimary,
-                      side: BorderSide(color: Colors.grey.shade400),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(buttonHeight / 2),
-                      ),
-                    ),
-                    child: const Text(
-                      'Sign Up',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                      ),
+                        ),
+                        SizedBox(height: h * 0.02),
+                      ],
                     ),
                   ),
                 ),
-                SizedBox(height: sectionGap),
-
-                // ── OR Divider ───────────────────────────────────────
-                Row(
-                  children: [
-                    Expanded(child: Divider(color: Colors.grey.shade300)),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Text(
-                        'OR',
-                        style: TextStyle(
-                          color: Colors.grey.shade500,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    Expanded(child: Divider(color: Colors.grey.shade300)),
-                  ],
-                ),
-                SizedBox(height: sectionGap),
-
-                // ── Social Buttons ───────────────────────────────────
-                Row(
-                  children: [
-                    Expanded(
-                      child: SizedBox(
-                        height: socialButtonHeight,
-                        child: OutlinedButton(
-                          onPressed: authState.isLoading
-                              ? null
-                              : _handleGoogleLogin,
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppTheme.textPrimary,
-                            side: BorderSide(color: Colors.grey.shade400),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(
-                                socialButtonHeight / 2,
-                              ),
-                            ),
-                          ),
-                          child: Image.asset(
-                            'assets/images/google.png',
-                            height: 22,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: SizedBox(
-                        height: socialButtonHeight,
-                        child: OutlinedButton(
-                          onPressed: authState.isLoading
-                              ? null
-                              : _handleAppleLogin,
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppTheme.textPrimary,
-                            side: BorderSide(color: Colors.grey.shade400),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(
-                                socialButtonHeight / 2,
-                              ),
-                            ),
-                          ),
-                          child: Image.asset(
-                            'assets/images/apple-logo.png',
-                            height: 22,
-                            color: Colors.black,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: sectionGap * 0.5),
-
-                // ── Continue as Guest ────────────────────────────────
-                TextButton(
-                  onPressed: () async {
-                    await ref.read(appStateProvider.notifier).markWelcomeSeen();
-                    final success = await ref
-                        .read(authProvider.notifier)
-                        .signInAnonymously();
-                    if (!context.mounted) return;
-                    if (success) {
-                      ref.read(appStateProvider.notifier).setGuestMode(true);
-                      context.go(AppRoutes.home);
-                    }
-                  },
-                  child: Text(
-                    'Continue as Guest',
-                    style: TextStyle(
-                      fontSize: subtitleFontSize + 1,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.warningColor,
-                    ),
-                  ),
-                ),
-                SizedBox(height: h * 0.02),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -416,7 +450,6 @@ class _BrandHeader extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // ── Icon badge ───────────────────────────────────────────────
         Container(
           width: 48,
           height: 48,
@@ -440,8 +473,6 @@ class _BrandHeader extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-
-        // ── Gradient brand name ──────────────────────────────────────
         ShaderMask(
           shaderCallback: (bounds) => const LinearGradient(
             colors: [
@@ -457,7 +488,7 @@ class _BrandHeader extends StatelessWidget {
             style: TextStyle(
               fontSize: titleFontSize,
               fontWeight: FontWeight.w900,
-              color: Colors.white, // masked by shader
+              color: Colors.white,
               letterSpacing: -0.5,
               height: 1.1,
             ),
