@@ -25,15 +25,11 @@ class HomeScreen extends ConsumerWidget {
     final h = size.height;
     final w = size.width;
 
-    // Responsive font sizes
-    final double greetingSize = h < 680
-        ? 24
-        : h < 780
-        ? 28
-        : 32;
-    final double subtitleSize = h < 680 ? 13 : 14;
-    final double buttonHeight = h < 680 ? 52 : 56;
-    final double sectionTitleSize = h < 680 ? 18 : 20;
+    // Responsive font sizes — clean and readable
+    final double subtitleSize = h < 680 ? 12 : 13;
+    final double buttonHeight = h < 680 ? 44 : 48;
+    final double sectionTitleSize = h < 680 ? 17 : 18;
+    final double cardTitleSize = h < 680 ? 13 : 14;
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
@@ -41,6 +37,23 @@ class HomeScreen extends ConsumerWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         automaticallyImplyLeading: false,
+        title: userProfileAsync.maybeWhen(
+          data: (userProfile) {
+            if (userProfile == null) return const SizedBox.shrink();
+            final carrotCount = userProfile.carrots.current;
+            final maxCarrots = userProfile.carrots.max;
+            final subscription = userProfile.subscriptionStatus.toLowerCase();
+            final isPremium = subscription == 'premium';
+
+            return Align(
+              alignment: Alignment.centerLeft,
+              child: !isPremium
+                  ? _buildAppBarCarrotBadge(carrotCount, maxCarrots)
+                  : _buildAppBarPremiumBadge(),
+            );
+          },
+          orElse: () => const SizedBox.shrink(),
+        ),
         actions: [
           _buildProfileAvatar(context, ref, authState, userProfileAsync),
           const SizedBox(width: 16),
@@ -60,18 +73,19 @@ class HomeScreen extends ConsumerWidget {
               );
             }
 
-            String displayName;
-            if (authState.user?.isAnonymous == true) {
-              displayName = 'Guest';
-            } else {
-              displayName = userProfile.displayName.split(' ').first;
-            }
-
             final carrotCount = userProfile.carrots.current;
             final maxCarrots = userProfile.carrots.max;
             final recipesUnlocked = userProfile.stats.recipesUnlocked;
             final subscription = userProfile.subscriptionStatus.toLowerCase();
             final isPremium = subscription == 'premium';
+
+            // Get first name from display name
+            String firstName;
+            if (authState.user?.isAnonymous == true) {
+              firstName = 'Guest';
+            } else {
+              firstName = userProfile.displayName.split(' ').first;
+            }
 
             return SingleChildScrollView(
               padding: EdgeInsets.symmetric(horizontal: w * 0.06),
@@ -79,28 +93,30 @@ class HomeScreen extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const _SwipeDeckPreloader(),
-                  SizedBox(height: h * 0.03),
-
-                  // ── Greeting ─────────────────────────────────────
+                  SizedBox(height: h * 0.02),
+                  // ── Welcome Greeting ─────────────────────────────
                   Text(
-                    'Welcome back, $displayName',
-                    style: GoogleFonts.dmSerifDisplay(
-                      fontSize: greetingSize,
+                    'Welcome back, $firstName',
+                    style: GoogleFonts.inter(
+                      fontSize: h < 680 ? 20 : 22,
                       height: 1.2,
+                      fontWeight: FontWeight.w700,
                       color: AppTheme.textPrimary,
+                      letterSpacing: -0.5,
                     ),
                   ),
-                  SizedBox(height: h * 0.01),
+                  SizedBox(height: h * 0.008),
                   Text(
                     'Ready to find your next meal?',
-                    style: TextStyle(
+                    style: GoogleFonts.inter(
                       fontSize: subtitleSize,
                       color: AppTheme.textSecondary,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w400,
+                      height: 1.4,
                     ),
                   ),
 
-                  SizedBox(height: h * 0.03),
+                  SizedBox(height: h * 0.024),
 
                   // ── Swipe Button ─────────────────────────────────
                   SizedBox(
@@ -119,76 +135,35 @@ class HomeScreen extends ConsumerWidget {
                       child: Text(
                         'Swipe for Super',
                         style: GoogleFonts.inter(
-                          fontSize: h < 680 ? 15 : 16,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.3,
+                          fontSize: h < 680 ? 13 : 14,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.2,
                         ),
                       ),
                     ),
                   ),
-                  SizedBox(height: h * 0.012),
+                  SizedBox(height: h * 0.01),
                   Center(
                     child: Text(
                       'Unlimited swipes • Unlock when ready to cook',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
+                      style: GoogleFonts.inter(
                         fontSize: h < 680 ? 12 : 13,
                         color: AppTheme.textSecondary,
                         height: 1.4,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w400,
                       ),
                     ),
                   ),
 
-                  SizedBox(height: h * 0.03),
+                  SizedBox(height: h * 0.024),
 
-                  // ── Latest Recipes (Horizontal Scroll) ───────────
-                  savedRecipesAsync.when(
-                    data: (recipes) {
-                      if (recipes.isEmpty) return const SizedBox.shrink();
-
-                      final latestRecipes = recipes.take(3).toList();
-
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Latest Recipes',
-                            style: GoogleFonts.dmSerifDisplay(
-                              fontSize: sectionTitleSize,
-                              color: AppTheme.textPrimary,
-                            ),
-                          ),
-                          SizedBox(height: h * 0.015),
-                          SizedBox(
-                            height: 140,
-                            child: ListView.separated(
-                              scrollDirection: Axis.horizontal,
-                              itemCount: latestRecipes.length,
-                              separatorBuilder: (_, __) =>
-                                  const SizedBox(width: 12),
-                              itemBuilder: (context, index) =>
-                                  _buildHorizontalRecipeCard(
-                                    context,
-                                    latestRecipes[index],
-                                    w,
-                                  ),
-                            ),
-                          ),
-                          SizedBox(height: h * 0.025),
-                        ],
-                      );
-                    },
-                    loading: () => const SizedBox.shrink(),
-                    error: (_, __) => const SizedBox.shrink(),
-                  ),
-
-                  // ── Pantry + Stats Row ───────────────────────────
+                  // ── Pantry + Recipes Row (Small Cards) ───────────
                   Row(
                     children: [
                       // Pantry card
                       Expanded(
-                        child: _buildCompactCard(
+                        child: _buildTinyCard(
                           icon: Icons.kitchen_rounded,
                           iconColor: Colors.orange,
                           title: 'Pantry',
@@ -197,10 +172,10 @@ class HomeScreen extends ConsumerWidget {
                           onTap: () => context.go(AppRoutes.pantry),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      // Stats card
+                      const SizedBox(width: 8),
+                      // Recipes card
                       Expanded(
-                        child: _buildCompactCard(
+                        child: _buildTinyCard(
                           icon: Icons.restaurant_rounded,
                           iconColor: AppTheme.primaryColor,
                           title: 'Recipes',
@@ -212,89 +187,47 @@ class HomeScreen extends ConsumerWidget {
                     ],
                   ),
 
-                  SizedBox(height: h * 0.03),
+                  SizedBox(height: h * 0.024),
 
-                  // ── Weekly Activity ──────────────────────────────
-                  Text(
-                    'Weekly Activity',
-                    style: GoogleFonts.dmSerifDisplay(
-                      fontSize: sectionTitleSize,
-                      color: AppTheme.textPrimary,
-                    ),
+                  // ── Latest Recipes (Better Cards) ────────────────
+                  savedRecipesAsync.when(
+                    data: (recipes) {
+                      if (recipes.isEmpty) return const SizedBox.shrink();
+
+                      final latestRecipes = recipes.take(5).toList();
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Latest Recipes',
+                            style: GoogleFonts.inter(
+                              fontSize: sectionTitleSize,
+                              fontWeight: FontWeight.w400,
+                              color: AppTheme.textPrimary,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          SizedBox(height: h * 0.015),
+                          ...latestRecipes.map(
+                            (recipe) => Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: _buildRecipeCard(
+                                context,
+                                recipe,
+                                cardTitleSize,
+                              ),
+                            ),
+                          ),
+                          SizedBox(height: h * 0.01),
+                        ],
+                      );
+                    },
+                    loading: () => const SizedBox.shrink(),
+                    error: (_, __) => const SizedBox.shrink(),
                   ),
-                  SizedBox(height: h * 0.015),
-                  if (!isPremium) ...[
-                    _buildCarrotDisplay(carrotCount, maxCarrots),
-                    SizedBox(height: h * 0.01),
-                    Text(
-                      '$carrotCount of $maxCarrots unlocks remaining',
-                      style: TextStyle(
-                        fontSize: subtitleSize,
-                        color: AppTheme.textSecondary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    SizedBox(height: h * 0.015),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.orange.withValues(alpha: 0.20),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.star_rounded,
-                            color: Colors.orange,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Upgrade to Premium for unlimited unlocks',
-                              style: TextStyle(
-                                fontSize: subtitleSize,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ] else ...[
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: Colors.amber.withValues(alpha: 0.10),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.amber.withValues(alpha: 0.20),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          const Text('⭐', style: TextStyle(fontSize: 18)),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Premium: Unlimited • $recipesUnlocked unlocked',
-                              style: TextStyle(
-                                fontSize: subtitleSize,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
 
-                  SizedBox(height: h * 0.04),
+                  SizedBox(height: h * 0.03),
                 ],
               ),
             );
@@ -304,46 +237,145 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatItem({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color color,
-  }) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, color: color, size: 24),
+  Widget _buildAppBarCarrotBadge(int current, int max) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.orange.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: Colors.orange.withValues(alpha: 0.1),
+          width: 0.5,
         ),
-        const SizedBox(height: 8),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF2D2621),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('🥕', style: TextStyle(fontSize: 14)),
+          const SizedBox(width: 6),
+          Text(
+            '$current/$max weekly unlocks',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w400,
+              color: Colors.orange.shade900,
+            ),
           ),
-        ),
-        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _buildHorizontalRecipeCard(
-    BuildContext context,
-    recipe,
-    double screenWidth,
-  ) {
+  Widget _buildAppBarPremiumBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.amber.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.amber.withValues(alpha: 0.3),
+          width: 1.5,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('⭐', style: TextStyle(fontSize: 16)),
+          const SizedBox(width: 8),
+          Text(
+            'Premium',
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.amber.shade900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopCarrotBadge(int current, int max) {
+    final remaining = max - current;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.orange.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.orange.withValues(alpha: 0.3),
+          width: 1.5,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('🥕', style: TextStyle(fontSize: 16)),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '$current/$max',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.orange.shade900,
+                  height: 1.1,
+                ),
+              ),
+              Text(
+                '$remaining left this week',
+                style: GoogleFonts.inter(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.orange.shade800,
+                  height: 1.2,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopPremiumBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.amber.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.amber.withValues(alpha: 0.3),
+          width: 1.5,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('⭐', style: TextStyle(fontSize: 16)),
+          const SizedBox(width: 8),
+          Text(
+            'Premium',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: Colors.amber.shade900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecipeCard(BuildContext context, recipe, double titleSize) {
     return GestureDetector(
       onTap: () =>
           context.push('${AppRoutes.recipes}/${recipe.id}', extra: recipe),
       child: Container(
-        width: screenWidth * 0.65,
+        height: 120, // Fixed height for all cards
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
@@ -355,22 +387,21 @@ class HomeScreen extends ConsumerWidget {
             ),
           ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            // Image
+            // Image - Fixed size
             ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(16),
+              borderRadius: const BorderRadius.horizontal(
+                left: Radius.circular(16),
               ),
               child: SizedBox(
-                height: 80,
-                width: double.infinity,
+                width: 120,
+                height: 120,
                 child: recipe.imageUrl.startsWith('http')
                     ? CachedNetworkImage(
                         imageUrl: recipe.imageUrl,
                         fit: BoxFit.cover,
-                        memCacheWidth: 400,
+                        memCacheWidth: 300,
                         placeholder: (context, url) =>
                             Container(color: Colors.grey.shade200),
                         errorWidget: (context, url, error) => Container(
@@ -385,47 +416,58 @@ class HomeScreen extends ConsumerWidget {
               ),
             ),
             // Content
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    recipe.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.dmSerifDisplay(
-                      fontSize: 15,
-                      color: AppTheme.textPrimary,
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      recipe.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: titleSize,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                        height: 1.3,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.access_time,
-                        size: 12,
-                        color: Colors.grey[500],
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${recipe.timeMinutes} min',
-                        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                      ),
-                      const SizedBox(width: 12),
-                      Icon(
-                        Icons.local_fire_department,
-                        size: 12,
-                        color: Colors.grey[500],
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${recipe.calories} kcal',
-                        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                      ),
-                    ],
-                  ),
-                ],
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.access_time,
+                          size: 14,
+                          color: Colors.grey[500],
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${recipe.timeMinutes} min',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Icon(
+                          Icons.local_fire_department,
+                          size: 14,
+                          color: Colors.grey[500],
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${recipe.calories} kcal',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -434,7 +476,7 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildCompactCard({
+  Widget _buildTinyCard({
     required IconData icon,
     required Color iconColor,
     required String title,
@@ -445,54 +487,57 @@ class HomeScreen extends ConsumerWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(10),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
             ),
           ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: 0.10),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: iconColor, size: 22),
+            Row(
+              children: [
+                Icon(icon, color: iconColor, size: 16),
+                const SizedBox(width: 6),
+                Text(
+                  title,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              style: GoogleFonts.dmSerifDisplay(
-                fontSize: 16,
-                color: AppTheme.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Row(
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
               children: [
                 Text(
                   value,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
+                  style: GoogleFonts.inter(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
                     color: AppTheme.textPrimary,
+                    letterSpacing: -0.5,
                   ),
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: 3),
                 Text(
                   label,
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w400,
+                    color: Colors.grey[600],
+                  ),
                 ),
               ],
             ),
@@ -502,53 +547,74 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  /// Fix #10: Build carrot display with cap for premium users
-  Widget _buildCarrotDisplay(int current, int max) {
-    // Cap at 20 to prevent overflow on premium
-    if (max > 20) {
-      return Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+  Widget _buildSimpleCard({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String value,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Colors.orange.withValues(alpha: 0.1),
-              Colors.orange.withValues(alpha: 0.05),
-            ],
-          ),
+          color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('🥕', style: TextStyle(fontSize: 28)),
-            const SizedBox(width: 12),
-            Text(
-              '$current / $max',
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.orange,
-              ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
             ),
           ],
         ),
-      );
-    }
-
-    // Normal display for <= 20 carrots
-    final displayMax = max.clamp(0, 20);
-    return Row(
-      children: List.generate(displayMax, (index) {
-        final isActive = index < current;
-        return Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 300),
-            opacity: isActive ? 1.0 : 0.25,
-            child: const Text('🥕', style: TextStyle(fontSize: 26)),
-          ),
-        );
-      }),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: iconColor, size: 18),
+                const SizedBox(width: 6),
+                Text(
+                  title,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  value,
+                  style: GoogleFonts.inter(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w400,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
