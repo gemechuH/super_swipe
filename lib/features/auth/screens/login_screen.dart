@@ -50,38 +50,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
+    final size = MediaQuery.of(context).size;
+    final h = size.height;
+
+    // Responsive values based on screen height
+    final double titleFontSize = h < 680 ? 22 : 26;
+    final double subtitleFontSize = h < 680 ? 12 : 13;
+    final double buttonHeight = h < 680 ? 44 : 48;
+    final double socialButtonHeight = h < 680 ? 44 : 48;
+    final double sectionGap = h < 680 ? 10 : 14;
+    final double fieldGap = h < 680 ? 8 : 10;
+    final double horizontalPad = size.width * 0.06;
 
     return Scaffold(
+      // Avoid resize when keyboard appears — layout stays fixed
+      resizeToAvoidBottomInset: false,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppTheme.spacingXL,
-            vertical: AppTheme.spacingXXL,
-          ),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: horizontalPad),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  'Supper Swipe',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 32,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: AppTheme.spacingS),
-                Text(
-                  'Log in or continue',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppTheme.textSecondary,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: AppTheme.spacingXL),
+                // ── Header ──────────────────────────────────────────
+                SizedBox(height: h * 0.04),
+                _BrandHeader(titleFontSize: titleFontSize),
 
-                // Email Field
+                // ── Fields ──────────────────────────────────────────
+                SizedBox(height: h * 0.035),
                 AuthTextField(
                   controller: _emailController,
                   label: 'Email Address',
@@ -90,9 +87,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   keyboardType: TextInputType.emailAddress,
                   validator: _validateEmail,
                 ),
-                const SizedBox(height: AppTheme.spacingM),
-
-                // Password Field
+                SizedBox(height: fieldGap),
                 AuthTextField(
                   controller: _passwordController,
                   label: 'Password',
@@ -107,6 +102,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ? Icons.visibility_outlined
                           : Icons.visibility_off_outlined,
                       color: AppTheme.textSecondary,
+                      size: 20,
                     ),
                     onPressed: () =>
                         setState(() => _obscurePassword = !_obscurePassword),
@@ -114,31 +110,43 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   onFieldSubmitted: (_) => _handleLogin(),
                 ),
 
-                // Forgot Password
+                // ── Forgot Password ──────────────────────────────────
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
                     onPressed: _showForgotPasswordDialog,
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 4,
+                      ),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
                     child: Text(
                       'Forgot Password?',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      style: TextStyle(
+                        fontSize: subtitleFontSize,
                         color: AppTheme.warningColor,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
                 ),
-                SizedBox(height: MediaQuery.of(context).size.height * 0.1),
 
+                // ── Spacer fills remaining space evenly ─────────────
+                const Spacer(),
+
+                // ── Log In Button ────────────────────────────────────
                 SizedBox(
-                  height: 52,
+                  height: buttonHeight,
                   child: ElevatedButton(
                     onPressed: authState.isLoading ? null : _handleLogin,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.primaryColor,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(26),
+                        borderRadius: BorderRadius.circular(buttonHeight / 2),
                       ),
                       elevation: 0,
                     ),
@@ -155,61 +163,63 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         : const Text(
                             'Log In',
                             style: TextStyle(
-                              fontSize: 16,
+                              fontSize: 15,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
                   ),
                 ),
-                const SizedBox(height: AppTheme.spacingM),
+                SizedBox(height: sectionGap),
 
+                // ── Sign Up Button ───────────────────────────────────
                 SizedBox(
-                  height: 52,
+                  height: buttonHeight,
                   child: OutlinedButton(
                     onPressed: () => context.go(AppRoutes.signup),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppTheme.textPrimary,
                       side: BorderSide(color: Colors.grey.shade400),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(26),
+                        borderRadius: BorderRadius.circular(buttonHeight / 2),
                       ),
                     ),
                     child: const Text(
                       'Sign Up',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 15,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: AppTheme.spacingM),
+                SizedBox(height: sectionGap),
 
-                // Divider
+                // ── OR Divider ───────────────────────────────────────
                 Row(
                   children: [
                     Expanded(child: Divider(color: Colors.grey.shade300)),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
                       child: Text(
                         'OR',
                         style: TextStyle(
                           color: Colors.grey.shade500,
-                          fontSize: 12,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
                     Expanded(child: Divider(color: Colors.grey.shade300)),
                   ],
                 ),
-                const SizedBox(height: AppTheme.spacingM),
+                SizedBox(height: sectionGap),
 
-                // Social Login Buttons
+                // ── Social Buttons ───────────────────────────────────
                 Row(
                   children: [
                     Expanded(
                       child: SizedBox(
-                        height: 52,
+                        height: socialButtonHeight,
                         child: OutlinedButton(
                           onPressed: authState.isLoading
                               ? null
@@ -218,20 +228,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             foregroundColor: AppTheme.textPrimary,
                             side: BorderSide(color: Colors.grey.shade400),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(26),
+                              borderRadius: BorderRadius.circular(
+                                socialButtonHeight / 2,
+                              ),
                             ),
                           ),
                           child: Image.asset(
                             'assets/images/google.png',
-                            height: 24,
+                            height: 22,
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: SizedBox(
-                        height: 52,
+                        height: socialButtonHeight,
                         child: OutlinedButton(
                           onPressed: authState.isLoading
                               ? null
@@ -240,21 +252,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             foregroundColor: AppTheme.textPrimary,
                             side: BorderSide(color: Colors.grey.shade400),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(26),
+                              borderRadius: BorderRadius.circular(
+                                socialButtonHeight / 2,
+                              ),
                             ),
                           ),
                           child: Image.asset(
                             'assets/images/apple-logo.png',
-                            height: 24,
-                            color: Colors.black, // Ensure apple logo is black
+                            height: 22,
+                            color: Colors.black,
                           ),
                         ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: AppTheme.spacingM),
+                SizedBox(height: sectionGap * 0.5),
 
+                // ── Continue as Guest ────────────────────────────────
                 TextButton(
                   onPressed: () async {
                     await ref.read(appStateProvider.notifier).markWelcomeSeen();
@@ -267,15 +282,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       context.go(AppRoutes.home);
                     }
                   },
-                  child: const Text(
+                  child: Text(
                     'Continue as Guest',
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: subtitleFontSize + 1,
                       fontWeight: FontWeight.w600,
                       color: AppTheme.warningColor,
                     ),
                   ),
                 ),
+                SizedBox(height: h * 0.02),
               ],
             ),
           ),
@@ -284,27 +300,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  // Widget _buildSocialButton(
-  //     {required IconData icon,
-  //     required String label,
-  //     required VoidCallback onPressed}) {
-  //   return SizedBox(
-  //     height: 56,
-  //     child: OutlinedButton.icon(
-  //       onPressed: onPressed,
-  //       icon: Icon(icon, size: 24),
-  //       label: Text(label),
-  //       style: OutlinedButton.styleFrom(
-  //         foregroundColor: AppTheme.textPrimary,
-  //         side: BorderSide(color: Colors.grey.shade300),
-  //       ),
-  //     ),
-  //   );
-  // }
-
   String? _validateEmail(String? value) {
     if (value == null || value.trim().isEmpty) return 'Please enter your email';
-    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    final emailRegex = RegExp(r'^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,4}$');
     if (!emailRegex.hasMatch(value.trim())) return 'Please enter a valid email';
     return null;
   }
@@ -353,7 +351,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Enter your email address and we\'ll send you a link to reset your password.',
+              'Enter your email and we\'ll send you a reset link.',
               style: Theme.of(
                 context,
               ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
@@ -401,5 +399,72 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       ),
     );
     emailController.dispose();
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Brand Header Widget
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _BrandHeader extends StatelessWidget {
+  const _BrandHeader({required this.titleFontSize});
+
+  final double titleFontSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // ── Icon badge ───────────────────────────────────────────────
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [AppTheme.primaryColor, AppTheme.primaryDark],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.primaryColor.withValues(alpha: 0.35),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: const Center(
+            child: Text('🍽️', style: TextStyle(fontSize: 22)),
+          ),
+        ),
+        const SizedBox(height: 10),
+
+        // ── Gradient brand name ──────────────────────────────────────
+        ShaderMask(
+          shaderCallback: (bounds) => const LinearGradient(
+            colors: [
+              AppTheme.primaryDark,
+              AppTheme.primaryColor,
+              Color(0xFFFFB5A7),
+            ],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ).createShader(bounds),
+          child: Text(
+            'Super Swipe',
+            style: TextStyle(
+              fontSize: titleFontSize,
+              fontWeight: FontWeight.w900,
+              color: Colors.white, // masked by shader
+              letterSpacing: -0.5,
+              height: 1.1,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ],
+    );
   }
 }
