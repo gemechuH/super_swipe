@@ -104,9 +104,9 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
             const SizedBox(width: 8),
             Text(
               'Kitchen Hub',
-              style: GoogleFonts.dmSerifDisplay(
-                fontSize: 24,
-                color: const Color(0xFF2D2621),
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                fontSize: 18,
               ),
             ),
           ],
@@ -120,217 +120,278 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Introduction
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    AppTheme.primaryColor.withValues(alpha: 0.1),
-                    AppTheme.primaryColor.withValues(alpha: 0.05),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(16),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              physics: const ClampingScrollPhysics(),
+              padding: EdgeInsets.fromLTRB(
+                16,
+                0,
+                16,
+                constraints.maxHeight * 0.02,
               ),
-              child: const Row(
-                children: [
-                  Text('👨‍🍳', style: TextStyle(fontSize: 32)),
-                  SizedBox(width: 16),
-                  Expanded(
-                    child: Text(
-                      'What are we cooking today? Tell me what you\'re craving!',
-                      style: TextStyle(fontSize: 16, height: 1.4),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Introduction - compact
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            AppTheme.primaryColor.withValues(alpha: 0.1),
+                            AppTheme.primaryColor.withValues(alpha: 0.05),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Row(
+                        children: [
+                          Text('👨‍🍳', style: TextStyle(fontSize: 22)),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'What are we cooking today? Tell me what you\'re craving!',
+                              style: TextStyle(fontSize: 12, height: 1.3),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ),
 
-            const SizedBox(height: 32),
+                    SizedBox(height: constraints.maxHeight * 0.018),
 
-            // Meal Type Selector
-            MealTypeSelector(
-              label: 'Meal Type',
-              selectedMealType: _selectedMealType,
-              onChanged: (type) => setState(() => _selectedMealType = type),
-            ),
+                    // Meal Type Selector
+                    MealTypeSelector(
+                      label: 'Meal Type',
+                      selectedMealType: _selectedMealType,
+                      onChanged: (type) =>
+                          setState(() => _selectedMealType = type),
+                    ),
 
-            const SizedBox(height: 24),
+                    SizedBox(height: constraints.maxHeight * 0.018),
 
-            // Cravings Input
-            _buildSectionTitle('Your Cravings', Icons.lightbulb_outline),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _cravingsController,
-              decoration: InputDecoration(
-                hintText: 'Something warm and comforting...',
-                hintStyle: TextStyle(color: Colors.grey[400]),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.all(20),
-              ),
-              maxLines: 2,
-            ),
+                    // Cravings Input
+                    _buildSectionTitle(
+                      'Your Cravings',
+                      Icons.lightbulb_outline,
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: _cravingsController,
+                      style: const TextStyle(fontSize: 13),
+                      decoration: InputDecoration(
+                        hintText: 'Something warm and comforting...',
+                        hintStyle: TextStyle(
+                          color: Colors.grey[400],
+                          fontSize: 13,
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        isDense: true,
+                      ),
+                      maxLines: 2,
+                    ),
 
-            const SizedBox(height: 32),
+                    SizedBox(height: constraints.maxHeight * 0.018),
 
-            // Energy Level Slider (using MasterEnergySlider)
-            _buildSectionTitle('Cooking Energy', Icons.bolt_rounded),
-            const SizedBox(height: 12),
-            MasterEnergySlider(
-              value: _energyLevel,
-              onChanged: (v) => setState(() => _energyLevel = v),
-            ),
+                    // Energy Level Slider
+                    _buildSectionTitle('Cooking Energy', Icons.bolt_rounded),
+                    const SizedBox(height: 6),
+                    MasterEnergySlider(
+                      value: _energyLevel,
+                      onChanged: (v) => setState(() => _energyLevel = v),
+                    ),
 
-            const SizedBox(height: 24),
+                    SizedBox(height: constraints.maxHeight * 0.015),
 
-            // Calorie Toggle
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: SwitchListTile(
-                title: const Text(
-                  'Include Nutrition Info',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-                subtitle: const Text('Show calorie count in the recipe'),
-                value: _showCalories,
-                onChanged: (v) => setState(() => _showCalories = v),
-                activeThumbColor: AppTheme.primaryColor,
-              ),
-            ),
+                    // Calorie Toggle - compact
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Include Nutrition Info',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                Text(
+                                  'Show calorie count in the recipe',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppTheme.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Transform.scale(
+                            scale: 0.85,
+                            child: Switch(
+                              value: _showCalories,
+                              onChanged: (v) =>
+                                  setState(() => _showCalories = v),
+                              activeThumbColor: AppTheme.primaryColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
 
-            const SizedBox(height: 24),
+                    SizedBox(height: constraints.maxHeight * 0.015),
 
-            // Pantry Preview
-            _buildPantryPreview(),
+                    // Pantry Preview
+                    _buildPantryPreview(),
 
-            const SizedBox(height: 32),
+                    SizedBox(height: constraints.maxHeight * 0.02),
 
-            // Generate Button with disabled state when no items selected
-            Builder(
-              builder: (context) {
-                final selectedItems = ref.watch(selectedIngredientsProvider);
-                return Tooltip(
-                  message: selectedItems.isEmpty
-                      ? 'Please select at least one ingredient'
-                      : '',
-                  child: SizedBox(
-                    width: double.infinity,
-                    height: 60,
-                    child: ElevatedButton.icon(
-                      onPressed:
-                          _isGenerating || _isRefining || selectedItems.isEmpty
-                          ? null
-                          : _showPreFlightDialog,
-                      icon: _isGenerating
-                          ? const SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: AppInlineLoading(
-                                size: 24,
-                                baseColor: Color(0xFFEFEFEF),
-                                highlightColor: Color(0xFFFFFFFF),
+                    // Generate Button
+                    Builder(
+                      builder: (context) {
+                        final selectedItems = ref.watch(
+                          selectedIngredientsProvider,
+                        );
+                        return SizedBox(
+                          width: double.infinity,
+                          height: 48,
+                          child: ElevatedButton.icon(
+                            onPressed:
+                                _isGenerating ||
+                                    _isRefining ||
+                                    selectedItems.isEmpty
+                                ? null
+                                : _showPreFlightDialog,
+                            icon: _isGenerating
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: AppInlineLoading(
+                                      size: 18,
+                                      baseColor: Color(0xFFEFEFEF),
+                                      highlightColor: Color(0xFFFFFFFF),
+                                    ),
+                                  )
+                                : const Icon(Icons.restaurant, size: 20),
+                            label: Text(
+                              _isGenerating
+                                  ? 'Chef is thinking...'
+                                  : selectedItems.isEmpty
+                                  ? 'Select Ingredients First'
+                                  : 'Create Recipe',
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
                               ),
-                            )
-                          : const Icon(Icons.restaurant, size: 28),
-                      label: Text(
-                        _isGenerating
-                            ? 'Chef is thinking...'
-                            : selectedItems.isEmpty
-                            ? 'Select Ingredients First'
-                            : 'Create Recipe',
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: selectedItems.isEmpty
-                            ? Colors.grey.shade400
-                            : AppTheme.primaryColor,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: selectedItems.isEmpty
+                                  ? Colors.grey.shade400
+                                  : AppTheme.primaryColor,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  ),
-                );
-              },
-            ),
 
-            // Error Message
-            if (_errorMessage != null) ...[
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.red[50],
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.red[200]!),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.error_outline, color: Colors.red[700]),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        _errorMessage!,
-                        style: TextStyle(color: Colors.red[700]),
+                    // Error Message
+                    if (_errorMessage != null) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.red[50],
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.red[200]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              color: Colors.red[700],
+                              size: 16,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _errorMessage!,
+                                style: TextStyle(
+                                  color: Colors.red[700],
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
+                    ],
+
+                    // DRAFT Recipe Card
+                    Builder(
+                      builder: (context) {
+                        final draft = ref.watch(draftRecipeProvider);
+                        if (draft == null) return const SizedBox.shrink();
+                        return Column(
+                          children: [
+                            const SizedBox(height: 16),
+                            _buildDraftRecipeCard(draft.recipe),
+                          ],
+                        );
+                      },
                     ),
+
+                    const SizedBox(height: 16),
                   ],
                 ),
               ),
-            ],
-
-            // DRAFT Recipe Card (persists across navigation)
-            Builder(
-              builder: (context) {
-                final draft = ref.watch(draftRecipeProvider);
-                if (draft == null) return const SizedBox.shrink();
-                return Column(
-                  children: [
-                    const SizedBox(height: 32),
-                    _buildDraftRecipeCard(draft.recipe),
-                  ],
-                );
-              },
-            ),
-
-            const SizedBox(height: 40),
-          ],
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget _buildSectionTitle(String title, IconData icon) {
-    return Row(
-      children: [
-        Icon(icon, color: AppTheme.primaryColor, size: 24),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: GoogleFonts.dmSerifDisplay(
-            fontSize: 20,
-            color: const Color(0xFF2D2621),
-          ),
-        ),
-      ],
+  Widget _buildSectionTitle(String title, [IconData? icon]) {
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        color: Color(0xFF2D2621),
+      ),
     );
   }
 
@@ -388,12 +449,12 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
               ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Text(
           '${selectedItems.length} of ${itemNames.length} selected',
-          style: const TextStyle(color: AppTheme.textSecondary),
+          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         if (itemNames.isEmpty)
           Container(
             padding: const EdgeInsets.all(20),
@@ -408,17 +469,18 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
           )
         else
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: 6,
+            runSpacing: 6,
             children: itemNames.map((name) {
               final isSelected = selectedItems.contains(name);
               return FilterChip(
-                label: Text(name),
+                label: Text(name, style: const TextStyle(fontSize: 11)),
                 selected: isSelected,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: const VisualDensity(horizontal: 0, vertical: -2),
                 onSelected: (selected) {
                   final success = selectedNotifier.toggleIngredient(name);
                   if (!success) {
-                    // Tried to deselect last item - denied
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text(
