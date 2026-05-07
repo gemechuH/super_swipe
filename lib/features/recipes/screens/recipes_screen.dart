@@ -33,7 +33,7 @@ class _RecipesScreenState extends ConsumerState<RecipesScreen> {
       backgroundColor: AppTheme.backgroundColor,
       body: SafeArea(
         child: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
+          physics: const ClampingScrollPhysics(),
           slivers: [
             // Header
             SliverToBoxAdapter(
@@ -53,7 +53,7 @@ class _RecipesScreenState extends ConsumerState<RecipesScreen> {
                         style: Theme.of(context).textTheme.headlineMedium
                             ?.copyWith(
                               fontWeight: FontWeight.w800,
-                              fontSize: 32,
+                              fontSize: 18,
                             ),
                       ),
                     ),
@@ -62,7 +62,7 @@ class _RecipesScreenState extends ConsumerState<RecipesScreen> {
                       children: [
                         Expanded(
                           child: Container(
-                            height: 48,
+                            height: 44,
                             decoration: BoxDecoration(
                               color: AppTheme.surfaceColor,
                               borderRadius: BorderRadius.circular(30),
@@ -80,6 +80,7 @@ class _RecipesScreenState extends ConsumerState<RecipesScreen> {
                               decoration: InputDecoration(
                                 hintText: 'Search recipes...',
                                 filled: false,
+
                                 border: InputBorder.none,
                                 enabledBorder: InputBorder.none,
                                 focusedBorder: InputBorder.none,
@@ -96,8 +97,8 @@ class _RecipesScreenState extends ConsumerState<RecipesScreen> {
                         ),
                         const SizedBox(width: AppTheme.spacingM),
                         Container(
-                          height: 48,
-                          width: 48,
+                          height: 40,
+                          width: 40,
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(30),
@@ -148,6 +149,7 @@ class _RecipesScreenState extends ConsumerState<RecipesScreen> {
             savedRecipesAsync.when(
               loading: () => const SliverFillRemaining(child: AppListLoading()),
               error: (error, stack) => SliverFillRemaining(
+                hasScrollBody: false,
                 child: Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -190,6 +192,7 @@ class _RecipesScreenState extends ConsumerState<RecipesScreen> {
 
                 if (filteredRecipes.isEmpty) {
                   return SliverFillRemaining(
+                    hasScrollBody: false,
                     child: Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -198,10 +201,10 @@ class _RecipesScreenState extends ConsumerState<RecipesScreen> {
                             _searchQuery.isNotEmpty
                                 ? Icons.search_off_rounded
                                 : Icons.restaurant_menu_rounded,
-                            size: 80,
+                            size: 60,
                             color: Colors.grey[300],
                           ),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 16),
                           Text(
                             _searchQuery.isNotEmpty
                                 ? 'No Recipes Found'
@@ -213,7 +216,7 @@ class _RecipesScreenState extends ConsumerState<RecipesScreen> {
                           ),
                           const SizedBox(height: 8),
                           Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 48),
+                            padding: const EdgeInsets.symmetric(horizontal: 44),
                             child: Text(
                               _searchQuery.isNotEmpty
                                   ? 'Try a different search term'
@@ -223,11 +226,11 @@ class _RecipesScreenState extends ConsumerState<RecipesScreen> {
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: Colors.grey[600],
-                                fontSize: 16,
+                                fontSize: 14,
                               ),
                             ),
                           ),
-                          const SizedBox(height: 32),
+                          const SizedBox(height: 30),
                           if (_selectedFilter == 0 && _searchQuery.isEmpty)
                             ElevatedButton.icon(
                               onPressed: () => context.push(AppRoutes.swipe),
@@ -238,7 +241,7 @@ class _RecipesScreenState extends ConsumerState<RecipesScreen> {
                                 foregroundColor: Colors.white,
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 32,
-                                  vertical: 16,
+                                  vertical: 14,
                                 ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
