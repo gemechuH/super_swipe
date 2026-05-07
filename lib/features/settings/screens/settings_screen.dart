@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:super_swipe/core/providers/user_data_providers.dart';
 import 'package:super_swipe/core/theme/app_theme.dart';
 import 'package:super_swipe/core/widgets/loading/app_loading.dart';
@@ -68,9 +67,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         elevation: 0,
         title: Text(
           'Settings',
-          style: GoogleFonts.dmSerifDisplay(
-            fontSize: 28,
-            color: const Color(0xFF2D2621),
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.w800,
+            fontSize: 18,
           ),
         ),
         centerTitle: true,
@@ -80,16 +79,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               onPressed: _savePreferences,
               child: const Text(
                 'Save',
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
               ),
             ),
           if (_isSaving)
             const Padding(
               padding: EdgeInsets.all(16),
               child: SizedBox(
-                width: 20,
-                height: 20,
-                child: AppInlineLoading(size: 20),
+                width: 16,
+                height: 16,
+                child: AppInlineLoading(size: 16),
               ),
             ),
         ],
@@ -98,7 +97,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         loading: () => const AppPageLoading(),
         error: (e, _) => Center(child: Text('Error: $e')),
         data: (profile) => MasterScrollWrapper(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -122,7 +121,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
 
               // =============================================
               // DIETARY RESTRICTIONS - Type & Add
@@ -144,7 +143,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
 
               // =============================================
               // FAVORITE CUISINES - Type & Add
@@ -166,7 +165,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
 
               // =============================================
               // DEFAULT MEAL TYPE - Selector
@@ -185,7 +184,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
 
               // =============================================
               // PANTRY FLEXIBILITY & DIFFICULTY
@@ -231,7 +230,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
 
               // =============================================
               // ENERGY LEVEL - Master Slider
@@ -243,7 +242,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     'Default Energy Level',
                     Icons.bolt_rounded,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   MasterEnergySlider(
                     value: _defaultEnergyLevel,
                     onChanged: (v) {
@@ -256,29 +255,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ],
               ),
 
-              const SizedBox(height: 32),
+              const SizedBox(height: 14),
 
               // Save Button
               SizedBox(
                 width: double.infinity,
-                height: 56,
+                height: 46,
                 child: ElevatedButton.icon(
                   onPressed: _isSaving ? null : _savePreferences,
                   icon: _isSaving
                       ? const SizedBox(
-                          width: 20,
-                          height: 20,
+                          width: 16,
+                          height: 16,
                           child: AppInlineLoading(
-                            size: 20,
+                            size: 16,
                             baseColor: Color(0xFFEFEFEF),
                             highlightColor: Color(0xFFFFFFFF),
                           ),
                         )
-                      : const Icon(Icons.save_rounded),
+                      : const Icon(Icons.save_rounded, size: 18),
                   label: Text(
                     _isSaving ? 'Saving...' : 'Save All Preferences',
                     style: const TextStyle(
-                      fontSize: 17,
+                      fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -286,7 +285,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     backgroundColor: AppTheme.primaryColor,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(14),
                     ),
                   ),
                 ),
@@ -301,15 +300,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget _buildSectionCard({required Widget child}) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -318,19 +317,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Widget _buildSectionHeader(String title, IconData icon) {
-    return Row(
-      children: [
-        Icon(icon, color: AppTheme.primaryColor, size: 22),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF2D2621),
-          ),
-        ),
-      ],
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: Color(0xFF2D2621),
+      ),
     );
   }
 
@@ -343,9 +336,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(8),
       ),
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(3),
       child: Row(
         children: List.generate(options.length, (index) {
           final isSelected = options[index] == selected;
@@ -354,17 +347,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               onTap: () => onSelected(options[index]),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                padding: const EdgeInsets.symmetric(vertical: 8),
                 decoration: BoxDecoration(
                   color: isSelected
                       ? AppTheme.primaryColor
                       : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   labels[index],
                   textAlign: TextAlign.center,
                   style: TextStyle(
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: isSelected ? Colors.white : AppTheme.textSecondary,
                   ),

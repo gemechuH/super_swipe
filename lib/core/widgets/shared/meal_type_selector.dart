@@ -44,12 +44,12 @@ class MealTypeSelector extends StatelessWidget {
           Text(
             label!,
             style: const TextStyle(
-              fontSize: 16,
+              fontSize: 13,
               fontWeight: FontWeight.w600,
               color: Color(0xFF2D2621),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
         ],
         scrollable
             ? SingleChildScrollView(
@@ -67,16 +67,17 @@ class MealTypeSelector extends StatelessWidget {
       final emoji = mealIcons[type] ?? '';
 
       return Padding(
-        padding: const EdgeInsets.only(right: 8),
+        padding: const EdgeInsets.only(right: 6),
         child: ChoiceChip(
           label: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(emoji, style: const TextStyle(fontSize: 18)),
-              const SizedBox(width: 6),
+              Text(emoji, style: const TextStyle(fontSize: 14)),
+              const SizedBox(width: 4),
               Text(
                 type[0].toUpperCase() + type.substring(1),
                 style: TextStyle(
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: isSelected ? Colors.white : AppTheme.textSecondary,
                 ),
@@ -89,14 +90,16 @@ class MealTypeSelector extends StatelessWidget {
           },
           selectedColor: AppTheme.primaryColor,
           backgroundColor: Colors.grey.shade100,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: const VisualDensity(horizontal: 0, vertical: -2),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
             side: BorderSide(
               color: isSelected ? AppTheme.primaryColor : Colors.grey.shade300,
-              width: isSelected ? 2 : 1,
+              width: isSelected ? 1.5 : 1,
             ),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         ),
       );
     }).toList();

@@ -61,82 +61,78 @@ class _MasterChipInputState extends State<MasterChipInput> {
         // Label with icon
         if (widget.leadingIcon != null || widget.label.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(
+              widget.label,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF2D2621),
+              ),
+            ),
+          ),
+
+        // Input field
+        SizedBox(
+          height: 36,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
             child: Row(
               children: [
-                if (widget.leadingIcon != null) ...[
-                  Icon(
-                    widget.leadingIcon,
-                    color: AppTheme.primaryColor,
-                    size: 22,
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    focusNode: _focusNode,
+                    style: const TextStyle(fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: widget.hint,
+                      hintStyle: TextStyle(
+                        color: Colors.grey[400],
+                        fontSize: 13,
+                      ),
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 9,
+                      ),
+                    ),
+                    onSubmitted: _addItem,
+                    textInputAction: TextInputAction.done,
                   ),
-                  const SizedBox(width: 8),
-                ],
-                Text(
-                  widget.label,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF2D2621),
+                ),
+                GestureDetector(
+                  onTap: () => _addItem(_controller.text),
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Icon(
+                      Icons.add_circle,
+                      color: AppTheme.primaryColor,
+                      size: 20,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-
-        // Input field
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: Colors.grey.shade200),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _controller,
-                  focusNode: _focusNode,
-                  decoration: InputDecoration(
-                    hintText: widget.hint,
-                    hintStyle: TextStyle(color: Colors.grey[400]),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
-                    ),
-                  ),
-                  onSubmitted: _addItem,
-                  textInputAction: TextInputAction.done,
-                ),
-              ),
-              Material(
-                color: Colors.transparent,
-                child: IconButton(
-                  icon: Icon(
-                    Icons.add_circle,
-                    color: AppTheme.primaryColor,
-                    size: 28,
-                  ),
-                  onPressed: () => _addItem(_controller.text),
-                ),
-              ),
-            ],
-          ),
         ),
 
         // Chips display
         if (widget.items.isNotEmpty) ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: 6,
+            runSpacing: 6,
             children: widget.items
                 .map(
                   (item) => Chip(
-                    label: Text(item),
+                    label: Text(item, style: const TextStyle(fontSize: 11)),
                     backgroundColor: widget.chipColor,
-                    deleteIcon: const Icon(Icons.close, size: 18),
+                    deleteIcon: const Icon(Icons.close, size: 14),
                     deleteIconColor: widget.chipTextColor,
                     onDeleted: () => _removeItem(item),
                     labelStyle: TextStyle(
@@ -144,8 +140,13 @@ class _MasterChipInputState extends State<MasterChipInput> {
                       fontWeight: FontWeight.w500,
                     ),
                     side: BorderSide.none,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: const VisualDensity(
+                      horizontal: 0,
+                      vertical: -2,
+                    ),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                   ),
                 )
