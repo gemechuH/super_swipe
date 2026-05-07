@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:super_swipe/core/config/swipe_constants.dart';
 import 'package:super_swipe/core/theme/app_theme.dart';
-import 'package:super_swipe/features/swipe/models/swipe_filters.dart';
 import 'package:super_swipe/features/swipe/providers/swipe_filters_provider.dart';
 
 /// A bottom sheet panel for configuring swipe filters
@@ -124,17 +123,23 @@ class _SwipeFiltersPanelState extends ConsumerState<SwipeFiltersPanel> {
                     SliderTheme(
                       data: SliderTheme.of(context).copyWith(
                         activeTrackColor: AppTheme.primaryColor,
-                        inactiveTrackColor: AppTheme.primaryColor.withValues(alpha: 0.2),
+                        inactiveTrackColor: AppTheme.primaryColor.withValues(
+                          alpha: 0.2,
+                        ),
                         thumbColor: AppTheme.primaryColor,
                         trackHeight: 6,
-                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
+                        thumbShape: const RoundSliderThumbShape(
+                          enabledThumbRadius: 10,
+                        ),
                       ),
                       child: Slider(
                         value: _currentEnergyLevel.toDouble(),
                         min: 0,
                         max: 4,
                         divisions: 4,
-                        label: EnergyLevel.fromInt(_currentEnergyLevel).sliderLabel,
+                        label: EnergyLevel.fromInt(
+                          _currentEnergyLevel,
+                        ).sliderLabel,
                         onChanged: (v) {
                           final newVal = v.round();
                           if (newVal != _currentEnergyLevel) {
@@ -150,14 +155,18 @@ class _SwipeFiltersPanelState extends ConsumerState<SwipeFiltersPanel> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            EnergyLevel.fromInt(_currentEnergyLevel).sliderLabel,
+                            EnergyLevel.fromInt(
+                              _currentEnergyLevel,
+                            ).sliderLabel,
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
                             ),
                           ),
                           Text(
-                            EnergyLevel.fromInt(_currentEnergyLevel).promptScale,
+                            EnergyLevel.fromInt(
+                              _currentEnergyLevel,
+                            ).promptScale,
                             style: TextStyle(
                               color: AppTheme.textSecondary,
                               fontWeight: FontWeight.w600,
@@ -193,8 +202,12 @@ class _SwipeFiltersPanelState extends ConsumerState<SwipeFiltersPanel> {
                     selectedColor: AppTheme.primaryColor.withValues(alpha: 0.2),
                     checkmarkColor: AppTheme.primaryColor,
                     labelStyle: TextStyle(
-                      color: isSelected ? AppTheme.primaryColor : AppTheme.textPrimary,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                      color: isSelected
+                          ? AppTheme.primaryColor
+                          : AppTheme.textPrimary,
+                      fontWeight: isSelected
+                          ? FontWeight.w600
+                          : FontWeight.normal,
                     ),
                   );
                 }).toList(),
@@ -224,8 +237,12 @@ class _SwipeFiltersPanelState extends ConsumerState<SwipeFiltersPanel> {
                     },
                     selectedColor: AppTheme.primaryColor.withValues(alpha: 0.2),
                     labelStyle: TextStyle(
-                      color: isSelected ? AppTheme.primaryColor : AppTheme.textPrimary,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                      color: isSelected
+                          ? AppTheme.primaryColor
+                          : AppTheme.textPrimary,
+                      fontWeight: isSelected
+                          ? FontWeight.w600
+                          : FontWeight.normal,
                     ),
                   );
                 }).toList(),
@@ -255,8 +272,12 @@ class _SwipeFiltersPanelState extends ConsumerState<SwipeFiltersPanel> {
                     },
                     selectedColor: AppTheme.primaryColor.withValues(alpha: 0.2),
                     labelStyle: TextStyle(
-                      color: filters.mealType == null ? AppTheme.primaryColor : AppTheme.textPrimary,
-                      fontWeight: filters.mealType == null ? FontWeight.w600 : FontWeight.normal,
+                      color: filters.mealType == null
+                          ? AppTheme.primaryColor
+                          : AppTheme.textPrimary,
+                      fontWeight: filters.mealType == null
+                          ? FontWeight.w600
+                          : FontWeight.normal,
                     ),
                   ),
                   ...SwipeMealType.values.map((meal) {
@@ -270,10 +291,16 @@ class _SwipeFiltersPanelState extends ConsumerState<SwipeFiltersPanel> {
                           _checkAndNotifyChange();
                         }
                       },
-                      selectedColor: AppTheme.primaryColor.withValues(alpha: 0.2),
+                      selectedColor: AppTheme.primaryColor.withValues(
+                        alpha: 0.2,
+                      ),
                       labelStyle: TextStyle(
-                        color: isSelected ? AppTheme.primaryColor : AppTheme.textPrimary,
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                        color: isSelected
+                            ? AppTheme.primaryColor
+                            : AppTheme.textPrimary,
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.normal,
                       ),
                     );
                   }),
@@ -304,7 +331,9 @@ class _SwipeFiltersPanelState extends ConsumerState<SwipeFiltersPanel> {
                     checkmarkColor: Colors.blue,
                     labelStyle: TextStyle(
                       color: isSelected ? Colors.blue : AppTheme.textPrimary,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                      fontWeight: isSelected
+                          ? FontWeight.w600
+                          : FontWeight.normal,
                     ),
                   );
                 }).toList(),
@@ -324,7 +353,9 @@ class _SwipeFiltersPanelState extends ConsumerState<SwipeFiltersPanel> {
                 maxLines: 2,
                 decoration: InputDecoration(
                   hintText: 'e.g., Mediterranean style, spicy, kid-friendly...',
-                  hintStyle: TextStyle(color: AppTheme.textSecondary.withValues(alpha: 0.6)),
+                  hintStyle: TextStyle(
+                    color: AppTheme.textSecondary.withValues(alpha: 0.6),
+                  ),
                   filled: true,
                   fillColor: Colors.grey[50],
                   border: OutlineInputBorder(
@@ -337,7 +368,10 @@ class _SwipeFiltersPanelState extends ConsumerState<SwipeFiltersPanel> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: AppTheme.primaryColor, width: 2),
+                    borderSide: BorderSide(
+                      color: AppTheme.primaryColor,
+                      width: 2,
+                    ),
                   ),
                   counterStyle: TextStyle(color: AppTheme.textSecondary),
                 ),
@@ -408,15 +442,15 @@ class _SectionHeader extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
               ),
               Text(
                 subtitle,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppTheme.textSecondary,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
               ),
             ],
           ),
@@ -482,4 +516,3 @@ class SwipeFilterBadge extends ConsumerWidget {
     return count;
   }
 }
-

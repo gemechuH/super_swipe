@@ -70,11 +70,7 @@ class HomeScreen extends ConsumerWidget {
               return _buildLoadingState();
             }
 
-            final carrotCount = userProfile.carrots.current;
-            final maxCarrots = userProfile.carrots.max;
             final recipesUnlocked = userProfile.stats.recipesUnlocked;
-            final subscription = userProfile.subscriptionStatus.toLowerCase();
-            final isPremium = subscription == 'premium';
 
             // Get first name from display name
             String firstName;
@@ -240,7 +236,7 @@ class HomeScreen extends ConsumerWidget {
                       );
                     },
                     loading: () => const SizedBox.shrink(),
-                    error: (_, __) => const SizedBox.shrink(),
+                    error: (e, s) => const SizedBox.shrink(),
                   ),
 
                   SizedBox(height: h * 0.03),

@@ -19,7 +19,6 @@ import 'package:super_swipe/core/providers/recipe_providers.dart';
 import 'package:super_swipe/core/providers/user_data_providers.dart';
 import 'package:super_swipe/core/router/app_router.dart';
 import 'package:super_swipe/core/theme/app_theme.dart';
-import 'package:super_swipe/core/widgets/shared/master_energy_slider.dart';
 import 'package:super_swipe/core/widgets/dialogs/confirm_unlock_dialog.dart';
 import 'package:super_swipe/core/widgets/loading/app_loading.dart';
 import 'package:super_swipe/features/auth/providers/auth_provider.dart';
@@ -979,6 +978,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () {
+                      // ignore: unused_result
                       ref.refresh(
                         pantryFirstSwipeDeckProvider(_selectedEnergyLevel),
                       );
@@ -1079,7 +1079,6 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
 
       // Determine active deck
       final currentDeck = _isReplaying ? _replayCache : visiblePreviewDeck;
-      final currentCardCount = currentDeck.length;
 
       // NOTE: Auto-replay is disabled. Users must use explicit buttons to replay.
       // - Undo button: goes back to previous card
@@ -1512,7 +1511,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: AppTheme.backgroundColor.withOpacity(0.92),
+                    color: AppTheme.backgroundColor.withValues(alpha: 0.92),
                     borderRadius: BorderRadius.circular(18),
                   ),
                   child: Padding(
