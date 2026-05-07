@@ -257,8 +257,8 @@ class HomeScreen extends ConsumerWidget {
     return Container(
       width: double.infinity,
       padding: EdgeInsets.symmetric(
-        vertical: screenHeight * 0.04,
-        horizontal: 24,
+        vertical: screenHeight * 0.02,
+        horizontal: 22,
       ),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -324,7 +324,7 @@ class HomeScreen extends ConsumerWidget {
                   Text(
                     'Start Swiping',
                     style: GoogleFonts.inter(
-                      fontSize: 15,
+                      fontSize: 14,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.2,
                     ),
