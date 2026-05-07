@@ -41,3 +41,15 @@ final recipeSecretsProvider = FutureProvider.family<List<String>, String>((
   final db = ref.watch(databaseServiceProvider);
   return db.getRecipeSecrets(recipeId);
 });
+
+/// Stream the generationStatus field for a saved recipe.
+/// Returns: 'generating' | 'ready' | 'failed' | null
+final recipeGenerationStatusProvider = StreamProvider.family<String?, String>((
+  ref,
+  recipeId,
+) {
+  final user = ref.watch(authProvider).user;
+  if (user == null) return Stream.value(null);
+  final db = ref.watch(databaseServiceProvider);
+  return db.watchRecipeGenerationStatus(user.uid, recipeId);
+});

@@ -446,28 +446,124 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                   ),
                   const SizedBox(height: AppTheme.spacingS),
                   if (instructions.isEmpty)
-                    (isLoading ||
-                            showGeneratingSkeleton ||
-                            showSecretsLoadingSkeleton)
-                        ? _buildProgressiveLoadingState()
-                        : Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Directions are not available for this recipe yet.',
-                                style: TextStyle(color: AppTheme.textSecondary),
-                              ),
-                              const SizedBox(height: 10),
-                              if (shouldFetchSecrets)
-                                OutlinedButton.icon(
-                                  onPressed: () => ref.refresh(
-                                    recipeSecretsProvider(widget.recipeId),
-                                  ),
-                                  icon: const Icon(Icons.refresh_rounded),
-                                  label: const Text('Retry loading directions'),
+                    Builder(
+                      builder: (context) {
+                        // Check generationStatus from Firestore
+                        final genStatus = ref
+                            .watch(
+                              recipeGenerationStatusProvider(widget.recipeId),
+                            )
+                            .asData
+                            ?.value;
+                        final generationFailed = genStatus == 'failed';
+
+                        if (generationFailed) {
+                          // Show error + retry
+                          return Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.red.shade50,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.red.shade200),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.error_outline,
+                                      color: Colors.red.shade700,
+                                      size: 18,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Recipe generation failed',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.red.shade700,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                            ],
-                          )
+                                const SizedBox(height: 6),
+                                Text(
+                                  'The AI chef had trouble creating the steps. Tap retry to try again.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.red.shade600,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                OutlinedButton.icon(
+                                  onPressed: () {
+                                    // Reset status and re-trigger generation
+                                    final user = ref.read(authProvider).user;
+                                    if (user != null) {
+                                      ref
+                                          .read(databaseServiceProvider)
+                                          .markRecipeGenerationFailed(
+                                            userId: user.uid,
+                                            recipeId: widget.recipeId,
+                                          );
+                                    }
+                                    // Refresh the saved recipe stream
+                                    ref.invalidate(
+                                      savedRecipeProvider(widget.recipeId),
+                                    );
+                                    ref.invalidate(
+                                      recipeGenerationStatusProvider(
+                                        widget.recipeId,
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(
+                                    Icons.refresh_rounded,
+                                    size: 16,
+                                  ),
+                                  label: const Text(
+                                    'Retry',
+                                    style: TextStyle(fontSize: 13),
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.red.shade700,
+                                    side: BorderSide(
+                                      color: Colors.red.shade300,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+
+                        if (isLoading ||
+                            showGeneratingSkeleton ||
+                            showSecretsLoadingSkeleton) {
+                          return _buildProgressiveLoadingState();
+                        }
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Directions are not available for this recipe yet.',
+                              style: TextStyle(color: AppTheme.textSecondary),
+                            ),
+                            const SizedBox(height: 10),
+                            if (shouldFetchSecrets)
+                              OutlinedButton.icon(
+                                onPressed: () => ref.refresh(
+                                  recipeSecretsProvider(widget.recipeId),
+                                ),
+                                icon: const Icon(Icons.refresh_rounded),
+                                label: const Text('Retry loading directions'),
+                              ),
+                          ],
+                        );
+                      },
+                    )
                   else
                     Column(
                       children: [
@@ -487,7 +583,9 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                               boxShadow: AppTheme.softShadow,
                               border: Border.all(
                                 color: isNext
-                                    ? AppTheme.primaryColor.withValues(alpha: 0.6)
+                                    ? AppTheme.primaryColor.withValues(
+                                        alpha: 0.6,
+                                      )
                                     : Colors.transparent,
                               ),
                             ),
@@ -529,8 +627,10 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                           );
                         }),
                         // Show "loading more" if we have partial steps (<=3 means first batch)
-                        if (instructions.length <= 3 && 
-                            (isLoading || showGeneratingSkeleton || showSecretsLoadingSkeleton))
+                        if (instructions.length <= 3 &&
+                            (isLoading ||
+                                showGeneratingSkeleton ||
+                                showSecretsLoadingSkeleton))
                           _buildLoadingMoreStepsIndicator(),
                       ],
                     ),
@@ -580,9 +680,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
       decoration: BoxDecoration(
         color: AppTheme.primaryColor.withValues(alpha: 0.05),
         borderRadius: AppTheme.borderRadiusMedium,
-        border: Border.all(
-          color: AppTheme.primaryColor.withValues(alpha: 0.2),
-        ),
+        border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
@@ -593,10 +691,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
             builder: (context, value, child) {
               return Transform.scale(
                 scale: 0.8 + (value * 0.2),
-                child: Opacity(
-                  opacity: 0.5 + (value * 0.5),
-                  child: child,
-                ),
+                child: Opacity(opacity: 0.5 + (value * 0.5), child: child),
               );
             },
             child: Icon(
@@ -617,10 +712,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
           const SizedBox(height: 8),
           Text(
             'Chef is preparing detailed instructions',
-            style: TextStyle(
-              fontSize: 14,
-              color: AppTheme.textSecondary,
-            ),
+            style: TextStyle(fontSize: 14, color: AppTheme.textSecondary),
           ),
           const SizedBox(height: 16),
           // Progress indicator
@@ -674,10 +766,7 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                 const SizedBox(height: 2),
                 Text(
                   'You can start with the steps above!',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppTheme.textSecondary,
-                  ),
+                  style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
                 ),
               ],
             ),
@@ -698,37 +787,32 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
       // Get user's pantry to match ingredients
       final pantryItems = ref.read(pantryItemsProvider).value ?? [];
 
+      // Use ingredientIds if available, otherwise fall back to ingredients display strings
+      final ingredientKeys = recipe.ingredientIds.isNotEmpty
+          ? recipe.ingredientIds
+          : recipe.ingredients.map((i) => i.toLowerCase().trim()).toList();
+
       // Build list of ingredients to consume
       final usedIngredients = <Map<String, dynamic>>[];
+      final seenPantryIds = <String>{};
 
-      for (final ingredientId in recipe.ingredientIds) {
-        // Find matching pantry item (fuzzy match by normalized name)
-        final normalizedId = ingredientId.toLowerCase().trim();
+      for (final ingredientKey in ingredientKeys) {
+        final normalizedKey = ingredientKey.toLowerCase().trim();
         final match = pantryItems.where((item) {
+          if (seenPantryIds.contains(item.id)) return false;
           final pantryName = item.normalizedName.toLowerCase();
-          return pantryName.contains(normalizedId) ||
-              normalizedId.contains(pantryName);
+          return pantryName.contains(normalizedKey) ||
+              normalizedKey.contains(pantryName);
         }).firstOrNull;
 
         if (match != null) {
-          usedIngredients.add({
-            'pantryItemId': match.id,
-            'quantity': 1, // Default to 1 unit consumed
-          });
+          seenPantryIds.add(match.id);
+          usedIngredients.add({'pantryItemId': match.id, 'quantity': 1});
         }
       }
 
-      if (usedIngredients.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('No matching pantry items to deduct. 🥕'),
-              backgroundColor: AppTheme.warningColor,
-            ),
-          );
-        }
-      } else {
-        // Call DatabaseService to deduct ingredients
+      // Deduct matched pantry items (best effort - don't block on no match)
+      if (usedIngredients.isNotEmpty) {
         await ref
             .read(databaseServiceProvider)
             .consumeIngredients(
@@ -737,20 +821,22 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
               recipe.title,
               usedIngredients,
             );
+      }
 
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Pantry updated! ${usedIngredients.length} items deducted. 🍽️',
-              ),
-              backgroundColor: AppTheme.successColor,
+      // Always show success and navigate - cooking is done regardless of pantry match
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              usedIngredients.isNotEmpty
+                  ? 'Enjoy your meal! 🍽️ Pantry updated.'
+                  : 'Enjoy your meal! 🍽️',
             ),
-          );
-          
-          // Redirect to Recipes page (per user request)
-          context.go(AppRoutes.recipes);
-        }
+            backgroundColor: AppTheme.successColor,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        context.go(AppRoutes.home);
       }
     } catch (e) {
       if (mounted) {

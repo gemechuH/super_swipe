@@ -57,14 +57,14 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
   final Map<int, DocumentSnapshot?> _lastDocByEnergy =
       <int, DocumentSnapshot?>{};
   final Set<int> _loadingMoreEnergy = <int>{};
-  
+
   // Loading state for right-swipe generation
   bool _showLoadingOverlay = false;
 
   // Batch Replay State
   List<RecipePreview> _replayCache = [];
   bool _isReplaying = false;
-  
+
   // Track dismissed card order for undo functionality
   final List<String> _dismissedCardHistory = <String>[];
 
@@ -128,12 +128,10 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
               _dismissedCardIds.clear();
               _swiperRebuildToken++;
             });
-            
+
             // Invalidate the deck provider to trigger regeneration with new filters
-            ref.invalidate(
-              pantryFirstSwipeDeckProvider(_selectedEnergyLevel),
-            );
-            
+            ref.invalidate(pantryFirstSwipeDeckProvider(_selectedEnergyLevel));
+
             // Force immediate refill with new filters
             unawaited(
               ref
@@ -145,24 +143,24 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
           },
           initialEnergyLevel: _selectedEnergyLevel,
           onEnergyLevelChanged: (next) {
-             if (next == _selectedEnergyLevel) return;
-             final oldLevel = _selectedEnergyLevel;
-             setState(() {
-               _selectedEnergyLevel = next;
-               _dismissedCardIds.clear();
-               _swiperRebuildToken++;
-             });
-             
-             // If manual swipe mode, load energy immediately
-             if (!_usePantryFirstDeck) {
-               unawaited(_ensureEnergyLoaded(next));
-             }
-             
-             // If we just changed energy, we might want to refresh provider if using pantry first
-             if (_usePantryFirstDeck && oldLevel != next) {
-               // The provider family depends on energy level, so this happens automatically
-               // by virtue of reading the new provider. But we might need to pre-warm it.
-             }
+            if (next == _selectedEnergyLevel) return;
+            final oldLevel = _selectedEnergyLevel;
+            setState(() {
+              _selectedEnergyLevel = next;
+              _dismissedCardIds.clear();
+              _swiperRebuildToken++;
+            });
+
+            // If manual swipe mode, load energy immediately
+            if (!_usePantryFirstDeck) {
+              unawaited(_ensureEnergyLoaded(next));
+            }
+
+            // If we just changed energy, we might want to refresh provider if using pantry first
+            if (_usePantryFirstDeck && oldLevel != next) {
+              // The provider family depends on energy level, so this happens automatically
+              // by virtue of reading the new provider. But we might need to pre-warm it.
+            }
           },
         ),
       ),
@@ -183,8 +181,6 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     if (_deckForEnergy(energyLevel).isNotEmpty) return;
     await _refreshEnergy(energyLevel: energyLevel);
   }
-
-
 
   Future<void> _refreshEnergy({required int energyLevel}) async {
     if (_deckLoading) return;
@@ -606,7 +602,10 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
           pantryFirstSwipeDeckProvider(_selectedEnergyLevel).notifier,
         );
 
-        await notifier.reserveUnlockPreview(preview, unlockSource: 'swipe_right');
+        await notifier.reserveUnlockPreview(
+          preview,
+          unlockSource: 'swipe_right',
+        );
 
         if (!mounted) return;
 
@@ -620,10 +619,24 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
         );
 
         unawaited(
-          notifier.generateAndFinalizeUnlockPreview(
-            preview,
-            unlockSource: 'swipe_right',
-          ),
+          notifier
+              .generateAndFinalizeUnlockPreview(
+                preview,
+                unlockSource: 'swipe_right',
+              )
+              .catchError((e) {
+                if (kDebugMode) debugPrint('Generation failed: $e');
+                // Write failure status so detail screen can show retry
+                final user = ref.read(authProvider).user;
+                if (user != null) {
+                  ref
+                      .read(databaseServiceProvider)
+                      .markRecipeGenerationFailed(
+                        userId: user.uid,
+                        recipeId: preview.id,
+                      );
+                }
+              }),
         );
       } catch (e) {
         // If something fails, hide overlay and restore
@@ -752,10 +765,23 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
       );
 
       unawaited(
-        notifier.generateAndFinalizeUnlockPreview(
-          preview,
-          unlockSource: 'show_directions',
-        ),
+        notifier
+            .generateAndFinalizeUnlockPreview(
+              preview,
+              unlockSource: 'show_directions',
+            )
+            .catchError((e) {
+              if (kDebugMode) debugPrint('Generation failed: $e');
+              final user = ref.read(authProvider).user;
+              if (user != null) {
+                ref
+                    .read(databaseServiceProvider)
+                    .markRecipeGenerationFailed(
+                      userId: user.uid,
+                      recipeId: preview.id,
+                    );
+              }
+            }),
       );
     } on OutOfCarrotsException {
       if (mounted) _showOutOfCarrots();
@@ -907,97 +933,118 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
     }
 
     Widget deckWidget;
-    
+
     // 0. ERROR HANDLING (Priority)
     // Catch rate limit errors first to avoid red screens or confusing loading states
     if (previewDeckAsync.hasError &&
         previewDeckAsync.error is GeminiRateLimitException) {
       deckWidget = Center(
-        child: SingleChildScrollView(
+        child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                   Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppTheme.warningColor.withValues(alpha: 0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.hourglass_empty_rounded,
-                      size: 48,
-                      color: AppTheme.warningColor,
-                    ),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.06),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('⏳', style: TextStyle(fontSize: 40)),
+                const SizedBox(height: 12),
+                const Text(
+                  'Chef is at max capacity',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Our AI chef is handling too many orders right now. Try again in a moment, or upgrade for priority access.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey.shade600,
+                    height: 1.4,
                   ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'Chef is a bit overwhelmed! 👨‍🍳',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: AppTheme.textPrimary,
-                        ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'We hit the AI rate limit. Please wait a moment for the kitchen to cool down.',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppTheme.textSecondary,
-                          height: 1.5,
-                        ),
-                  ),
-                  const SizedBox(height: 24),
-                  // Action Buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () {
-                             // Retry
-                             ref.refresh(pantryFirstSwipeDeckProvider(_selectedEnergyLevel));
-                          },
-                          child: const Text('Try Again'),
-                        ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      ref.refresh(
+                        pantryFirstSwipeDeckProvider(_selectedEnergyLevel),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryColor,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () {
-                            // Link to Pro (mock)
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Pro Plan coming soon! 🚀')),
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.primaryColor,
-                            foregroundColor: Colors.white,
-                          ),
-                          child: const Text('Upgrade to Pro'),
-                        ),
-                      ),
-                    ],
+                    ),
+                    child: const Text(
+                      'Try Again',
+                      style: TextStyle(fontSize: 13),
+                    ),
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Premium plan coming soon! 🚀'),
+                        ),
+                      );
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppTheme.primaryColor,
+                      side: BorderSide(
+                        color: AppTheme.primaryColor.withValues(alpha: 0.4),
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Upgrade for Unlimited',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
       );
     } else if (usingPreview) {
       // 1. CACHE LOGIC - Always keep a copy of the current batch for restart functionality
-      if (previewDeck.isNotEmpty && (_replayCache.isEmpty || previewDeck.first.id != _replayCache.first.id)) {
+      if (previewDeck.isNotEmpty &&
+          (_replayCache.isEmpty ||
+              previewDeck.first.id != _replayCache.first.id)) {
         // Cache the current batch (done in post-frame to avoid setState during build)
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
-          final currentPreview = ref.read(pantryFirstSwipeDeckProvider(_selectedEnergyLevel)).value ?? [];
+          final currentPreview =
+              ref
+                  .read(pantryFirstSwipeDeckProvider(_selectedEnergyLevel))
+                  .value ??
+              [];
           if (currentPreview.isEmpty) return;
-          
-          final shouldUpdate = _replayCache.isEmpty || currentPreview.first.id != _replayCache.first.id;
+
+          final shouldUpdate =
+              _replayCache.isEmpty ||
+              currentPreview.first.id != _replayCache.first.id;
           if (shouldUpdate) {
             setState(() {
               _replayCache = List.of(currentPreview);
@@ -1022,10 +1069,13 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
       // CRITICAL: Determine if we need to show empty/loading state
       final providerDeckEmpty = previewDeck.isEmpty;
       final visibleDeckEmpty = visiblePreviewDeck.isEmpty;
-      final allCardsDismissed = previewDeck.isNotEmpty && visiblePreviewDeck.isEmpty;
-      
+      final allCardsDismissed =
+          previewDeck.isNotEmpty && visiblePreviewDeck.isEmpty;
+
       // If we are replaying, we are NOT empty in the UI sense
-      final hasNoVisibleCards = (providerDeckEmpty || visibleDeckEmpty || allCardsDismissed) && !_isReplaying;
+      final hasNoVisibleCards =
+          (providerDeckEmpty || visibleDeckEmpty || allCardsDismissed) &&
+          !_isReplaying;
 
       // Determine active deck
       final currentDeck = _isReplaying ? _replayCache : visiblePreviewDeck;
@@ -1075,61 +1125,106 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
             ),
           ),
         );
-
       } else if (previewDeckAsync.hasError) {
+        final errStr = previewDeckAsync.error.toString().toLowerCase();
+        final isAiOverload =
+            errStr.contains('503') ||
+            errStr.contains('high demand') ||
+            errStr.contains('overloaded') ||
+            errStr.contains('rate limit') ||
+            errStr.contains('429');
+
         deckWidget = Center(
-          child: SingleChildScrollView(
+          child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.cloud_off_rounded,
-                      size: 56,
-                      color: AppTheme.textSecondary,
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    isAiOverload ? '⏳' : '😕',
+                    style: const TextStyle(fontSize: 40),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    isAiOverload
+                        ? 'Chef is at max capacity'
+                        : 'Couldn\'t generate ideas',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Couldn\'t generate ideas right now',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: AppTheme.textPrimary,
-                      ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    isAiOverload
+                        ? 'Our AI chef is handling too many orders right now. Try again in a moment, or upgrade for priority access.'
+                        : 'Something went wrong generating your recipes. Try again or check your pantry.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade600,
+                      height: 1.4,
                     ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Tap retry, or try changing energy level / pantry items.',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _refreshCurrentDeck,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.primaryColor,
-                          foregroundColor: Colors.white,
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _refreshCurrentDeck,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryColor,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Text('Retry'),
+                      ),
+                      child: const Text(
+                        'Try Again',
+                        style: TextStyle(fontSize: 13),
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: () => context.go(AppRoutes.pantry),
-                        child: const Text('Go to Pantry'),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Premium plan coming soon! 🚀'),
+                          ),
+                        );
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.primaryColor,
+                        side: BorderSide(
+                          color: AppTheme.primaryColor.withValues(alpha: 0.4),
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Upgrade for Unlimited',
+                        style: TextStyle(fontSize: 13),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -1177,34 +1272,41 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
           children: [
             if (_isReplaying)
               Positioned(
-                 top: 60,
-                 left: 0, 
-                 right: 0,
-                 child: Center(
-                   child: Container(
-                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                     decoration: BoxDecoration(
-                       color: Colors.amber.shade100,
-                       borderRadius: BorderRadius.circular(20),
-                       border: Border.all(color: Colors.amber.shade300),
-                     ),
-                     child: Row(
-                       mainAxisSize: MainAxisSize.min,
-                       children: [
-                         Icon(Icons.history_rounded, size: 16, color: Colors.amber.shade900),
-                         const SizedBox(width: 8),
-                         Text(
-                           'Reviewing recent swipes while we cook...',
-                           style: TextStyle(
-                             color: Colors.amber.shade900, 
-                             fontWeight: FontWeight.bold,
-                             fontSize: 12,
-                           ),
-                         ),
-                       ],
-                     ),
-                   ),
-                 ),
+                top: 60,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.shade100,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.amber.shade300),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.history_rounded,
+                          size: 16,
+                          color: Colors.amber.shade900,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Reviewing recent swipes while we cook...',
+                          style: TextStyle(
+                            color: Colors.amber.shade900,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
 
             AppinioSwiper(
@@ -1214,14 +1316,14 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
               controller: _swiperController,
               cardCount: cardCount,
               onSwipeEnd: (previousIndex, targetIndex, activity) {
-                  // If reviewing history, we might want different logic?
-                  // For now, re-swiping right on history behaves like a new "I Made This" intent
-                  _onPreviewSwipeEnd(
-                    currentDeck,
-                    previousIndex,
-                    targetIndex,
-                    activity,
-                  );
+                // If reviewing history, we might want different logic?
+                // For now, re-swiping right on history behaves like a new "I Made This" intent
+                _onPreviewSwipeEnd(
+                  currentDeck,
+                  previousIndex,
+                  targetIndex,
+                  activity,
+                );
               },
               cardBuilder: (context, index) {
                 if (index >= currentDeck.length) return const SizedBox.shrink();
@@ -1250,7 +1352,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
-                       children: [
+                      children: [
                         const SizedBox(
                           width: 14,
                           height: 14,
@@ -1439,7 +1541,8 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                             onPressed: _dismissedCardHistory.isEmpty
                                 ? null
                                 : () {
-                                    final lastId = _dismissedCardHistory.removeLast();
+                                    final lastId = _dismissedCardHistory
+                                        .removeLast();
                                     setState(() {
                                       _dismissedCardIds.remove(lastId);
                                       _swiperRebuildToken++;
@@ -1712,10 +1815,67 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
   }
 
   void _showOutOfCarrots() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Out of Carrots! 🥕'),
-        backgroundColor: AppTheme.errorColor,
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('🥕', style: TextStyle(fontSize: 40)),
+              const SizedBox(height: 12),
+              const Text(
+                'Weekly limit reached',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'You\'ve used all your weekly unlocks. Come back next week or upgrade for unlimited recipes.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Premium plan coming soon! 🚀'),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Upgrade for Unlimited',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(
+                  'Come back later',
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1805,7 +1965,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                 ),
               ),
             ),
-            
+
             // Loading Overlay for Right Swipe Generation
             if (_showLoadingOverlay)
               Container(
@@ -1821,7 +1981,8 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                       const SizedBox(height: 16),
                       Text(
                         'Cooking up details... 🍳',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
                               color: Colors.white,
                               fontWeight: FontWeight.w600,
                             ),
@@ -1829,9 +1990,9 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                       const SizedBox(height: 8),
                       Text(
                         'Preparing your full recipe',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Colors.white70,
-                            ),
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodyMedium?.copyWith(color: Colors.white70),
                       ),
                     ],
                   ),
@@ -1980,7 +2141,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () => context.go(AppRoutes.pantry),
-                      
+
                       label: const Text('Update Pantry'),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
@@ -1994,7 +2155,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                   Expanded(
                     child: ElevatedButton.icon(
                       onPressed: () => context.go(AppRoutes.aiGenerate),
-                      
+
                       label: const Text('My Idea'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.primaryColor,

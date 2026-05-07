@@ -681,7 +681,7 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
                             }, childCount: filtered.length),
                           ),
                   ),
-                const SliverToBoxAdapter(child: SizedBox(height: 120)),
+                const SliverToBoxAdapter(child: SizedBox(height: 160)),
               ],
             ),
           ),
@@ -691,49 +691,110 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
             right: 16,
             bottom: 16,
             child: SafeArea(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Start Preparing button - only visible when pantry has items
-                  if (filtered.isNotEmpty)
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.only(right: 12),
-                        child: ElevatedButton.icon(
-                          onPressed: () {
-                            // Navigate to AI Recipe Generation
-                            context.go('/ai-generate');
-                          },
-                          icon: const Icon(Icons.auto_awesome, size: 16),
-                          label: const Text('Start Preparing'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.primaryColor,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            elevation: 3,
-                            shadowColor: Colors.black.withOpacity(0.3),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(24),
-                            ),
+                  // Row 1: Add Ingredients (always visible, centered)
+                  Center(
+                    child: SizedBox(
+                      width: 200,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          if (_requireAuth()) return;
+                          _showIngredientSelector();
+                        },
+                        icon: const Icon(Icons.playlist_add_rounded, size: 16),
+                        label: const Text(
+                          'Add Ingredients',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primaryColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 11),
+                          elevation: 3,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(24),
                           ),
                         ),
                       ),
-                    )
-                  else
-                    const SizedBox.shrink(),
-                  // Add button
-                  FloatingActionButton.extended(
-                    heroTag: 'pantryAddButton',
-                    onPressed: () {
-                      if (_requireAuth()) return;
-                      _showIngredientSelector();
-                    },
-                    icon: const Icon(Icons.playlist_add_rounded, size: 14),
-                    label: const Text('Add'),
-                    elevation: 3,
-                    backgroundColor: AppTheme.primaryColor,
-                    foregroundColor: Colors.white,
+                    ),
                   ),
+                  // Row 2: Generate Recipes + Custom Recipe (only when pantry has items)
+                  if (filtered.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: ElevatedButton.icon(
+                              onPressed: () => context.go(AppRoutes.swipe),
+                              icon: const Icon(Icons.search_rounded, size: 15),
+                              label: const Text(
+                                'Generate Recipes',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                foregroundColor: AppTheme.primaryColor,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                ),
+                                elevation: 2,
+                                side: BorderSide(
+                                  color: AppTheme.primaryColor.withValues(
+                                    alpha: 0.4,
+                                  ),
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(24),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(left: 6),
+                            child: ElevatedButton.icon(
+                              onPressed: () => context.go(AppRoutes.aiGenerate),
+                              icon: const Icon(Icons.restaurant, size: 15),
+                              label: const Text(
+                                'Custom Recipe',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                foregroundColor: AppTheme.primaryColor,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                ),
+                                elevation: 2,
+                                side: BorderSide(
+                                  color: AppTheme.primaryColor.withValues(
+                                    alpha: 0.4,
+                                  ),
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(24),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),

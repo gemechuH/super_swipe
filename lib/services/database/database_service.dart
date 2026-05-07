@@ -426,6 +426,28 @@ class DatabaseService {
     }, SetOptions(merge: true));
   }
 
+  /// Mark a recipe generation as failed so the UI can show a retry option.
+  Future<void> markRecipeGenerationFailed({
+    required String userId,
+    required String recipeId,
+  }) async {
+    final savedRef = _savedRecipes(userId).doc(recipeId);
+    await savedRef.set({
+      'generationStatus': 'failed',
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  /// Stream the generationStatus field for a saved recipe.
+  Stream<String?> watchRecipeGenerationStatus(String userId, String recipeId) {
+    return _savedRecipes(userId).doc(recipeId).snapshots().map((doc) {
+      if (!doc.exists) return null;
+      final data = doc.data();
+      if (data == null) return null;
+      return data['generationStatus'] as String?;
+    });
+  }
+
   /// Fetches recipe secrets (instructions) after unlock.
   /// Security rules ensure only unlocked/premium users can read.
   Future<List<String>> getRecipeSecrets(String recipeId) async {

@@ -7,7 +7,7 @@ import 'package:super_swipe/core/providers/user_data_providers.dart';
 import 'package:super_swipe/core/providers/recipe_providers.dart';
 import 'package:super_swipe/core/router/app_router.dart';
 import 'package:super_swipe/core/theme/app_theme.dart';
-import 'package:super_swipe/core/widgets/loading/app_loading.dart';
+import 'package:super_swipe/core/widgets/loading/app_shimmer.dart';
 import 'package:super_swipe/features/auth/providers/auth_provider.dart';
 import 'package:super_swipe/features/swipe/providers/pantry_first_swipe_deck_provider.dart';
 
@@ -576,7 +576,7 @@ class HomeScreen extends ConsumerWidget {
   }
 
   Widget _buildLoadingState() {
-    return const AppPageLoading();
+    return const _HomeScreenSkeleton();
   }
 
   Widget _buildErrorState(BuildContext context, Object error, WidgetRef ref) {
@@ -816,5 +816,142 @@ class _SwipeDeckPreloaderState extends ConsumerState<_SwipeDeckPreloader> {
     );
 
     return const SizedBox.shrink();
+  }
+}
+
+/// Skeleton screen that mirrors the real home screen layout.
+/// Uses shimmer animation on grey placeholder shapes.
+class _HomeScreenSkeleton extends StatelessWidget {
+  const _HomeScreenSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    final h = MediaQuery.of(context).size.height;
+    final w = MediaQuery.of(context).size.width;
+    final px = w * 0.06;
+
+    return AppShimmer(
+      baseColor: Colors.grey.shade200,
+      highlightColor: Colors.grey.shade100,
+      child: SingleChildScrollView(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: EdgeInsets.symmetric(horizontal: px),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(height: h * 0.02),
+
+            // Greeting line
+            _SkeletonBox(width: w * 0.55, height: 22, radius: 6),
+            SizedBox(height: h * 0.008),
+            _SkeletonBox(width: w * 0.45, height: 14, radius: 6),
+
+            SizedBox(height: h * 0.024),
+
+            // Swipe button
+            _SkeletonBox(
+              width: double.infinity,
+              height: h < 680 ? 44 : 48,
+              radius: 24,
+            ),
+            SizedBox(height: h * 0.01),
+            // Subtitle under button
+            Center(child: _SkeletonBox(width: w * 0.6, height: 12, radius: 6)),
+
+            SizedBox(height: h * 0.024),
+
+            // Two small cards row
+            Row(
+              children: [
+                Expanded(child: _SkeletonBox(height: 72, radius: 14)),
+                const SizedBox(width: 8),
+                Expanded(child: _SkeletonBox(height: 72, radius: 14)),
+              ],
+            ),
+
+            SizedBox(height: h * 0.024),
+
+            // Section title
+            _SkeletonBox(width: w * 0.35, height: 16, radius: 6),
+            SizedBox(height: h * 0.015),
+
+            // Recipe cards
+            _SkeletonRecipeRow(w: w),
+            const SizedBox(height: 10),
+            _SkeletonRecipeRow(w: w),
+            const SizedBox(height: 10),
+            _SkeletonRecipeRow(w: w),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SkeletonBox extends StatelessWidget {
+  final double? width;
+  final double height;
+  final double radius;
+
+  const _SkeletonBox({this.width, required this.height, this.radius = 8});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(radius),
+      ),
+    );
+  }
+}
+
+/// Skeleton for a single recipe card row (image left + text right)
+class _SkeletonRecipeRow extends StatelessWidget {
+  final double w;
+  const _SkeletonRecipeRow({required this.w});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 88,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          // Image placeholder
+          Container(
+            width: 88,
+            height: 88,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade300,
+              borderRadius: const BorderRadius.horizontal(
+                left: Radius.circular(14),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Text lines
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _SkeletonBox(width: w * 0.25, height: 10, radius: 4),
+                const SizedBox(height: 6),
+                _SkeletonBox(width: w * 0.45, height: 13, radius: 4),
+                const SizedBox(height: 6),
+                _SkeletonBox(width: w * 0.35, height: 10, radius: 4),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+        ],
+      ),
+    );
   }
 }

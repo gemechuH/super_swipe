@@ -1130,7 +1130,11 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
       if (!mounted) return;
       context.push(
         '${AppRoutes.recipes}/${recipeToSave.id}',
-        extra: recipeToSave,
+        extra: {
+          'recipe': recipeToSave,
+          'assumeUnlocked': true,
+          'openDirections': true,
+        },
       );
 
       // Clear draft so returning to this screen doesn't show stale data.
