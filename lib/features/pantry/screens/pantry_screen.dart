@@ -528,54 +528,57 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
               ],
             ),
           ),
-          // Positioned buttons row (avoids MainWrapper FAB conflict)
+          // Positioned buttons row (fixed position, not affected by keyboard)
           Positioned(
             left: 16,
             right: 16,
-            bottom: 110,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // Start Preparing button - only visible when pantry has items
-                if (filtered.isNotEmpty)
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 22),
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          // Navigate to AI Recipe Generation
-                          context.go('/ai-generate');
-                        },
-                        icon: const Icon(Icons.auto_awesome),
-                        label: const Text('Start Preparing'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.primaryColor,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          elevation: 3,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(28),
+            bottom: 16,
+            child: SafeArea(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Start Preparing button - only visible when pantry has items
+                  if (filtered.isNotEmpty)
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            // Navigate to AI Recipe Generation
+                            context.go('/ai-generate');
+                          },
+                          icon: const Icon(Icons.auto_awesome, size: 18),
+                          label: const Text('Start Preparing'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.primaryColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            elevation: 4,
+                            shadowColor: Colors.black.withOpacity(0.3),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(28),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  )
-                else
-                  const SizedBox.shrink(),
-                // Add button
-                FloatingActionButton.extended(
-                  heroTag: 'pantryAddButton',
-                  onPressed: () {
-                    if (_requireAuth()) return;
-                    _showIngredientSelector();
-                  },
-                  icon: const Icon(Icons.playlist_add_rounded),
-                  label: const Text('Add'),
-                  elevation: 3,
-                  backgroundColor: AppTheme.primaryColor,
-                  foregroundColor: Colors.white,
-                ),
-              ],
+                    )
+                  else
+                    const SizedBox.shrink(),
+                  // Add button
+                  FloatingActionButton.extended(
+                    heroTag: 'pantryAddButton',
+                    onPressed: () {
+                      if (_requireAuth()) return;
+                      _showIngredientSelector();
+                    },
+                    icon: const Icon(Icons.playlist_add_rounded, size: 20),
+                    label: const Text('Add'),
+                    elevation: 4,
+                    backgroundColor: AppTheme.primaryColor,
+                    foregroundColor: Colors.white,
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -781,6 +784,7 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
       useSafeArea: true,
       enableDrag: true,
       showDragHandle: true,
+      isDismissible: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),

@@ -101,6 +101,12 @@ class _PantryCategorySelectorContentState
   // Initial active set to check for removals
   late final Set<String> _initialActiveNorms;
 
+  // Search state
+  String _searchQuery = '';
+  List<String> _searchSuggestions = [];
+  bool _showSuggestions = false;
+  final FocusNode _searchFocusNode = FocusNode();
+
   @override
   void initState() {
     super.initState();
@@ -159,7 +165,66 @@ class _PantryCategorySelectorContentState
   void dispose() {
     _tabController.dispose();
     _customController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged(String query) {
+    setState(() {
+      _searchQuery = query.trim();
+      if (_searchQuery.length >= 2) {
+        _searchSuggestions = _getSearchSuggestions(_searchQuery);
+        _showSuggestions = true;
+      } else {
+        _searchSuggestions = [];
+        _showSuggestions = false;
+      }
+    });
+  }
+
+  List<String> _getSearchSuggestions(String query) {
+    final queryLower = query.toLowerCase();
+    final suggestions = <String>[];
+
+    // Search through all predefined ingredients
+    for (final key in _predefinedNorms) {
+      final label = _labelByNorm[key] ?? key;
+      final labelLower = label.toLowerCase();
+
+      // Exact match or starts with
+      if (labelLower.contains(queryLower)) {
+        suggestions.add(key);
+      }
+    }
+
+    // Sort by relevance: starts with query first, then contains
+    suggestions.sort((a, b) {
+      final aLabel = (_labelByNorm[a] ?? a).toLowerCase();
+      final bLabel = (_labelByNorm[b] ?? b).toLowerCase();
+      final aStarts = aLabel.startsWith(queryLower);
+      final bStarts = bLabel.startsWith(queryLower);
+
+      if (aStarts && !bStarts) return -1;
+      if (!aStarts && bStarts) return 1;
+      return aLabel.compareTo(bLabel);
+    });
+
+    // Limit to 8 suggestions for performance
+    return suggestions.take(8).toList();
+  }
+
+  void _selectSuggestion(String key) {
+    setState(() {
+      if (_predefinedNorms.contains(key)) {
+        _selectedByNorm[key] = _predefinedCategoryByNorm[key] ?? 'other';
+      } else {
+        _selectedByNorm[key] = 'other';
+      }
+      _customController.clear();
+      _searchQuery = '';
+      _showSuggestions = false;
+      _searchFocusNode.requestFocus();
+    });
   }
 
   void _addCustomItem() {
@@ -180,6 +245,9 @@ class _PantryCategorySelectorContentState
         _labelByNorm[key] = raw;
       }
       _customController.clear();
+      _searchQuery = '';
+      _showSuggestions = false;
+      _searchFocusNode.requestFocus();
     });
   }
 
@@ -198,169 +266,324 @@ class _PantryCategorySelectorContentState
 
     return SizedBox(
       height: screenHeight * 0.85,
-      child: Column(
+      child: Stack(
         children: [
-          SizedBox(height: screenHeight * 0.005),
-          // Handle
-          Container(
-            width: 40,
-            height: 3,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade300,
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-
-          // Header
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              16,
-              screenHeight * 0.008,
-              16,
-              screenHeight * 0.004,
-            ),
-            child: Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    'Select Ingredients',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                  ),
+          // Main content
+          Column(
+            children: [
+              SizedBox(height: screenHeight * 0.005),
+              // Handle
+              Container(
+                width: 40,
+                height: 3,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(4),
                 ),
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close_rounded, size: 22),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-              ],
-            ),
-          ),
-
-          // Custom Input
-          Padding(
-            padding: EdgeInsets.fromLTRB(16, 0, 16, screenHeight * 0.008),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _customController,
-                    enabled: !widget.isApplying,
-                    textInputAction: TextInputAction.done,
-                    style: const TextStyle(fontSize: 12),
-                    decoration: InputDecoration(
-                      hintText: 'Type to add item...',
-                      hintStyle: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[400],
-                      ),
-                      isDense: true,
-                      filled: true,
-                      fillColor: Colors.grey.shade100,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                    onSubmitted: (_) => _addCustomItem(),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: widget.isApplying ? null : _addCustomItem,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.all(10),
-                    minimumSize: const Size(36, 36),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Icon(Icons.add_rounded, size: 18),
-                ),
-              ],
-            ),
-          ),
-
-          // Tabs
-          TabBar(
-            controller: _tabController,
-            isScrollable: true,
-            tabAlignment: TabAlignment.start,
-            labelColor: AppTheme.primaryColor,
-            unselectedLabelColor: AppTheme.textSecondary,
-            indicatorColor: AppTheme.primaryColor,
-            dividerColor: Colors.transparent,
-            labelStyle: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-            unselectedLabelStyle: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-            ),
-            tabs: _tabs.map((c) => Tab(text: c)).toList(),
-          ),
-
-          // Content
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                ...widget.categories.map(
-                  (category) => _buildCategoryView(category),
-                ),
-                _buildCustomTab(),
-              ],
-            ),
-          ),
-
-          // Action Button
-          SafeArea(
-            minimum: EdgeInsets.only(bottom: screenHeight * 0.01),
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                16,
-                screenHeight * 0.006,
-                16,
-                screenHeight * 0.01,
               ),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: (!hasChanges || widget.isApplying)
-                      ? null
-                      : _handleApply,
-                  icon: widget.isApplying
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: AppInlineLoading(
-                            size: 16,
-                            baseColor: Color(0xFFEFEFEF),
-                            highlightColor: Color(0xFFFFFFFF),
+
+              // Header
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  screenHeight * 0.008,
+                  16,
+                  screenHeight * 0.004,
+                ),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Select Ingredients',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded, size: 22),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Custom Input with Search
+              Padding(
+                padding: EdgeInsets.fromLTRB(16, 0, 16, screenHeight * 0.008),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _customController,
+                        focusNode: _searchFocusNode,
+                        enabled: !widget.isApplying,
+                        textInputAction: TextInputAction.done,
+                        style: const TextStyle(fontSize: 12),
+                        decoration: InputDecoration(
+                          hintText: 'Search or add ingredient...',
+                          hintStyle: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[400],
                           ),
-                        )
-                      : const Icon(Icons.check_rounded, size: 14),
-                  label: Text(
-                    _getButtonLabel(),
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+                          prefixIcon: Icon(
+                            Icons.search_rounded,
+                            size: 18,
+                            color: Colors.grey[400],
+                          ),
+                          isDense: true,
+                          filled: true,
+                          fillColor: Colors.grey.shade100,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                        onChanged: _onSearchChanged,
+                        onSubmitted: (_) => _addCustomItem(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: widget.isApplying ? null : _addCustomItem,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.all(10),
+                        minimumSize: const Size(36, 36),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Icon(Icons.add_rounded, size: 18),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Spacer for suggestions
+              if (_showSuggestions) SizedBox(height: screenHeight * 0.008),
+
+              // Tabs
+              TabBar(
+                controller: _tabController,
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
+                labelColor: AppTheme.primaryColor,
+                unselectedLabelColor: AppTheme.textSecondary,
+                indicatorColor: AppTheme.primaryColor,
+                dividerColor: Colors.transparent,
+                labelStyle: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+                unselectedLabelStyle: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+                tabs: _tabs.map((c) => Tab(text: c)).toList(),
+              ),
+
+              // Content - takes remaining space minus button height
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    ...widget.categories.map(
+                      (category) => _buildCategoryView(category),
+                    ),
+                    _buildCustomTab(),
+                  ],
+                ),
+              ),
+
+              // Bottom padding for fixed button
+              const SizedBox(height: 70),
+            ],
+          ),
+
+          // Positioned Search Suggestions Dropdown (overlays on top)
+          if (_showSuggestions && _searchSuggestions.isNotEmpty)
+            Positioned(
+              left: 16,
+              right: 16,
+              top: screenHeight * 0.12,
+              child: Container(
+                constraints: BoxConstraints(maxHeight: screenHeight * 0.35),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade300),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.12),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  itemCount: _searchSuggestions.length,
+                  itemBuilder: (context, index) {
+                    final key = _searchSuggestions[index];
+                    final label = _labelByNorm[key] ?? key;
+                    final isAlreadySelected = _selectedByNorm.containsKey(key);
+
+                    return ListTile(
+                      dense: true,
+                      visualDensity: const VisualDensity(vertical: -2),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 0,
+                      ),
+                      leading: Icon(
+                        isAlreadySelected
+                            ? Icons.check_circle_rounded
+                            : Icons.add_circle_outline_rounded,
+                        size: 18,
+                        color: isAlreadySelected
+                            ? Colors.green[600]
+                            : AppTheme.primaryColor,
+                      ),
+                      title: Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: isAlreadySelected
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                          color: isAlreadySelected
+                              ? Colors.green[700]
+                              : Colors.black87,
+                        ),
+                      ),
+                      subtitle: _getSubtitle(key),
+                      onTap: isAlreadySelected
+                          ? null
+                          : () => _selectSuggestion(key),
+                    );
+                  },
+                ),
+              ),
+            ),
+
+          // Positioned "Add as new" option when no results
+          if (_showSuggestions &&
+              _searchSuggestions.isEmpty &&
+              _searchQuery.length >= 2)
+            Positioned(
+              left: 16,
+              right: 16,
+              top: screenHeight * 0.12,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade300),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.12),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: ListTile(
+                  dense: true,
+                  visualDensity: const VisualDensity(vertical: -2),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
+                  leading: Icon(
+                    Icons.add_circle_rounded,
+                    size: 18,
+                    color: AppTheme.primaryColor,
+                  ),
+                  title: RichText(
+                    text: TextSpan(
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black87,
+                      ),
+                      children: [
+                        const TextSpan(text: 'Add "'),
+                        TextSpan(
+                          text: _searchQuery,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        const TextSpan(text: '" as new ingredient'),
+                      ],
                     ),
                   ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryColor,
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: Colors.grey.shade300,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                  onTap: _addCustomItem,
+                ),
+              ),
+            ),
+
+          // Fixed Apply Button at bottom
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 8,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: (!hasChanges || widget.isApplying)
+                          ? null
+                          : _handleApply,
+                      icon: widget.isApplying
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: AppInlineLoading(
+                                size: 16,
+                                baseColor: Color(0xFFEFEFEF),
+                                highlightColor: Color(0xFFFFFFFF),
+                              ),
+                            )
+                          : const Icon(Icons.check_rounded, size: 18),
+                      label: Text(
+                        _getButtonLabel(),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryColor,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: Colors.grey.shade300,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                     ),
                   ),
                 ),

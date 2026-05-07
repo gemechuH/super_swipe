@@ -14,6 +14,8 @@ class MainWrapper extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
+      resizeToAvoidBottomInset:
+          false, // CRITICAL: Prevents FAB from moving when keyboard opens
       extendBody:
           true, // CRITICAL: Allows content to extend behind BottomAppBar
       body: child,
