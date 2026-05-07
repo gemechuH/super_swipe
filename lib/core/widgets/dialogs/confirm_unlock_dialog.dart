@@ -89,25 +89,25 @@ class _ConfirmUnlockDialogState extends State<ConfirmUnlockDialog> {
               ),
               child: Column(
                 children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.16),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.18),
-                      ),
-                    ),
-                    child: const Center(
-                      child: Text('🥕', style: TextStyle(fontSize: 18)),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
+                  // Container(
+                  //   width: 40,
+                  //   height: 40,
+                  //   decoration: BoxDecoration(
+                  //     color: Colors.white.withValues(alpha: 0.16),
+                  //     borderRadius: BorderRadius.circular(14),
+                  //     border: Border.all(
+                  //       color: Colors.white.withValues(alpha: 0.18),
+                  //     ),
+                  //   ),
+                  //   // child: const Center(
+                  //   //   child: Text('🥕', style: TextStyle(fontSize: 18)),
+                  //   // ),
+                  // ),
+                  const SizedBox(height: 4),
                   Text(
                     'Unlock Recipe',
                     style: GoogleFonts.dmSerifDisplay(
-                      fontSize: 20,
+                      fontSize: 16,
                       color: Colors.white,
                       fontWeight: FontWeight.w600,
                     ),
@@ -128,8 +128,8 @@ class _ConfirmUnlockDialogState extends State<ConfirmUnlockDialog> {
                     Text(
                       widget.preview.title,
                       style: GoogleFonts.dmSerifDisplay(
-                        fontSize: 22,
-                        height: 1.1,
+                        fontSize: 16,
+                        height: 1,
                         color: const Color(0xFF1F2937),
                       ),
                     ),
@@ -160,7 +160,7 @@ class _ConfirmUnlockDialogState extends State<ConfirmUnlockDialog> {
                                   child: Text(
                                     '🥕',
                                     style: TextStyle(
-                                      fontSize: 16,
+                                      fontSize: 14,
                                       color: accent,
                                     ),
                                   ),
@@ -174,7 +174,7 @@ class _ConfirmUnlockDialogState extends State<ConfirmUnlockDialog> {
                                       : 'No carrots remaining',
                                   style: GoogleFonts.inter(
                                     fontWeight: FontWeight.w700,
-                                    fontSize: 15,
+                                    fontSize: 14,
                                     color: accent,
                                   ),
                                 ),
@@ -219,7 +219,7 @@ class _ConfirmUnlockDialogState extends State<ConfirmUnlockDialog> {
                                     'This week',
                                     style: GoogleFonts.inter(
                                       fontWeight: FontWeight.w600,
-                                      fontSize: 13,
+                                      fontSize: 12,
                                       color: const Color(0xFF6B7280),
                                     ),
                                   ),
@@ -228,7 +228,7 @@ class _ConfirmUnlockDialogState extends State<ConfirmUnlockDialog> {
                                   '${widget.currentCarrots} / ${widget.maxCarrots}',
                                   style: GoogleFonts.inter(
                                     fontWeight: FontWeight.w800,
-                                    fontSize: 16,
+                                    fontSize: 14,
                                     color: accent,
                                   ),
                                 ),
@@ -298,7 +298,7 @@ class _ConfirmUnlockDialogState extends State<ConfirmUnlockDialog> {
                               width: 18,
                               height: 18,
                               child: AppInlineLoading(
-                                size: 18,
+                                size: 14,
                                 baseColor: Color(0xFFEFEFEF),
                                 highlightColor: Color(0xFFFFFFFF),
                               ),
@@ -306,10 +306,11 @@ class _ConfirmUnlockDialogState extends State<ConfirmUnlockDialog> {
                           : const Icon(Icons.lock_rounded, size: 20),
                       label: Text(
                         widget.isLoading ? 'Unlocking…' : 'Unlock',
-                        style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+                        style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14,),
                       ),
                       style: ElevatedButton.styleFrom(
                         elevation: 0,
+                        
                         backgroundColor: hasCarrots
                             ? AppTheme.primaryColor
                             : Colors.grey.shade400,
@@ -320,7 +321,7 @@ class _ConfirmUnlockDialogState extends State<ConfirmUnlockDialog> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 6),
                   SizedBox(
                     height: 52,
                     child: OutlinedButton(
@@ -334,7 +335,8 @@ class _ConfirmUnlockDialogState extends State<ConfirmUnlockDialog> {
                       child: Text(
                         'Cancel',
                         style: GoogleFonts.inter(
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
                           color: const Color(0xFF6B7280),
                         ),
                       ),
