@@ -161,21 +161,30 @@ class _NotchedBottomNavBar extends StatelessWidget {
                   selectedIcon: Icons.home_rounded,
                   label: 'Home',
                   isSelected: currentIndex == 0,
-                  onTap: () => context.go(AppRoutes.home),
+                  onTap: () {
+                    shellNavigatorKey.currentState?.popUntil((r) => r.isFirst);
+                    context.go(AppRoutes.home);
+                  },
                 ),
                 _NavItem(
                   icon: Icons.swipe_outlined,
                   selectedIcon: Icons.swipe_rounded,
                   label: 'Swipe',
                   isSelected: currentIndex == 1,
-                  onTap: () => context.go(AppRoutes.swipe),
+                  onTap: () {
+                    shellNavigatorKey.currentState?.popUntil((r) => r.isFirst);
+                    context.go(AppRoutes.swipe);
+                  },
                 ),
                 _NavItem(
                   icon: Icons.kitchen_outlined,
                   selectedIcon: Icons.kitchen_rounded,
                   label: 'Pantry',
                   isSelected: currentIndex == 2,
-                  onTap: () => context.go(AppRoutes.pantry),
+                  onTap: () {
+                    shellNavigatorKey.currentState?.popUntil((r) => r.isFirst);
+                    context.go(AppRoutes.pantry);
+                  },
                 ),
               ],
             ),
@@ -194,14 +203,20 @@ class _NotchedBottomNavBar extends StatelessWidget {
                   selectedIcon: Icons.restaurant_menu_rounded,
                   label: 'Recipes',
                   isSelected: currentIndex == 3,
-                  onTap: () => context.go(AppRoutes.recipes),
+                  onTap: () {
+                    shellNavigatorKey.currentState?.popUntil((r) => r.isFirst);
+                    context.go(AppRoutes.recipes);
+                  },
                 ),
                 _NavItem(
                   icon: Icons.settings_outlined,
                   selectedIcon: Icons.settings_rounded,
                   label: 'Settings',
                   isSelected: currentIndex == 4,
-                  onTap: () => context.go(AppRoutes.settings),
+                  onTap: () {
+                    shellNavigatorKey.currentState?.popUntil((r) => r.isFirst);
+                    context.go(AppRoutes.settings);
+                  },
                 ),
               ],
             ),

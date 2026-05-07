@@ -38,6 +38,9 @@ const _publicRoutes = [AppRoutes.onboarding, AppRoutes.login, AppRoutes.signup];
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
 
+/// Exposed so MainWrapper can close modals on the shell navigator
+GlobalKey<NavigatorState> get shellNavigatorKey => _shellNavigatorKey;
+
 /// Router provider with auth redirect logic
 final appRouterProvider = Provider<GoRouter>((ref) {
   // Do not watch here to avoid rebuilding the router on auth changes
