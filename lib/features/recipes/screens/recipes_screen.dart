@@ -40,9 +40,9 @@ class _RecipesScreenState extends ConsumerState<RecipesScreen> {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(
                   AppTheme.spacingL,
-                  AppTheme.spacingXL,
-                  AppTheme.spacingL,
                   AppTheme.spacingM,
+                  AppTheme.spacingL,
+                  AppTheme.spacingS,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -298,7 +298,7 @@ class _RecipesScreenState extends ConsumerState<RecipesScreen> {
     return GestureDetector(
       onTap: () => setState(() => _selectedFilter = index),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
         decoration: BoxDecoration(
           color: isSelected ? AppTheme.primaryColor : Colors.white,
           borderRadius: BorderRadius.circular(20),
@@ -325,43 +325,43 @@ class _RecipesScreenState extends ConsumerState<RecipesScreen> {
               '${AppRoutes.recipes}/${recipe.id}',
               extra: recipe,
             ),
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 20),
+        margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
           color: AppTheme.surfaceColor,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 16,
-              offset: const Offset(0, 8),
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Image
+            // Image on top - reduced height
             Stack(
               children: [
                 ClipRRect(
                   borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(24),
+                    top: Radius.circular(16),
                   ),
                   child: SizedBox(
-                    height: 180,
+                    height: 110,
                     width: double.infinity,
                     child: recipe.imageUrl.startsWith('http')
                         ? CachedNetworkImage(
                             imageUrl: recipe.imageUrl,
                             fit: BoxFit.cover,
-                            memCacheWidth: 800,
+                            memCacheWidth: 600,
                             placeholder: (context, url) => Container(
                               color: Colors.grey.shade200,
                               child: const Center(
                                 child: AppInlineLoading(
-                                  size: 28,
+                                  size: 22,
                                   baseColor: Color(0xFFE6E6E6),
                                   highlightColor: Color(0xFFF7F7F7),
                                 ),
@@ -371,7 +371,7 @@ class _RecipesScreenState extends ConsumerState<RecipesScreen> {
                               color: Colors.grey.shade200,
                               child: const Icon(
                                 Icons.broken_image,
-                                size: 48,
+                                size: 36,
                                 color: Colors.grey,
                               ),
                             ),
@@ -384,84 +384,78 @@ class _RecipesScreenState extends ConsumerState<RecipesScreen> {
                                   color: Colors.grey.shade200,
                                   child: const Icon(
                                     Icons.broken_image,
-                                    size: 48,
+                                    size: 36,
                                     color: Colors.grey,
                                   ),
                                 ),
                           ),
                   ),
                 ),
-                // Favorite/Like button (NOT delete!)
+                // Favorite button overlay
                 Positioned(
-                  top: 16,
-                  right: 16,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.1),
-                          blurRadius: 8,
-                        ),
-                      ],
-                    ),
-                    child: IconButton(
-                      icon: Icon(
+                  top: 8,
+                  right: 8,
+                  child: GestureDetector(
+                    onTap: () async {
+                      if (userId != null) {
+                        final wasLiked = recipe.isFavorite == true;
+                        await ref
+                            .read(recipeServiceProvider)
+                            .toggleRecipeFavorite(userId, recipe.id);
+                        if (wasLiked && context.mounted) {
+                          ref
+                              .read(undoServiceProvider.notifier)
+                              .registerUndo(
+                                id: 'unlike_${recipe.id}',
+                                description:
+                                    'Removed "${recipe.title}" from favorites',
+                                context: context,
+                                undoAction: () async {
+                                  await ref
+                                      .read(recipeServiceProvider)
+                                      .toggleRecipeFavorite(userId, recipe.id);
+                                },
+                              );
+                        } else if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Added to favorites ❤️'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                      }
+                    },
+                    child: Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.1),
+                            blurRadius: 4,
+                          ),
+                        ],
+                      ),
+                      child: Icon(
                         recipe.isFavorite == true
                             ? Icons.favorite_rounded
                             : Icons.favorite_border_rounded,
                         color: recipe.isFavorite == true
                             ? AppTheme.errorColor
                             : Colors.grey,
-                        size: 20,
+                        size: 16,
                       ),
-                      onPressed: () async {
-                        if (userId != null) {
-                          final wasLiked = recipe.isFavorite == true;
-                          // Toggle favorite status
-                          await ref
-                              .read(recipeServiceProvider)
-                              .toggleRecipeFavorite(userId, recipe.id);
-
-                          // Show undo snackbar for unlike actions
-                          if (wasLiked && context.mounted) {
-                            ref
-                                .read(undoServiceProvider.notifier)
-                                .registerUndo(
-                                  id: 'unlike_${recipe.id}',
-                                  description:
-                                      'Removed "${recipe.title}" from favorites',
-                                  context: context,
-                                  undoAction: () async {
-                                    // Re-favorite the recipe
-                                    await ref
-                                        .read(recipeServiceProvider)
-                                        .toggleRecipeFavorite(
-                                          userId,
-                                          recipe.id,
-                                        );
-                                  },
-                                );
-                          } else if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Added to favorites ❤️'),
-                                duration: Duration(seconds: 2),
-                              ),
-                            );
-                          }
-                        }
-                      },
                     ),
                   ),
                 ),
               ],
             ),
-
-            // Content
+            // Content below image
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -469,66 +463,78 @@ class _RecipesScreenState extends ConsumerState<RecipesScreen> {
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
+                          horizontal: 7,
+                          vertical: 2,
                         ),
                         decoration: BoxDecoration(
                           color: AppTheme.secondaryLight,
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
                           recipe.difficulty ?? 'Medium',
                           style: const TextStyle(
                             color: AppTheme.secondaryDark,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
                       const Spacer(),
                       const Icon(
                         Icons.star_rounded,
-                        size: 16,
+                        size: 13,
                         color: Colors.amber,
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 2),
                       const Text(
                         '4.8',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   Text(
                     recipe.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   Row(
                     children: [
                       Icon(
                         Icons.access_time_rounded,
-                        size: 16,
+                        size: 11,
                         color: Colors.grey.shade500,
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 3),
                       Text(
                         recipe.cookTime ?? '${recipe.timeMinutes} min',
-                        style: TextStyle(color: Colors.grey.shade500),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade500,
+                        ),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 10),
                       Icon(
                         Icons.local_fire_department_rounded,
-                        size: 16,
+                        size: 11,
                         color: Colors.grey.shade500,
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 3),
                       Text(
                         '${recipe.calories} kcal',
-                        style: TextStyle(color: Colors.grey.shade500),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade500,
+                        ),
                       ),
                     ],
                   ),
