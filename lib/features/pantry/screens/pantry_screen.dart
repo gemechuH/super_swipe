@@ -306,14 +306,52 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
                                   ),
                                 ),
                                 if (user != null && user.isAnonymous == true)
-                                  const Padding(
-                                    padding: EdgeInsets.only(left: 52, top: 8),
-                                    child: Text(
-                                      'Sign in to save these settings.',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: AppTheme.textSecondary,
-                                        fontStyle: FontStyle.italic,
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 10),
+                                    child: InkWell(
+                                      onTap: () => context.go(AppRoutes.login),
+                                      borderRadius: BorderRadius.circular(10),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppTheme.primaryColor
+                                              .withValues(alpha: 0.08),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                          border: Border.all(
+                                            color: AppTheme.primaryColor
+                                                .withValues(alpha: 0.25),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              Icons.lock_outline_rounded,
+                                              size: 14,
+                                              color: AppTheme.primaryColor,
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              'Sign in to save settings',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: AppTheme.primaryColor,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Icon(
+                                              Icons.arrow_forward_rounded,
+                                              size: 13,
+                                              color: AppTheme.primaryColor,
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ),
