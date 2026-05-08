@@ -927,6 +927,19 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
       return;
     }
 
+    // Check carrot balance before showing dialog
+    final profile = ref.read(userProfileProvider).value;
+    final subscription = profile?.subscriptionStatus.toLowerCase() ?? 'free';
+    final isPremium = subscription == 'premium';
+    final currentCarrots = profile?.carrots.current ?? 0;
+    final maxCarrots = profile?.carrots.max ?? 5;
+
+    if (!isPremium && currentCarrots < 1) {
+      // Out of carrots — show upgrade dialog
+      _showOutOfCarrotsDialog(currentCarrots, maxCarrots);
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -964,7 +977,34 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
               ),
               if (_cravingsController.text.trim().isNotEmpty)
                 _buildSummaryRow('Cravings', _cravingsController.text.trim()),
-              const SizedBox(height: 16),
+              // Show carrot cost for free users
+              if (!isPremium) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Text('🥕', style: TextStyle(fontSize: 14)),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Costs 1 carrot  ($currentCarrots/$maxCarrots remaining)',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
               Wrap(
                 spacing: 4,
                 runSpacing: 4,
@@ -998,18 +1038,96 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
             child: const Text('Cancel'),
           ),
           ElevatedButton.icon(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(dialogContext);
+              // Deduct carrot before generating
+              final userId = ref.read(authProvider).user?.uid;
+              if (userId != null && !isPremium) {
+                final success = await ref
+                    .read(databaseServiceProvider)
+                    .deductCarrot(userId);
+                if (!success) {
+                  if (mounted)
+                    _showOutOfCarrotsDialog(currentCarrots, maxCarrots);
+                  return;
+                }
+              }
               _generateRecipe();
             },
             icon: const Icon(Icons.restaurant),
-            label: const Text('Continue'),
+            label: Text(isPremium ? 'Continue' : 'Use 1 🥕 & Generate'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primaryColor,
               foregroundColor: Colors.white,
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showOutOfCarrotsDialog(int current, int max) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('🥕', style: TextStyle(fontSize: 40)),
+              const SizedBox(height: 12),
+              const Text(
+                'Weekly limit reached',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'You\'ve used all $max weekly carrots. Come back next week or upgrade for unlimited recipes.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Premium plan coming soon! 🚀'),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Upgrade for Unlimited',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(
+                  'Come back later',
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1121,7 +1239,9 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('🍽️ Recipe ready! Scroll down to view it. Enjoy!'),
+            content: const Text(
+              '🍽️ Recipe ready! Scroll down to view it. Enjoy!',
+            ),
             backgroundColor: AppTheme.successColor,
             duration: const Duration(seconds: 3),
             behavior: SnackBarBehavior.floating,
