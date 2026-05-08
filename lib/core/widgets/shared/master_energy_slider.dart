@@ -44,7 +44,7 @@ class MasterEnergySlider extends StatelessWidget {
           // Current value display with emoji
           Text(
             level.sliderLabel,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 2),
           Text(

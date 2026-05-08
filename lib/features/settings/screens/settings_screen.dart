@@ -61,6 +61,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final userProfileAsync = ref.watch(userProfileProvider);
 
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: const Color(0xFFFFFBF5),
       appBar: AppBar(
         backgroundColor: Colors.transparent,

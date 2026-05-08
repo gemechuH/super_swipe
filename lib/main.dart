@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:device_preview/device_preview.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -96,8 +97,11 @@ class _BootstrapAppState extends State<_BootstrapApp> {
           );
         }
 
-        // App ready — launch normally
-        return const ProviderScope(child: SuperSwipeApp());
+        // DevicePreview for development/testing
+        return DevicePreview(
+          enabled: !kReleaseMode,
+          builder: (context) => const ProviderScope(child: SuperSwipeApp()),
+        );
       },
     );
   }
@@ -228,6 +232,8 @@ class SuperSwipeApp extends ConsumerWidget {
         primaryTextTheme: withDmSansFallback(baseTheme.primaryTextTheme),
       ),
       routerConfig: router,
+      locale: DevicePreview.locale(context),
+      builder: DevicePreview.appBuilder,
     );
   }
 }

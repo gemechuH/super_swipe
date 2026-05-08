@@ -30,6 +30,7 @@ class _RecipesScreenState extends ConsumerState<RecipesScreen> {
     final userId = ref.watch(authProvider).user?.uid;
 
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: AppTheme.backgroundColor,
       body: SafeArea(
         child: CustomScrollView(

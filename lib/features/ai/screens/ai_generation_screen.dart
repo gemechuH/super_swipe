@@ -93,6 +93,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: const Color(0xFFFFFBF5),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -123,13 +124,17 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
+            final bottomInset = MediaQuery.of(context).viewInsets.bottom;
             return SingleChildScrollView(
               physics: const ClampingScrollPhysics(),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               padding: EdgeInsets.fromLTRB(
                 16,
                 0,
                 16,
-                constraints.maxHeight * 0.02,
+                bottomInset > 0
+                    ? bottomInset + 16
+                    : constraints.maxHeight * 0.02,
               ),
               child: ConstrainedBox(
                 constraints: BoxConstraints(minHeight: constraints.maxHeight),

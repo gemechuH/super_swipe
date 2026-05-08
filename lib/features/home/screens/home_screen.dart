@@ -32,6 +32,7 @@ class HomeScreen extends ConsumerWidget {
     final double cardTitleSize = h < 680 ? 13 : 14;
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,

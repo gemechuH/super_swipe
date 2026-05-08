@@ -97,377 +97,542 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
       resizeToAvoidBottomInset: false,
-      body: Stack(
-        children: [
-          SafeArea(
-            child: CustomScrollView(
-              physics: const BouncingScrollPhysics(),
-              slivers: [
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppTheme.spacingL,
-                      AppTheme.spacingXL,
-                      AppTheme.spacingL,
-                      AppTheme.spacingM,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Center(
-                          child: Text(
-                            'My Pantry',
-                            style: Theme.of(context).textTheme.headlineMedium
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 18,
-                                ),
-                          ),
-                        ),
-                        const SizedBox(height: AppTheme.spacingL),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Container(
-                                height: 36,
-                                decoration: BoxDecoration(
-                                  color: AppTheme.surfaceColor,
-                                  borderRadius: BorderRadius.circular(30),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(
-                                        alpha: 0.03,
-                                      ),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                child: TextField(
-                                  onChanged: (value) =>
-                                      setState(() => _searchQuery = value),
-                                  style: const TextStyle(fontSize: 13),
-                                  decoration: InputDecoration(
-                                    hintText: 'Search ingredients...',
-                                    filled: false,
-                                    border: InputBorder.none,
-                                    enabledBorder: InputBorder.none,
-                                    focusedBorder: InputBorder.none,
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 10,
-                                    ),
-                                    hintStyle: TextStyle(
-                                      color: Colors.grey.shade400,
-                                      fontSize: 13,
-                                    ),
-                                    prefixIcon: Icon(
-                                      Icons.search_rounded,
-                                      size: 18,
-                                      color: Colors.grey.shade400,
-                                    ),
-                                  ),
-                                ),
-                              ),
+      body: SafeArea(
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppTheme.spacingL,
+                  AppTheme.spacingXL,
+                  AppTheme.spacingL,
+                  AppTheme.spacingM,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Text(
+                        'My Pantry',
+                        style: Theme.of(context).textTheme.headlineMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 18,
                             ),
-                          ],
-                        ),
-                        // Hide these sections when searching
-                        if (!isSearching) ...[
-                          const SizedBox(height: AppTheme.spacingM),
-                          Row(
-                            children: [
-                              Transform.scale(
-                                scale: 0.8,
-                                child: Switch(
-                                  value: _showDepleted,
-                                  onChanged: (v) =>
-                                      setState(() => _showDepleted = v),
-                                  activeThumbColor: AppTheme.primaryColor,
+                      ),
+                    ),
+                    const SizedBox(height: AppTheme.spacingL),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: AppTheme.surfaceColor,
+                              borderRadius: BorderRadius.circular(30),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.03),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
                                 ),
-                              ),
-                              const Text(
-                                'Show depleted items',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w500,
+                              ],
+                            ),
+                            child: TextField(
+                              onChanged: (value) =>
+                                  setState(() => _searchQuery = value),
+                              style: const TextStyle(fontSize: 13),
+                              decoration: InputDecoration(
+                                hintText: 'Search ingredients...',
+                                filled: false,
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 10,
+                                ),
+                                hintStyle: TextStyle(
+                                  color: Colors.grey.shade400,
                                   fontSize: 13,
                                 ),
+                                prefixIcon: Icon(
+                                  Icons.search_rounded,
+                                  size: 18,
+                                  color: Colors.grey.shade400,
+                                ),
                               ),
-                            ],
+                            ),
                           ),
-                          const SizedBox(height: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
+                        ),
+                      ],
+                    ),
+                    // Hide these sections when searching
+                    if (!isSearching) ...[
+                      const SizedBox(height: AppTheme.spacingM),
+                      Row(
+                        children: [
+                          Transform.scale(
+                            scale: 0.8,
+                            child: Switch(
+                              value: _showDepleted,
+                              onChanged: (v) =>
+                                  setState(() => _showDepleted = v),
+                              activeThumbColor: AppTheme.primaryColor,
                             ),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: Colors.grey.shade200),
+                          ),
+                          const Text(
+                            'Show depleted items',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w500,
+                              fontSize: 13,
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                          ),
+                          const Spacer(),
+                          // Add Ingredients button — small, right side
+                          SizedBox(
+                            height: 32,
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                if (_requireAuth()) return;
+                                _showIngredientSelector();
+                              },
+                              icon: const Icon(Icons.add_rounded, size: 14),
+                              label: const Text(
+                                'Add',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.primaryColor,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 0,
+                                ),
+                                elevation: 2,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
                               children: [
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.tune_rounded,
-                                      size: 18,
-                                      color: AppTheme.textSecondary,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    const Expanded(
-                                      child: Text(
-                                        'Discovery settings',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                    if (_isUpdatingDiscoverySettings)
-                                      const SizedBox(
-                                        width: 16,
-                                        height: 16,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                        ),
-                                      ),
-                                  ],
+                                const Icon(
+                                  Icons.tune_rounded,
+                                  size: 18,
+                                  color: AppTheme.textSecondary,
                                 ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    Switch(
-                                      value: discovery.includeBasics,
-                                      onChanged: canEditDiscovery
-                                          ? (v) =>
-                                                _updatePantryDiscoverySettings(
-                                                  includeBasics: v,
-                                                )
-                                          : null,
-                                      activeThumbColor: AppTheme.primaryColor,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    const Expanded(
-                                      child: Text(
-                                        'Include basics',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const Padding(
-                                  padding: EdgeInsets.only(left: 52),
+                                const SizedBox(width: 8),
+                                const Expanded(
                                   child: Text(
-                                    'Include common basics like butter, salt, and pepper in suggestions.',
+                                    'Discovery settings',
                                     style: TextStyle(
-                                      fontSize: 12,
-                                      color: AppTheme.textSecondary,
-                                      height: 1.3,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                 ),
-                                const SizedBox(height: 6),
-                                Row(
-                                  children: [
-                                    Switch(
-                                      value: discovery.willingToShop,
-                                      onChanged: canEditDiscovery
-                                          ? (v) =>
-                                                _updatePantryDiscoverySettings(
-                                                  willingToShop: v,
-                                                )
-                                          : null,
-                                      activeThumbColor: AppTheme.primaryColor,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    const Expanded(
-                                      child: Text(
-                                        'Willing to shop',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const Padding(
-                                  padding: EdgeInsets.only(left: 52),
-                                  child: Text(
-                                    'Allow suggestions that may require a few extra items.',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: AppTheme.textSecondary,
-                                      height: 1.3,
-                                    ),
-                                  ),
-                                ),
-                                if (user != null && user.isAnonymous == true)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 10),
-                                    child: InkWell(
-                                      onTap: () => context.go(AppRoutes.login),
-                                      borderRadius: BorderRadius.circular(10),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 8,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: AppTheme.primaryColor
-                                              .withValues(alpha: 0.08),
-                                          borderRadius: BorderRadius.circular(
-                                            10,
-                                          ),
-                                          border: Border.all(
-                                            color: AppTheme.primaryColor
-                                                .withValues(alpha: 0.25),
-                                          ),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(
-                                              Icons.lock_outline_rounded,
-                                              size: 14,
-                                              color: AppTheme.primaryColor,
-                                            ),
-                                            const SizedBox(width: 6),
-                                            Text(
-                                              'Sign in to save settings',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                color: AppTheme.primaryColor,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Icon(
-                                              Icons.arrow_forward_rounded,
-                                              size: 13,
-                                              color: AppTheme.primaryColor,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
+                                if (_isUpdatingDiscoverySettings)
+                                  const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
                                     ),
                                   ),
                               ],
                             ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Switch(
+                                  value: discovery.includeBasics,
+                                  onChanged: canEditDiscovery
+                                      ? (v) => _updatePantryDiscoverySettings(
+                                          includeBasics: v,
+                                        )
+                                      : null,
+                                  activeThumbColor: AppTheme.primaryColor,
+                                ),
+                                const SizedBox(width: 8),
+                                const Expanded(
+                                  child: Text(
+                                    'Include basics',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const Padding(
+                              padding: EdgeInsets.only(left: 52),
+                              child: Text(
+                                'Include common basics like butter, salt, and pepper in suggestions.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppTheme.textSecondary,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                Switch(
+                                  value: discovery.willingToShop,
+                                  onChanged: canEditDiscovery
+                                      ? (v) => _updatePantryDiscoverySettings(
+                                          willingToShop: v,
+                                        )
+                                      : null,
+                                  activeThumbColor: AppTheme.primaryColor,
+                                ),
+                                const SizedBox(width: 8),
+                                const Expanded(
+                                  child: Text(
+                                    'Willing to shop',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const Padding(
+                              padding: EdgeInsets.only(left: 52),
+                              child: Text(
+                                'Allow suggestions that may require a few extra items.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppTheme.textSecondary,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ),
+                            if (user != null && user.isAnonymous == true)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 10),
+                                child: InkWell(
+                                  onTap: () => context.go(AppRoutes.login),
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.primaryColor.withValues(
+                                        alpha: 0.08,
+                                      ),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: AppTheme.primaryColor.withValues(
+                                          alpha: 0.25,
+                                        ),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.lock_outline_rounded,
+                                          size: 14,
+                                          color: AppTheme.primaryColor,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          'Sign in to save settings',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: AppTheme.primaryColor,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Icon(
+                                          Icons.arrow_forward_rounded,
+                                          size: 13,
+                                          color: AppTheme.primaryColor,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-                // Only show ingredient list when NOT searching
-                if (!isSearching)
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppTheme.spacingL,
-                    ),
-                    sliver: SliverList(
-                      delegate: SliverChildBuilderDelegate((context, index) {
-                        final item = filtered[index];
-                        return Dismissible(
-                          key: Key(item.id),
-                          direction: DismissDirection.endToStart,
-                          confirmDismiss: (_) async {
-                            if (_requireAuth()) return false;
-                            final authState = ref.read(authProvider);
-                            if (authState.user == null) return false;
+              ),
+            ),
+            // Only show ingredient list when NOT searching
+            if (!isSearching)
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spacingL,
+                ),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final item = filtered[index];
+                    return Dismissible(
+                      key: Key(item.id),
+                      direction: DismissDirection.endToStart,
+                      confirmDismiss: (_) async {
+                        if (_requireAuth()) return false;
+                        final authState = ref.read(authProvider);
+                        if (authState.user == null) return false;
 
-                            if (authState.user!.isAnonymous) {
-                              final deletedItem = item;
+                        if (authState.user!.isAnonymous) {
+                          final deletedItem = item;
 
-                              ref
-                                  .read(guestStateProvider.notifier)
-                                  .removePantryItem(item.id);
+                          ref
+                              .read(guestStateProvider.notifier)
+                              .removePantryItem(item.id);
 
-                              if (context.mounted) {
-                                ref
-                                    .read(undoServiceProvider.notifier)
-                                    .registerUndo(
-                                      id: 'delete_pantry_${item.id}',
-                                      description:
-                                          '${item.name} removed from pantry',
-                                      context: context,
-                                      undoAction: () async {
-                                        ref
-                                            .read(guestStateProvider.notifier)
-                                            .addPantryItem(
-                                              name: deletedItem.name,
-                                              category: deletedItem.category,
-                                              quantity: deletedItem.quantity,
-                                              unit: deletedItem.unit,
-                                            );
-                                      },
-                                    );
-                              }
-
-                              return true;
-                            }
-
-                            // Store item data for undo
-                            final deletedItem = item;
-                            final userId = authState.user!.uid;
-
-                            try {
-                              final pantryService = ref.read(
-                                pantryServiceProvider,
-                              );
-                              await pantryService.deletePantryItem(
-                                userId,
-                                item.id,
-                              );
-
-                              // Register undo operation
-                              if (context.mounted) {
-                                ref
-                                    .read(undoServiceProvider.notifier)
-                                    .registerUndo(
-                                      id: 'delete_pantry_${item.id}',
-                                      description:
-                                          '${item.name} removed from pantry',
-                                      context: context,
-                                      undoAction: () async {
-                                        // Restore the item
-                                        await pantryService.addPantryItem(
-                                          userId,
-                                          deletedItem.name,
+                          if (context.mounted) {
+                            ref
+                                .read(undoServiceProvider.notifier)
+                                .registerUndo(
+                                  id: 'delete_pantry_${item.id}',
+                                  description:
+                                      '${item.name} removed from pantry',
+                                  context: context,
+                                  undoAction: () async {
+                                    ref
+                                        .read(guestStateProvider.notifier)
+                                        .addPantryItem(
+                                          name: deletedItem.name,
                                           category: deletedItem.category,
                                           quantity: deletedItem.quantity,
+                                          unit: deletedItem.unit,
                                         );
-                                      },
-                                    );
-                              }
-                              return true;
-                            } catch (e) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Failed to delete: $e'),
-                                    backgroundColor: Colors.red,
-                                  ),
+                                  },
                                 );
-                              }
-                              return false;
-                            }
-                          },
-                          background: Container(
-                            alignment: Alignment.centerRight,
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            color: AppTheme.errorColor.withValues(alpha: 0.1),
-                            child: const Icon(
-                              Icons.delete_forever,
-                              color: AppTheme.errorColor,
-                              size: 22,
+                          }
+
+                          return true;
+                        }
+
+                        // Store item data for undo
+                        final deletedItem = item;
+                        final userId = authState.user!.uid;
+
+                        try {
+                          final pantryService = ref.read(pantryServiceProvider);
+                          await pantryService.deletePantryItem(userId, item.id);
+
+                          // Register undo operation
+                          if (context.mounted) {
+                            ref
+                                .read(undoServiceProvider.notifier)
+                                .registerUndo(
+                                  id: 'delete_pantry_${item.id}',
+                                  description:
+                                      '${item.name} removed from pantry',
+                                  context: context,
+                                  undoAction: () async {
+                                    // Restore the item
+                                    await pantryService.addPantryItem(
+                                      userId,
+                                      deletedItem.name,
+                                      category: deletedItem.category,
+                                      quantity: deletedItem.quantity,
+                                    );
+                                  },
+                                );
+                          }
+                          return true;
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Failed to delete: $e'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                          return false;
+                        }
+                      },
+                      background: Container(
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        color: AppTheme.errorColor.withValues(alpha: 0.1),
+                        child: const Icon(
+                          Icons.delete_forever,
+                          color: AppTheme.errorColor,
+                          size: 22,
+                        ),
+                      ),
+                      child: InkWell(
+                        onTap: () {
+                          if (_requireAuth()) return;
+                          _showQuantityEditor(item);
+                        },
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppTheme.surfaceColor,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.02),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              _buildIconForItem(item.name),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item.name,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 12,
+                                        color: AppTheme.textPrimary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 14),
+                                    Text(
+                                      '${item.quantity}',
+                                      style: const TextStyle(
+                                        color: AppTheme.textSecondary,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  const Row(
+                                    children: [
+                                      Text(
+                                        'Edit',
+                                        style: TextStyle(
+                                          color: AppTheme.textSecondary,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w400,
+                                        ),
+                                      ),
+                                      SizedBox(width: 6),
+                                      Icon(
+                                        Icons.chevron_right,
+                                        color: AppTheme.textLight,
+                                        size: 18,
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Row(
+                                    children: [
+                                      Text(
+                                        'Swipe to delete',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          color: AppTheme.textSecondary
+                                              .withValues(alpha: 0.4),
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 2),
+                                      Icon(
+                                        Icons.swipe_left_sharp,
+                                        size: 12,
+                                        color: AppTheme.textSecondary
+                                            .withValues(alpha: 0.4),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }, childCount: filtered.length),
+                ),
+              ),
+            // Show search results when searching
+            if (isSearching)
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spacingL,
+                ),
+                sliver: filtered.isEmpty
+                    ? SliverToBoxAdapter(
+                        child: Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(32),
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.search_off_rounded,
+                                  size: 48,
+                                  color: Colors.grey.shade300,
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'No ingredients found',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey.shade600,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Try a different search term',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade400,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          child: InkWell(
+                        ),
+                      )
+                    : SliverList(
+                        delegate: SliverChildBuilderDelegate((context, index) {
+                          final item = filtered[index];
+                          return InkWell(
                             onTap: () {
                               if (_requireAuth()) return;
                               _showQuantityEditor(item);
@@ -506,9 +671,9 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
                                             color: AppTheme.textPrimary,
                                           ),
                                         ),
-                                        const SizedBox(height: 14),
+                                        const SizedBox(height: 4),
                                         Text(
-                                          '${item.quantity}',
+                                          'Qty: ${item.quantity}',
                                           style: const TextStyle(
                                             color: AppTheme.textSecondary,
                                             fontSize: 10,
@@ -518,288 +683,114 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
                                       ],
                                     ),
                                   ),
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      const Row(
-                                        children: [
-                                          Text(
-                                            'Edit',
-                                            style: TextStyle(
-                                              color: AppTheme.textSecondary,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w400,
-                                            ),
-                                          ),
-                                          SizedBox(width: 6),
-                                          Icon(
-                                            Icons.chevron_right,
-                                            color: AppTheme.textLight,
-                                            size: 18,
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Row(
-                                        children: [
-                                          Text(
-                                            'Swipe to delete',
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              color: AppTheme.textSecondary
-                                                  .withValues(alpha: 0.4),
-                                              fontStyle: FontStyle.italic,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 2),
-                                          Icon(
-                                            Icons.swipe_left_sharp,
-                                            size: 12,
-                                            color: AppTheme.textSecondary
-                                                .withValues(alpha: 0.4),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
+                                  const Icon(
+                                    Icons.chevron_right,
+                                    color: AppTheme.textLight,
+                                    size: 18,
                                   ),
                                 ],
                               ),
                             ),
-                          ),
-                        );
-                      }, childCount: filtered.length),
-                    ),
-                  ),
-                // Show search results when searching
-                if (isSearching)
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppTheme.spacingL,
-                    ),
-                    sliver: filtered.isEmpty
-                        ? SliverToBoxAdapter(
-                            child: Center(
-                              child: Padding(
-                                padding: const EdgeInsets.all(32),
-                                child: Column(
-                                  children: [
-                                    Icon(
-                                      Icons.search_off_rounded,
-                                      size: 48,
-                                      color: Colors.grey.shade300,
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      'No ingredients found',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: Colors.grey.shade600,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Try a different search term',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey.shade400,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          )
-                        : SliverList(
-                            delegate: SliverChildBuilderDelegate((
-                              context,
-                              index,
-                            ) {
-                              final item = filtered[index];
-                              return InkWell(
-                                onTap: () {
-                                  if (_requireAuth()) return;
-                                  _showQuantityEditor(item);
-                                },
-                                child: Container(
-                                  margin: const EdgeInsets.only(bottom: 10),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 8,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.surfaceColor,
-                                    borderRadius: BorderRadius.circular(16),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withValues(
-                                          alpha: 0.02,
-                                        ),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      _buildIconForItem(item.name),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              item.name,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 12,
-                                                color: AppTheme.textPrimary,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              'Qty: ${item.quantity}',
-                                              style: const TextStyle(
-                                                color: AppTheme.textSecondary,
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      const Icon(
-                                        Icons.chevron_right,
-                                        color: AppTheme.textLight,
-                                        size: 18,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            }, childCount: filtered.length),
-                          ),
-                  ),
-                const SliverToBoxAdapter(child: SizedBox(height: 160)),
-              ],
-            ),
-          ),
-          // Positioned buttons row (fixed position, not affected by keyboard)
-          Positioned(
-            left: 16,
-            right: 16,
-            bottom: 16,
-            child: SafeArea(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Row 1: Add Ingredients (always visible, centered)
-                  Center(
-                    child: SizedBox(
-                      width: 200,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          if (_requireAuth()) return;
-                          _showIngredientSelector();
-                        },
-                        icon: const Icon(Icons.playlist_add_rounded, size: 16),
-                        label: const Text(
-                          'Add Ingredients',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.primaryColor,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 11),
-                          elevation: 3,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(24),
-                          ),
-                        ),
+                          );
+                        }, childCount: filtered.length),
                       ),
-                    ),
-                  ),
-                  // Row 2: Generate Recipes + Custom Recipe (only when pantry has items)
-                  if (filtered.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.only(right: 6),
-                            child: ElevatedButton.icon(
-                              onPressed: () => context.go(AppRoutes.swipe),
-                              icon: const Icon(Icons.search_rounded, size: 15),
-                              label: const Text(
-                                'Generate Recipes',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
+              ),
+            const SliverToBoxAdapter(child: SizedBox(height: 12)),
+            // Buttons inside scroll — never overlap content
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Generate Recipes + Custom Recipe (only when pantry has items)
+                    if (filtered.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 6),
+                              child: ElevatedButton.icon(
+                                onPressed: () => context.go(AppRoutes.swipe),
+                                icon: const Icon(
+                                  Icons.search_rounded,
+                                  size: 15,
                                 ),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                foregroundColor: AppTheme.primaryColor,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 10,
-                                ),
-                                elevation: 2,
-                                side: BorderSide(
-                                  color: AppTheme.primaryColor.withValues(
-                                    alpha: 0.4,
+                                label: const Text(
+                                  'Generate Recipes',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(24),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.white,
+                                  foregroundColor: AppTheme.primaryColor,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                  ),
+                                  elevation: 2,
+                                  side: BorderSide(
+                                    color: AppTheme.primaryColor.withValues(
+                                      alpha: 0.4,
+                                    ),
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(24),
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.only(left: 6),
-                            child: ElevatedButton.icon(
-                              onPressed: () => context.go(AppRoutes.aiGenerate),
-                              icon: const Icon(Icons.restaurant, size: 15),
-                              label: const Text(
-                                'Custom Recipe',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                foregroundColor: AppTheme.primaryColor,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 10,
-                                ),
-                                elevation: 2,
-                                side: BorderSide(
-                                  color: AppTheme.primaryColor.withValues(
-                                    alpha: 0.4,
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.only(left: 6),
+                              child: ElevatedButton.icon(
+                                onPressed: () =>
+                                    context.go(AppRoutes.aiGenerate),
+                                icon: const Icon(Icons.restaurant, size: 15),
+                                label: const Text(
+                                  'Custom Recipe',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(24),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.white,
+                                  foregroundColor: AppTheme.primaryColor,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                  ),
+                                  elevation: 2,
+                                  side: BorderSide(
+                                    color: AppTheme.primaryColor.withValues(
+                                      alpha: 0.4,
+                                    ),
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(24),
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
-          ),
-        ],
+            // Bottom safe area padding
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: MediaQuery.of(context).padding.bottom + 80,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

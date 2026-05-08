@@ -72,12 +72,12 @@ class MealTypeSelector extends StatelessWidget {
           label: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(emoji, style: const TextStyle(fontSize: 14)),
+              Text(emoji, style: const TextStyle(fontSize: 13)),
               const SizedBox(width: 4),
               Text(
                 type[0].toUpperCase() + type.substring(1),
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 11,
                   fontWeight: FontWeight.w600,
                   color: isSelected ? Colors.white : AppTheme.textSecondary,
                 ),

@@ -263,9 +263,14 @@ class _PantryCategorySelectorContentState
   Widget build(BuildContext context) {
     final hasChanges = _checkForChanges();
     final screenHeight = MediaQuery.of(context).size.height;
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    // When keyboard is open, reduce modal height so content stays visible
+    final modalHeight = bottomInset > 0
+        ? (screenHeight - bottomInset) * 0.95
+        : screenHeight * 0.85;
 
     return SizedBox(
-      height: screenHeight * 0.85,
+      height: modalHeight,
       child: Stack(
         children: [
           // Main content
@@ -775,4 +780,3 @@ class _PantryCategorySelectorContentState
     return null;
   }
 }
-
