@@ -263,11 +263,9 @@ class _PantryCategorySelectorContentState
   Widget build(BuildContext context) {
     final hasChanges = _checkForChanges();
     final screenHeight = MediaQuery.of(context).size.height;
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-    // When keyboard is open, reduce modal height so content stays visible
-    final modalHeight = bottomInset > 0
-        ? (screenHeight - bottomInset) * 0.95
-        : screenHeight * 0.85;
+    // Always use fixed height — never shrink when keyboard opens
+    // The keyboard pushes the modal up, content scrolls inside
+    final modalHeight = screenHeight * 0.85;
 
     return SizedBox(
       height: modalHeight,
@@ -409,8 +407,12 @@ class _PantryCategorySelectorContentState
                 ),
               ),
 
-              // Bottom padding for fixed button
-              const SizedBox(height: 70),
+              // Bottom padding so list content scrolls above the button
+              SizedBox(
+                height: MediaQuery.of(context).viewInsets.bottom > 0
+                    ? MediaQuery.of(context).viewInsets.bottom + 70
+                    : 70,
+              ),
             ],
           ),
 
@@ -419,9 +421,11 @@ class _PantryCategorySelectorContentState
             Positioned(
               left: 16,
               right: 16,
-              top: screenHeight * 0.12,
+              top: 120, // fixed: handle(8) + header(48) + search(44) + gap(20)
               child: Container(
-                constraints: BoxConstraints(maxHeight: screenHeight * 0.35),
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.28,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
@@ -488,7 +492,7 @@ class _PantryCategorySelectorContentState
             Positioned(
               left: 16,
               right: 16,
-              top: screenHeight * 0.12,
+              top: 120, // fixed: same as suggestions dropdown
               child: Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -535,11 +539,11 @@ class _PantryCategorySelectorContentState
               ),
             ),
 
-          // Fixed Apply Button at bottom
+          // Fixed Apply Button at bottom — rises above keyboard when open
           Positioned(
             left: 0,
             right: 0,
-            bottom: 0,
+            bottom: MediaQuery.of(context).viewInsets.bottom,
             child: Container(
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -553,6 +557,8 @@ class _PantryCategorySelectorContentState
               ),
               child: SafeArea(
                 top: false,
+                // When keyboard is open, don't add extra bottom safe area
+                bottom: MediaQuery.of(context).viewInsets.bottom == 0,
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: SizedBox(

@@ -40,6 +40,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
   bool _isGenerating = false;
   bool _isRefining = false;
   bool _isSaving = false;
+  int _completedSteps = 0; // tracks how many steps user has clicked through
 
   // Draft recipe now stored in DraftRecipeNotifier for navigation persistence
   // Use ref.watch(draftRecipeProvider) to get current draft
@@ -511,38 +512,36 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header with Draft Badge
+          // Header — compact
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.amber.shade700, Colors.amber.shade600],
-              ),
+              color: Colors.amber.shade600,
               borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(20),
+                top: Radius.circular(14),
               ),
             ),
             child: const Row(
               children: [
-                Icon(Icons.edit_note, color: Colors.white, size: 28),
-                SizedBox(width: 12),
+                Icon(Icons.edit_note, color: Colors.white, size: 16),
+                SizedBox(width: 6),
                 Text(
                   'Recipe Draft',
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 16,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -551,29 +550,36 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
           ),
 
           Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Title
                 Text(
                   recipe.title,
-                  style: GoogleFonts.dmSerifDisplay(
-                    fontSize: 24,
-                    color: const Color(0xFF2D2621),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF2D2621),
+                    height: 1.3,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
 
-                // Description
+                // Description — max 2 lines
                 Text(
                   recipe.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: AppTheme.textSecondary,
+                    fontSize: 12,
                     height: 1.4,
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 10),
 
                 // Meta info
                 Row(
@@ -582,7 +588,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                       Icons.access_time,
                       '${recipe.timeMinutes} min',
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 8),
                     if (_showCalories)
                       _buildMetaChip(
                         Icons.local_fire_department,
@@ -590,77 +596,146 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                       ),
                   ],
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 14),
 
                 // Ingredients
                 const Text(
                   'Ingredients',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 ...recipe.ingredients.map(
                   (ing) => Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
+                    padding: const EdgeInsets.only(bottom: 3),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          '• ',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                        const Text('• ', style: TextStyle(fontSize: 12)),
+                        Expanded(
+                          child: Text(
+                            ing,
+                            style: const TextStyle(fontSize: 12),
+                          ),
                         ),
-                        Expanded(child: Text(ing)),
                       ],
                     ),
                   ),
                 ),
 
-                const SizedBox(height: 20),
+                const SizedBox(height: 14),
 
-                // Instructions
+                // Instructions — step by step reveal
                 const Text(
                   'Cooking Steps',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
                 ),
-                const SizedBox(height: 8),
-                ...recipe.instructions.asMap().entries.map(
-                  (entry) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 24,
-                          height: 24,
-                          margin: const EdgeInsets.only(right: 12),
-                          decoration: const BoxDecoration(
-                            color: AppTheme.primaryColor,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Center(
-                            child: Text(
-                              '${entry.key + 1}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                              ),
+                const SizedBox(height: 6),
+                ...recipe.instructions.asMap().entries.map((entry) {
+                  final stepIndex = entry.key;
+                  final stepText = entry.value;
+                  final isVisible = stepIndex <= _completedSteps;
+                  final isCompleted = stepIndex < _completedSteps;
+                  final isCurrent = stepIndex == _completedSteps;
+
+                  if (!isVisible) return const SizedBox.shrink();
+
+                  return GestureDetector(
+                    onTap: isCurrent
+                        ? () => setState(() => _completedSteps++)
+                        : null,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
+                      margin: const EdgeInsets.only(bottom: 6),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: isCompleted
+                            ? Colors.green.shade50
+                            : isCurrent
+                            ? AppTheme.primaryColor.withValues(alpha: 0.06)
+                            : Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isCompleted
+                              ? Colors.green.shade200
+                              : isCurrent
+                              ? AppTheme.primaryColor.withValues(alpha: 0.3)
+                              : Colors.grey.shade200,
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 20,
+                            height: 20,
+                            margin: const EdgeInsets.only(right: 8, top: 1),
+                            decoration: BoxDecoration(
+                              color: isCompleted
+                                  ? Colors.green
+                                  : isCurrent
+                                  ? AppTheme.primaryColor
+                                  : Colors.grey.shade400,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Center(
+                              child: isCompleted
+                                  ? const Icon(
+                                      Icons.check,
+                                      color: Colors.white,
+                                      size: 12,
+                                    )
+                                  : Text(
+                                      '${stepIndex + 1}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 10,
+                                      ),
+                                    ),
                             ),
                           ),
-                        ),
-                        Expanded(child: Text(entry.value)),
-                      ],
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  stepText,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    height: 1.4,
+                                    color: isCompleted
+                                        ? Colors.grey.shade600
+                                        : AppTheme.textPrimary,
+                                  ),
+                                ),
+                                if (isCurrent) ...[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Tap to mark done ✓',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: AppTheme.primaryColor,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ),
+                  );
+                }),
 
-                const SizedBox(height: 24),
+                const SizedBox(height: 12),
 
                 // REFINE Section
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: Colors.blue[50],
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(10),
                     border: Border.all(color: Colors.blue[200]!),
                   ),
                   child: Column(
@@ -668,64 +743,77 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                     children: [
                       const Row(
                         children: [
-                          Icon(Icons.tune, color: AppTheme.primaryColor),
-                          SizedBox(width: 8),
+                          Icon(
+                            Icons.tune,
+                            color: AppTheme.primaryColor,
+                            size: 16,
+                          ),
+                          SizedBox(width: 6),
                           Text(
                             'Not quite right? Let\'s refine it!',
                             style: TextStyle(
                               fontWeight: FontWeight.w600,
-                              fontSize: 14,
+                              fontSize: 12,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 8),
                       TextField(
                         controller: _refineController,
+                        style: const TextStyle(fontSize: 12),
                         decoration: InputDecoration(
                           hintText:
                               'e.g., Make it spicier, I don\'t have onions...',
-                          hintStyle: TextStyle(color: Colors.grey[400]),
+                          hintStyle: TextStyle(
+                            color: Colors.grey[400],
+                            fontSize: 12,
+                          ),
                           filled: true,
                           fillColor: Colors.white,
+                          isDense: true,
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(8),
                             borderSide: BorderSide.none,
                           ),
-                          contentPadding: const EdgeInsets.all(12),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 8),
                       SizedBox(
                         width: double.infinity,
+                        height: 36,
                         child: OutlinedButton.icon(
-                          // DISABLED when refining OR when input is empty
                           onPressed: _isRefining || _refineText.trim().isEmpty
                               ? null
                               : _refineRecipe,
                           icon: _isRefining
                               ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: AppInlineLoading(size: 16),
+                                  width: 14,
+                                  height: 14,
+                                  child: AppInlineLoading(size: 14),
                                 )
-                              : const Icon(Icons.refresh),
+                              : const Icon(Icons.refresh, size: 14),
                           label: Text(
                             _isRefining
                                 ? 'Perfecting...'
                                 : _refineText.trim().isEmpty
                                 ? 'Enter refinement to continue'
                                 : 'Refine Recipe',
+                            style: const TextStyle(fontSize: 12),
                           ),
                           style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.all(14),
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
                             side: BorderSide(
                               color: _refineText.trim().isEmpty
                                   ? Colors.grey.shade400
                                   : AppTheme.primaryColor,
                             ),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(8),
                             ),
                           ),
                         ),
@@ -734,40 +822,68 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                   ),
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 10),
 
-                // SAVE Button
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton.icon(
-                    onPressed: _isSaving ? null : _saveToMyCookbook,
-                    icon: _isSaving
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: AppInlineLoading(
-                              size: 20,
-                              baseColor: Color(0xFFEFEFEF),
-                              highlightColor: Color(0xFFFFFFFF),
+                // SAVE Button — only active when all steps completed
+                Builder(
+                  builder: (context) {
+                    final totalSteps = recipe.instructions.length;
+                    final allDone = _completedSteps >= totalSteps;
+                    return SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: (_isSaving || !allDone)
+                            ? null
+                            : _saveToMyCookbook,
+                        icon: _isSaving
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: AppInlineLoading(
+                                  size: 16,
+                                  baseColor: Color(0xFFEFEFEF),
+                                  highlightColor: Color(0xFFFFFFFF),
+                                ),
+                              )
+                            : Icon(
+                                allDone
+                                    ? Icons.bookmark_add
+                                    : Icons.lock_outline_rounded,
+                                size: 16,
+                              ),
+                        label: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            _isSaving
+                                ? 'Saving...'
+                                : allDone
+                                ? 'Save to My Cookbook'
+                                : 'Complete steps (${_completedSteps}/$totalSteps)',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
                             ),
-                          )
-                        : const Icon(Icons.bookmark_add),
-                    label: Text(
-                      _isSaving ? 'Saving...' : 'Save to My Cookbook',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
+                            maxLines: 1,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: allDone
+                              ? AppTheme.primaryColor
+                              : Colors.grey.shade300,
+                          foregroundColor: allDone
+                              ? Colors.white
+                              : Colors.grey.shade600,
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 12,
+                            horizontal: 16,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
                       ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primaryColor,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                  ),
+                    );
+                  },
                 ),
               ],
             ),
@@ -821,7 +937,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
             Text(
               'Ready to Cook?',
               style: GoogleFonts.dmSerifDisplay(
-                fontSize: 22,
+                fontSize: 18,
                 color: const Color(0xFF2D2621),
               ),
             ),
@@ -997,6 +1113,25 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
       ref
           .read(draftRecipeProvider.notifier)
           .setDraft(recipe, imageResult: imageResult);
+
+      // Reset step tracker for new recipe
+      setState(() => _completedSteps = 0);
+
+      // Toast message after generation
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('🍽️ Recipe ready! Scroll down to view it. Enjoy!'),
+            backgroundColor: AppTheme.successColor,
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+
       setState(() {}); // Trigger rebuild
     } catch (e) {
       debugPrint('Recipe generation error: $e');

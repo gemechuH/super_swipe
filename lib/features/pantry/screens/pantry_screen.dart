@@ -712,7 +712,10 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
                             child: Padding(
                               padding: const EdgeInsets.only(right: 6),
                               child: ElevatedButton.icon(
-                                onPressed: () => context.go(AppRoutes.swipe),
+                                onPressed: () {
+                                  if (_requireFullAuth()) return;
+                                  context.go(AppRoutes.swipe);
+                                },
                                 icon: const Icon(
                                   Icons.search_rounded,
                                   size: 15,
@@ -747,8 +750,10 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
                             child: Padding(
                               padding: const EdgeInsets.only(left: 6),
                               child: ElevatedButton.icon(
-                                onPressed: () =>
-                                    context.go(AppRoutes.aiGenerate),
+                                onPressed: () {
+                                  if (_requireFullAuth()) return;
+                                  context.go(AppRoutes.aiGenerate);
+                                },
                                 icon: const Icon(Icons.restaurant, size: 15),
                                 label: const Text(
                                   'Custom Recipe',
@@ -814,6 +819,40 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
                 GoRouter.of(context).go(AppRoutes.login);
               },
               child: const Text('Login'),
+            ),
+          ],
+        ),
+      );
+      return true;
+    }
+    return false;
+  }
+
+  // Stricter auth check — also blocks anonymous/guest users
+  bool _requireFullAuth() {
+    final authState = ref.read(authProvider);
+    final user = authState.user;
+    if (user == null || user.isAnonymous == true) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Sign In Required'),
+          content: const Text('Please sign in to access this feature.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                GoRouter.of(context).go(AppRoutes.login);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryColor,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Sign In'),
             ),
           ],
         ),
@@ -990,10 +1029,15 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      useSafeArea: true,
+      useSafeArea: false,
       enableDrag: true,
       showDragHandle: true,
       isDismissible: true,
+      // Open at full size immediately — no half-screen delay
+      transitionAnimationController: AnimationController(
+        vsync: Navigator.of(context),
+        duration: const Duration(milliseconds: 200),
+      ),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
