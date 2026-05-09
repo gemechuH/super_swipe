@@ -98,7 +98,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         loading: () => const AppPageLoading(),
         error: (e, _) => Center(child: Text('Error: $e')),
         data: (profile) => MasterScrollWrapper(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+          padding: EdgeInsets.fromLTRB(
+            16,
+            0,
+            16,
+            MediaQuery.of(context).padding.bottom + 100,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

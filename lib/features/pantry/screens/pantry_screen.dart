@@ -791,7 +791,7 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
             // Bottom safe area padding
             SliverToBoxAdapter(
               child: SizedBox(
-                height: MediaQuery.of(context).padding.bottom + 80,
+                height: MediaQuery.of(context).padding.bottom + 100,
               ),
             ),
           ],

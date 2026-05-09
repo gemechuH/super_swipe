@@ -135,7 +135,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                 16,
                 bottomInset > 0
                     ? bottomInset + 16
-                    : constraints.maxHeight * 0.02,
+                    : MediaQuery.of(context).padding.bottom + 90,
               ),
               child: ConstrainedBox(
                 constraints: BoxConstraints(minHeight: constraints.maxHeight),
@@ -858,7 +858,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                                 ? 'Saving...'
                                 : allDone
                                 ? 'Save to My Cookbook'
-                                : 'Complete steps (${_completedSteps}/$totalSteps)',
+                                : 'Complete steps ($_completedSteps/$totalSteps)',
                             style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
@@ -1047,8 +1047,9 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                     .read(databaseServiceProvider)
                     .deductCarrot(userId);
                 if (!success) {
-                  if (mounted)
+                  if (mounted) {
                     _showOutOfCarrotsDialog(currentCarrots, maxCarrots);
+                  }
                   return;
                 }
               }

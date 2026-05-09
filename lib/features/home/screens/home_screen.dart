@@ -240,7 +240,7 @@ class HomeScreen extends ConsumerWidget {
                     error: (e, s) => const SizedBox.shrink(),
                   ),
 
-                  SizedBox(height: h * 0.03),
+                  SizedBox(height: MediaQuery.of(context).padding.bottom + 90),
                 ],
               ),
             );
