@@ -158,9 +158,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         SizedBox(
                           height: buttonHeight,
                           child: ElevatedButton(
-                            onPressed: isAnyLoading
-                                ? null
-                                : _handleLogin,
+                            onPressed: isAnyLoading ? null : _handleLogin,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppTheme.primaryColor,
                               foregroundColor: Colors.white,
@@ -317,20 +315,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           onPressed: isAnyLoading
                               ? null
                               : () async {
-                            await ref
-                                .read(appStateProvider.notifier)
-                                .markWelcomeSeen();
-                            final success = await ref
-                                .read(authProvider.notifier)
-                                .signInAnonymously();
-                            if (!context.mounted) return;
-                            if (success) {
-                              ref
-                                  .read(appStateProvider.notifier)
-                                  .setGuestMode(true);
-                              context.go(AppRoutes.home);
-                            }
-                          },
+                                  await ref
+                                      .read(appStateProvider.notifier)
+                                      .markWelcomeSeen();
+                                  final success = await ref
+                                      .read(authProvider.notifier)
+                                      .signInAnonymously();
+                                  if (!context.mounted) return;
+                                  if (success) {
+                                    ref
+                                        .read(appStateProvider.notifier)
+                                        .setGuestMode(true);
+                                    context.go(AppRoutes.home);
+                                  }
+                                },
                           child: Text(
                             'Continue as Guest',
                             style: TextStyle(
