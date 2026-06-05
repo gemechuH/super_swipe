@@ -50,6 +50,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
+    final isEmailLoading =
+        authState.loadingAction == AuthLoadingAction.emailSignIn;
+    final isGoogleLoading =
+        authState.loadingAction == AuthLoadingAction.googleSignIn;
+    final isGuestLoading =
+        authState.loadingAction == AuthLoadingAction.anonymousSignIn;
+    final isAnyLoading = authState.isLoading;
     final size = MediaQuery.of(context).size;
     final h = size.height;
 
@@ -151,7 +158,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         SizedBox(
                           height: buttonHeight,
                           child: ElevatedButton(
-                            onPressed: authState.isLoading
+                            onPressed: isAnyLoading
                                 ? null
                                 : _handleLogin,
                             style: ElevatedButton.styleFrom(
@@ -164,7 +171,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               ),
                               elevation: 0,
                             ),
-                            child: authState.isLoading
+                            child: isEmailLoading
                                 ? const SizedBox(
                                     width: 20,
                                     height: 20,
@@ -243,7 +250,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               child: SizedBox(
                                 height: socialButtonHeight,
                                 child: OutlinedButton(
-                                  onPressed: authState.isLoading
+                                  onPressed: isAnyLoading
                                       ? null
                                       : _handleGoogleLogin,
                                   style: OutlinedButton.styleFrom(
@@ -257,10 +264,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       ),
                                     ),
                                   ),
-                                  child: Image.asset(
-                                    'assets/images/google.png',
-                                    height: 22,
-                                  ),
+                                  child: isGoogleLoading
+                                      ? const SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: AppInlineLoading(
+                                            size: 20,
+                                            baseColor: Color(0xFFEFEFEF),
+                                            highlightColor: Color(0xFFFFFFFF),
+                                          ),
+                                        )
+                                      : Image.asset(
+                                          'assets/images/google.png',
+                                          height: 22,
+                                        ),
                                 ),
                               ),
                             ),
@@ -269,7 +286,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               child: SizedBox(
                                 height: socialButtonHeight,
                                 child: OutlinedButton(
-                                  onPressed: authState.isLoading
+                                  onPressed: isAnyLoading
                                       ? null
                                       : _handleAppleLogin,
                                   style: OutlinedButton.styleFrom(
@@ -297,7 +314,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                         // ── Continue as Guest ──────────────────────
                         TextButton(
-                          onPressed: () async {
+                          onPressed: isAnyLoading
+                              ? null
+                              : () async {
                             await ref
                                 .read(appStateProvider.notifier)
                                 .markWelcomeSeen();
@@ -317,7 +336,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             style: TextStyle(
                               fontSize: subtitleFontSize + 1,
                               fontWeight: FontWeight.w600,
-                              color: AppTheme.warningColor,
+                              color: isGuestLoading
+                                  ? AppTheme.textSecondary
+                                  : AppTheme.warningColor,
                             ),
                           ),
                         ),

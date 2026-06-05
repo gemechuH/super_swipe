@@ -56,6 +56,9 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
+    final isSignupLoading =
+        authState.loadingAction == AuthLoadingAction.emailSignUp;
+    final isAnyLoading = authState.isLoading;
     final size = MediaQuery.of(context).size;
     final h = size.height;
 
@@ -228,7 +231,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                         SizedBox(
                           height: buttonHeight,
                           child: ElevatedButton(
-                            onPressed: authState.isLoading || !_agreeToTerms
+                            onPressed: isAnyLoading || !_agreeToTerms
                                 ? null
                                 : _handleSignup,
                             style: ElevatedButton.styleFrom(
@@ -243,7 +246,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                               ),
                               elevation: 0,
                             ),
-                            child: authState.isLoading
+                            child: isSignupLoading
                                 ? const SizedBox(
                                     width: 20,
                                     height: 20,

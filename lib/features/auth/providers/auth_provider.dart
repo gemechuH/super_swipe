@@ -5,10 +5,20 @@ import 'package:super_swipe/features/auth/services/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Auth state model
+enum AuthLoadingAction {
+  emailSignIn,
+  emailSignUp,
+  googleSignIn,
+  appleSignIn,
+  anonymousSignIn,
+  passwordReset,
+}
+
 class AuthState {
   final User? user;
   final String? displayName; // Explicit display name from Firestore/Auth
   final bool isLoading;
+  final AuthLoadingAction? loadingAction;
   final String? error;
   final bool hasSeenOnboarding;
 
@@ -16,6 +26,7 @@ class AuthState {
     this.user,
     this.displayName,
     this.isLoading = false,
+    this.loadingAction,
     this.error,
     this.hasSeenOnboarding = false,
   });
@@ -26,15 +37,20 @@ class AuthState {
     User? user,
     String? displayName,
     bool? isLoading,
+    AuthLoadingAction? loadingAction,
     String? error,
     bool? hasSeenOnboarding,
     bool clearError = false,
     bool clearUser = false,
+    bool clearLoadingAction = false,
   }) {
     return AuthState(
       user: clearUser ? null : (user ?? this.user),
       displayName: clearUser ? null : (displayName ?? this.displayName),
       isLoading: isLoading ?? this.isLoading,
+      loadingAction: clearLoadingAction
+          ? null
+          : (loadingAction ?? this.loadingAction),
       error: clearError ? null : (error ?? this.error),
       hasSeenOnboarding: hasSeenOnboarding ?? this.hasSeenOnboarding,
     );
@@ -105,6 +121,7 @@ class AuthNotifier extends Notifier<AuthState> {
       user: user,
       displayName: name,
       isLoading: false,
+      clearLoadingAction: true,
       clearUser: user == null,
       clearError: true,
     );
@@ -123,7 +140,11 @@ class AuthNotifier extends Notifier<AuthState> {
   }
 
   Future<bool> signIn({required String email, required String password}) async {
-    state = state.copyWith(isLoading: true, clearError: true);
+    state = state.copyWith(
+      isLoading: true,
+      loadingAction: AuthLoadingAction.emailSignIn,
+      clearError: true,
+    );
     final result = await _authService.signInWithEmailAndPassword(
       email: email,
       password: password,
@@ -133,7 +154,11 @@ class AuthNotifier extends Notifier<AuthState> {
       // For now, let the listener handle it to ensure consistency
       return true;
     } else {
-      state = state.copyWith(isLoading: false, error: result.errorMessage);
+      state = state.copyWith(
+        isLoading: false,
+        clearLoadingAction: true,
+        error: result.errorMessage,
+      );
       return false;
     }
   }
@@ -143,7 +168,11 @@ class AuthNotifier extends Notifier<AuthState> {
     required String password,
     required String displayName,
   }) async {
-    state = state.copyWith(isLoading: true, clearError: true);
+    state = state.copyWith(
+      isLoading: true,
+      loadingAction: AuthLoadingAction.emailSignUp,
+      clearError: true,
+    );
 
     // Store name temporarily to bridge the gap until Firebase stream updates
     _pendingDisplayName = displayName;
@@ -159,6 +188,7 @@ class AuthNotifier extends Notifier<AuthState> {
         user: result.user,
         displayName: displayName,
         isLoading: false,
+        clearLoadingAction: true,
         hasSeenOnboarding: true,
       );
 
@@ -189,49 +219,77 @@ class AuthNotifier extends Notifier<AuthState> {
       return true;
     } else {
       _pendingDisplayName = null;
-      state = state.copyWith(isLoading: false, error: result.errorMessage);
+      state = state.copyWith(
+        isLoading: false,
+        clearLoadingAction: true,
+        error: result.errorMessage,
+      );
       return false;
     }
   }
 
   Future<bool> signInWithGoogle() async {
-    state = state.copyWith(isLoading: true, clearError: true);
+    state = state.copyWith(
+      isLoading: true,
+      loadingAction: AuthLoadingAction.googleSignIn,
+      clearError: true,
+    );
     final result = await _authService.signInWithGoogle();
     if (result.success) {
       return true;
     } else {
       // Only show error if not cancelled
       if (result.errorMessage != 'Sign in cancelled by user') {
-        state = state.copyWith(isLoading: false, error: result.errorMessage);
+        state = state.copyWith(
+          isLoading: false,
+          clearLoadingAction: true,
+          error: result.errorMessage,
+        );
       } else {
-        state = state.copyWith(isLoading: false);
+        state = state.copyWith(isLoading: false, clearLoadingAction: true);
       }
       return false;
     }
   }
 
   Future<bool> signInAnonymously() async {
-    state = state.copyWith(isLoading: true, clearError: true);
+    state = state.copyWith(
+      isLoading: true,
+      loadingAction: AuthLoadingAction.anonymousSignIn,
+      clearError: true,
+    );
     final result = await _authService.signInAnonymously();
     if (result.success) {
       return true;
     } else {
-      state = state.copyWith(isLoading: false, error: result.errorMessage);
+      state = state.copyWith(
+        isLoading: false,
+        clearLoadingAction: true,
+        error: result.errorMessage,
+      );
       return false;
     }
   }
 
   Future<void> signOut() async {
-    state = state.copyWith(isLoading: true);
+    state = state.copyWith(
+      isLoading: true,
+      clearLoadingAction: true,
+    );
     await _authService.signOut();
     state = state.copyWith(isLoading: false, clearUser: true);
   }
 
   Future<bool> sendPasswordReset({required String email}) async {
-    state = state.copyWith(isLoading: true, clearError: true);
+    state = state.copyWith(
+      isLoading: true,
+      loadingAction: AuthLoadingAction.passwordReset,
+      clearError: true,
+    );
     final result = await _authService.sendPasswordResetEmail(email: email);
     state = state.copyWith(
       isLoading: false,
+      clearLoadingAction: true,
       error: result.success ? null : result.errorMessage,
     );
     return result.success;
