@@ -105,7 +105,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
             const Icon(Icons.restaurant, color: AppTheme.primaryColor),
             const SizedBox(width: 8),
             Text(
-              'Kitchen Hub',
+              'AI Chef',
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                 fontWeight: FontWeight.w800,
                 fontSize: 18,
@@ -125,7 +125,6 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final bottomInset = MediaQuery.of(context).viewInsets.bottom;
             return SingleChildScrollView(
               physics: const ClampingScrollPhysics(),
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -133,9 +132,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                 16,
                 0,
                 16,
-                bottomInset > 0
-                    ? bottomInset + 16
-                    : MediaQuery.of(context).padding.bottom + 90,
+                MediaQuery.of(context).padding.bottom + 20,
               ),
               child: ConstrainedBox(
                 constraints: BoxConstraints(minHeight: constraints.maxHeight),
@@ -163,7 +160,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                           SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              'What are we cooking today? Tell me what you\'re craving!',
+                              'Create a recipe from your pantry.',
                               style: TextStyle(fontSize: 12, height: 1.3),
                             ),
                           ),
@@ -179,38 +176,6 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                       selectedMealType: _selectedMealType,
                       onChanged: (type) =>
                           setState(() => _selectedMealType = type),
-                    ),
-
-                    SizedBox(height: constraints.maxHeight * 0.018),
-
-                    // Cravings Input
-                    _buildSectionTitle(
-                      'Your Cravings',
-                      Icons.lightbulb_outline,
-                    ),
-                    const SizedBox(height: 6),
-                    TextField(
-                      controller: _cravingsController,
-                      style: const TextStyle(fontSize: 13),
-                      decoration: InputDecoration(
-                        hintText: 'Something warm and comforting...',
-                        hintStyle: TextStyle(
-                          color: Colors.grey[400],
-                          fontSize: 13,
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
-                        ),
-                        isDense: true,
-                      ),
-                      maxLines: 2,
                     ),
 
                     SizedBox(height: constraints.maxHeight * 0.018),
@@ -278,92 +243,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
 
                     SizedBox(height: constraints.maxHeight * 0.02),
 
-                    // Generate Button
-                    Builder(
-                      builder: (context) {
-                        final selectedItems = ref.watch(
-                          selectedIngredientsProvider,
-                        );
-                        return SizedBox(
-                          width: double.infinity,
-                          height: 48,
-                          child: ElevatedButton.icon(
-                            onPressed:
-                                _isGenerating ||
-                                    _isRefining ||
-                                    selectedItems.isEmpty
-                                ? null
-                                : _showPreFlightDialog,
-                            icon: _isGenerating
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: AppInlineLoading(
-                                      size: 18,
-                                      baseColor: Color(0xFFEFEFEF),
-                                      highlightColor: Color(0xFFFFFFFF),
-                                    ),
-                                  )
-                                : const Icon(Icons.restaurant, size: 20),
-                            label: Text(
-                              _isGenerating
-                                  ? 'Chef is thinking...'
-                                  : selectedItems.isEmpty
-                                  ? 'Select Ingredients First'
-                                  : 'Create Recipe',
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: selectedItems.isEmpty
-                                  ? Colors.grey.shade400
-                                  : AppTheme.primaryColor,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-
-                    // Error Message
-                    if (_errorMessage != null) ...[
-                      const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.red[50],
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.red[200]!),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.error_outline,
-                              color: Colors.red[700],
-                              size: 16,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                _errorMessage!,
-                                style: TextStyle(
-                                  color: Colors.red[700],
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                    if (_errorMessage != null) _buildErrorBanner(),
 
                     // DRAFT Recipe Card
                     Builder(
@@ -387,6 +267,9 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
           },
         ),
       ),
+      bottomNavigationBar: ref.watch(draftRecipeProvider) == null
+          ? _buildPromptComposer()
+          : null,
     );
   }
 
@@ -397,6 +280,124 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
         fontSize: 13,
         fontWeight: FontWeight.w700,
         color: Color(0xFF2D2621),
+      ),
+    );
+  }
+
+  Widget _buildErrorBanner() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.red[50],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.red[200]!),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.error_outline, color: Colors.red[700], size: 17),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _errorMessage!,
+                style: TextStyle(color: Colors.red[700], fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPromptComposer() {
+    final selectedItems = ref.watch(selectedIngredientsProvider);
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final disabled = _isGenerating || _isRefining || selectedItems.isEmpty;
+
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      padding: EdgeInsets.only(bottom: bottomInset > 0 ? bottomInset : 50),
+      child: SafeArea(
+        top: false,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFFBF5),
+            border: Border(top: BorderSide(color: Colors.grey.shade200)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 18,
+                offset: const Offset(0, -8),
+              ),
+            ],
+          ),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(16, 10, 10, 10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: disabled
+                    ? Colors.grey.shade200
+                    : AppTheme.primaryColor.withValues(alpha: 0.22),
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _cravingsController,
+                    enabled: !_isGenerating && !_isRefining,
+                    minLines: 1,
+                    maxLines: 4,
+                    textInputAction: TextInputAction.newline,
+                    style: const TextStyle(fontSize: 14, height: 1.35),
+                    decoration: InputDecoration(
+                      hintText: selectedItems.isEmpty
+                          ? 'Add pantry items first'
+                          : 'Ask for spicy pasta, quick lunch, cozy soup...',
+                      hintStyle: TextStyle(
+                        color: Colors.grey[400],
+                        fontSize: 13,
+                      ),
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 42,
+                  height: 42,
+                  child: IconButton(
+                    onPressed: disabled ? null : _showPreFlightDialog,
+                    tooltip: 'Create Recipe',
+                    style: IconButton.styleFrom(
+                      backgroundColor: disabled
+                          ? Colors.grey.shade200
+                          : AppTheme.primaryColor,
+                      foregroundColor: disabled
+                          ? Colors.grey.shade500
+                          : Colors.white,
+                    ),
+                    icon: _isGenerating
+                        ? const AppInlineLoading(
+                            size: 18,
+                            baseColor: Color(0xFFEFEFEF),
+                            highlightColor: Color(0xFFFFFFFF),
+                          )
+                        : const Icon(Icons.arrow_upward_rounded, size: 22),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -416,95 +417,156 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
 
     final allSelected = selectedNotifier.isAllSelected(itemNames);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _buildSectionTitle('Your Pantry', Icons.kitchen_rounded),
-            ),
-            if (itemNames.isNotEmpty)
-              TextButton.icon(
-                onPressed: () {
-                  if (allSelected) {
-                    // Deselect all except one (keep first)
-                    selectedNotifier.deselectAllExceptOne(itemNames);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'At least one ingredient must be selected',
-                        ),
-                        duration: Duration(seconds: 2),
-                        backgroundColor: Colors.orange,
-                      ),
-                    );
-                  } else {
-                    selectedNotifier.selectAll(itemNames);
-                  }
-                },
-                icon: Icon(
-                  allSelected ? Icons.deselect : Icons.select_all,
-                  size: 18,
-                  color: AppTheme.primaryColor,
-                ),
-                label: Text(
-                  allSelected ? 'Deselect All' : 'Select All',
-                  style: const TextStyle(color: AppTheme.primaryColor),
-                ),
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.grey.shade100),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _buildSectionTitle('Your Pantry', Icons.kitchen_rounded),
               ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        Text(
-          '${selectedItems.length} of ${itemNames.length} selected',
-          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11),
-        ),
-        const SizedBox(height: 8),
-        if (itemNames.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.orange[50],
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Text(
-              'Add items to your pantry for personalized recipes!',
-              style: TextStyle(color: Colors.orange),
-            ),
-          )
-        else
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: itemNames.map((name) {
-              final isSelected = selectedItems.contains(name);
-              return FilterChip(
-                label: Text(name, style: const TextStyle(fontSize: 11)),
-                selected: isSelected,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                visualDensity: const VisualDensity(horizontal: 0, vertical: -2),
-                onSelected: (selected) {
-                  final success = selectedNotifier.toggleIngredient(name);
-                  if (!success) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'At least one ingredient must be selected',
+              if (itemNames.isNotEmpty)
+                TextButton.icon(
+                  onPressed: () {
+                    if (allSelected) {
+                      // Deselect all except one (keep first)
+                      selectedNotifier.deselectAllExceptOne(itemNames);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'At least one ingredient must be selected',
+                          ),
+                          duration: Duration(seconds: 2),
+                          backgroundColor: Colors.orange,
                         ),
-                        duration: Duration(seconds: 2),
-                        backgroundColor: Colors.orange,
-                      ),
-                    );
-                  }
-                },
-                selectedColor: AppTheme.primaryColor.withValues(alpha: 0.2),
-                checkmarkColor: AppTheme.primaryColor,
-                backgroundColor: Colors.white,
-              );
-            }).toList(),
+                      );
+                    } else {
+                      selectedNotifier.selectAll(itemNames);
+                    }
+                  },
+                  icon: Icon(
+                    allSelected ? Icons.deselect : Icons.select_all,
+                    size: 18,
+                    color: AppTheme.primaryColor,
+                  ),
+                  label: Text(
+                    allSelected ? 'Deselect All' : 'Select All',
+                    style: const TextStyle(color: AppTheme.primaryColor),
+                  ),
+                ),
+            ],
           ),
-      ],
+          const SizedBox(height: 6),
+          Text(
+            '${selectedItems.length} of ${itemNames.length} selected',
+            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11),
+          ),
+          const SizedBox(height: 8),
+          if (itemNames.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF3DF),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.orange.shade100),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.info_outline_rounded,
+                        color: Colors.orange,
+                        size: 18,
+                      ),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'At least 1 pantry ingredient is required.',
+                          style: TextStyle(
+                            color: Color(0xFF9A650F),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: ElevatedButton.icon(
+                      onPressed: () => context.go(AppRoutes.pantry),
+                      icon: const Icon(Icons.kitchen_rounded, size: 15),
+                      label: const Text('Go to Pantry'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 7,
+                        ),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        textStyle: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: itemNames.map((name) {
+                final isSelected = selectedItems.contains(name);
+                return FilterChip(
+                  label: Text(name, style: const TextStyle(fontSize: 11)),
+                  selected: isSelected,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: const VisualDensity(
+                    horizontal: 0,
+                    vertical: -2,
+                  ),
+                  onSelected: (selected) {
+                    final success = selectedNotifier.toggleIngredient(name);
+                    if (!success) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'At least one ingredient must be selected',
+                          ),
+                          duration: Duration(seconds: 2),
+                          backgroundColor: Colors.orange,
+                        ),
+                      );
+                    }
+                  },
+                  selectedColor: AppTheme.primaryColor.withValues(alpha: 0.2),
+                  checkmarkColor: AppTheme.primaryColor,
+                  backgroundColor: Colors.white,
+                );
+              }).toList(),
+            ),
+        ],
+      ),
     );
   }
 
@@ -1232,6 +1294,8 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
       ref
           .read(draftRecipeProvider.notifier)
           .setDraft(recipe, imageResult: imageResult);
+
+      _cravingsController.clear();
 
       // Reset step tracker for new recipe
       setState(() => _completedSteps = 0);

@@ -2291,7 +2291,7 @@ class _SwipeScreenState extends ConsumerState<SwipeScreen> {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 18,
+                    fontSize: 16,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
