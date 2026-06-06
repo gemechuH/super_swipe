@@ -19,6 +19,7 @@ import 'package:super_swipe/core/widgets/loading/app_shimmer.dart';
 import 'package:super_swipe/core/widgets/loading/skeleton.dart';
 import 'package:super_swipe/core/widgets/shared/shared_widgets.dart';
 import 'package:super_swipe/features/auth/providers/auth_provider.dart';
+import 'package:super_swipe/core/providers/recipe_providers.dart';
 import 'package:super_swipe/services/ai/ai_recipe_service.dart';
 import 'package:super_swipe/services/database/database_provider.dart';
 import 'package:super_swipe/services/image/image_search_service.dart';
@@ -201,9 +202,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
           },
         ),
       ),
-      bottomNavigationBar: ref.watch(draftRecipeProvider) == null
-          ? _buildPromptComposer()
-          : null,
+      bottomNavigationBar: null,
     );
   }
 
@@ -491,7 +490,134 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
         _buildPantryPreview(),
 
         SizedBox(height: constraints.maxHeight * 0.02),
+
+        // Optional cravings text field
+        _buildInlineCravingsInput(),
+
+        SizedBox(height: constraints.maxHeight * 0.015),
+
+        // Generate button — always visible, enabled when pantry has items
+        _buildGenerateButton(),
+
+        SizedBox(height: constraints.maxHeight * 0.02),
       ],
+    );
+  }
+
+  // ── Optional cravings input ───────────────────────────────────────────────
+  Widget _buildInlineCravingsInput() {
+    final selectedItems = ref.watch(selectedIngredientsProvider);
+    final disabled = _isGenerating || selectedItems.isEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Text(
+              'Any cravings?',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF2D2621),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text(
+                'Optional',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.primaryColor,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: disabled
+                  ? Colors.grey.shade200
+                  : AppTheme.primaryColor.withValues(alpha: 0.2),
+            ),
+          ),
+          child: TextField(
+            controller: _cravingsController,
+            enabled: !disabled,
+            minLines: 1,
+            maxLines: 3,
+            textInputAction: TextInputAction.done,
+            style: const TextStyle(fontSize: 13, height: 1.4),
+            decoration: InputDecoration(
+              hintText: 'e.g. spicy, quick lunch, cozy soup...',
+              hintStyle: TextStyle(color: Colors.grey[400], fontSize: 12),
+              border: InputBorder.none,
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 10,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Fixed generate button ─────────────────────────────────────────────────
+  Widget _buildGenerateButton() {
+    final selectedItems = ref.watch(selectedIngredientsProvider);
+    final disabled = _isGenerating || selectedItems.isEmpty;
+
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: ElevatedButton(
+        onPressed: disabled ? null : _showPreFlightDialog,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: disabled
+              ? Colors.grey.shade300
+              : AppTheme.primaryColor,
+          foregroundColor: disabled ? Colors.grey.shade500 : Colors.white,
+          elevation: disabled ? 0 : 3,
+          shadowColor: AppTheme.primaryColor.withValues(alpha: 0.4),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (_isGenerating)
+              const AppInlineLoading(
+                size: 18,
+                baseColor: Color(0xFFEFEFEF),
+                highlightColor: Color(0xFFFFFFFF),
+              )
+            else
+              const Icon(Icons.auto_awesome_rounded, size: 20),
+            const SizedBox(width: 10),
+            Text(
+              disabled && !_isGenerating
+                  ? 'Add pantry items to generate'
+                  : _isGenerating
+                  ? 'Generating...'
+                  : 'Generate Recipe',
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -527,98 +653,6 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPromptComposer() {
-    final selectedItems = ref.watch(selectedIngredientsProvider);
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-    final disabled = _isGenerating || _isRefining || selectedItems.isEmpty;
-
-    return AnimatedPadding(
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOut,
-      padding: EdgeInsets.only(bottom: bottomInset > 0 ? bottomInset : 50),
-      child: SafeArea(
-        top: false,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFFBF5),
-            border: Border(top: BorderSide(color: Colors.grey.shade200)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.06),
-                blurRadius: 18,
-                offset: const Offset(0, -8),
-              ),
-            ],
-          ),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(16, 10, 10, 10),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(
-                color: disabled
-                    ? Colors.grey.shade200
-                    : AppTheme.primaryColor.withValues(alpha: 0.22),
-              ),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _cravingsController,
-                    enabled: !_isGenerating && !_isRefining,
-                    minLines: 1,
-                    maxLines: 4,
-                    textInputAction: TextInputAction.newline,
-                    style: const TextStyle(fontSize: 14, height: 1.35),
-                    decoration: InputDecoration(
-                      hintText: selectedItems.isEmpty
-                          ? 'Add pantry items first'
-                          : 'Ask for spicy pasta, quick lunch, cozy soup...',
-                      hintStyle: TextStyle(
-                        color: Colors.grey[400],
-                        fontSize: 13,
-                      ),
-                      border: InputBorder.none,
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                SizedBox(
-                  width: 42,
-                  height: 42,
-                  child: IconButton(
-                    onPressed: disabled ? null : _showPreFlightDialog,
-                    tooltip: 'Create Recipe',
-                    style: IconButton.styleFrom(
-                      backgroundColor: disabled
-                          ? Colors.grey.shade200
-                          : AppTheme.primaryColor,
-                      foregroundColor: disabled
-                          ? Colors.grey.shade500
-                          : Colors.white,
-                    ),
-                    icon: _isGenerating
-                        ? const AppInlineLoading(
-                            size: 18,
-                            baseColor: Color(0xFFEFEFEF),
-                            highlightColor: Color(0xFFFFFFFF),
-                          )
-                        : const Icon(Icons.arrow_upward_rounded, size: 22),
-                  ),
-                ),
-              ],
-            ),
-          ),
         ),
       ),
     );
@@ -817,16 +851,39 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                 top: Radius.circular(14),
               ),
             ),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.edit_note, color: Colors.white, size: 16),
-                SizedBox(width: 6),
-                Text(
+                const Icon(Icons.edit_note, color: Colors.white, size: 16),
+                const SizedBox(width: 6),
+                const Text(
                   'Recipe Draft',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+                // Regenerate button — solid orange, clearly visible
+                TextButton.icon(
+                  onPressed: _isGenerating ? null : _regenerateRecipe,
+                  icon: const Icon(Icons.refresh_rounded, size: 15),
+                  label: const Text(
+                    'Regenerate',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                  ),
+                  style: TextButton.styleFrom(
+                    backgroundColor: AppTheme.primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
                   ),
                 ),
               ],
@@ -1461,6 +1518,14 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
     );
   }
 
+  /// Regenerate: clear current draft and generate a fresh recipe with same settings
+  void _regenerateRecipe() {
+    ref.read(draftRecipeProvider.notifier).clearDraft();
+    _checkedSteps.clear();
+    _refineController.clear();
+    _generateRecipe();
+  }
+
   Future<void> _generateRecipe() async {
     // Rate limiting check: max 5 per minute
     final now = DateTime.now();
@@ -1872,38 +1937,31 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
   }
 
   Widget _buildHistoryList(ScrollController scrollController) {
-    final authState = ref.read(authProvider);
-    if (!authState.isSignedIn || authState.user == null) {
-      return const Center(
+    // Use the same provider the Recipes page uses — already live and cached
+    final savedAsync = ref.watch(savedRecipesProvider);
+
+    return savedAsync.when(
+      loading: () => AppShimmer(
+        baseColor: Colors.grey.shade200,
+        highlightColor: Colors.grey.shade100,
+        child: ListView.builder(
+          controller: scrollController,
+          itemCount: 6,
+          itemBuilder: (context, index) => const SkeletonListTile(),
+        ),
+      ),
+      error: (e, _) => Center(
         child: Padding(
-          padding: EdgeInsets.all(32),
+          padding: const EdgeInsets.all(32),
           child: Text(
-            'Sign in to see your recipe history',
+            'Could not load recipes: $e',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey),
+            style: const TextStyle(color: Colors.grey),
           ),
         ),
-      );
-    }
-
-    return StreamBuilder(
-      stream: ref
-          .read(databaseServiceProvider)
-          .getAiRecipeHistory(authState.user!.uid),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return AppShimmer(
-            baseColor: Colors.grey.shade200,
-            highlightColor: Colors.grey.shade100,
-            child: ListView.builder(
-              controller: scrollController,
-              itemCount: 8,
-              itemBuilder: (context, index) => const SkeletonListTile(),
-            ),
-          );
-        }
-
-        if (!snapshot.hasData || (snapshot.data as List).isEmpty) {
+      ),
+      data: (recipes) {
+        if (recipes.isEmpty) {
           return const Center(
             child: Padding(
               padding: EdgeInsets.all(32),
@@ -1913,12 +1971,12 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                   Icon(Icons.restaurant_menu, size: 48, color: Colors.grey),
                   SizedBox(height: 16),
                   Text(
-                    'No recipes generated yet',
+                    'No saved recipes yet',
                     style: TextStyle(fontSize: 16, color: Colors.grey),
                   ),
                   SizedBox(height: 8),
                   Text(
-                    'Create your first recipe above!',
+                    'Generate and save a recipe to see it here!',
                     style: TextStyle(color: Colors.grey),
                   ),
                 ],
@@ -1927,46 +1985,97 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
           );
         }
 
-        final recipes = snapshot.data as List<Map<String, dynamic>>;
         return ListView.separated(
           controller: scrollController,
           padding: const EdgeInsets.all(16),
           itemCount: recipes.length,
-          separatorBuilder: (context, index) => const SizedBox(height: 12),
+          separatorBuilder: (_, __) => const SizedBox(height: 10),
           itemBuilder: (context, index) {
             final recipe = recipes[index];
-            return ListTile(
-              contentPadding: const EdgeInsets.all(12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: Colors.grey.shade200),
-              ),
-              leading: Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.restaurant,
-                  color: AppTheme.primaryColor,
-                ),
-              ),
-              title: Text(
-                recipe['title'] ?? 'Untitled Recipe',
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-              subtitle: Text(
-                recipe['description'] ?? '',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              trailing: const Icon(Icons.chevron_right),
+            return InkWell(
+              borderRadius: BorderRadius.circular(12),
               onTap: () {
                 Navigator.pop(context);
-                // Could navigate to detail or load into draft
+                context.push(
+                  '${AppRoutes.recipes}/${recipe.id}',
+                  extra: recipe,
+                );
               },
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Row(
+                  children: [
+                    // Thumbnail
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: SizedBox(
+                        width: 52,
+                        height: 52,
+                        child: recipe.imageUrl.startsWith('http')
+                            ? Image.network(
+                                recipe.imageUrl,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Container(
+                                  color: AppTheme.primaryColor.withValues(
+                                    alpha: 0.1,
+                                  ),
+                                  child: const Icon(
+                                    Icons.restaurant,
+                                    color: AppTheme.primaryColor,
+                                  ),
+                                ),
+                              )
+                            : Container(
+                                color: AppTheme.primaryColor.withValues(
+                                  alpha: 0.1,
+                                ),
+                                child: const Icon(
+                                  Icons.restaurant,
+                                  color: AppTheme.primaryColor,
+                                ),
+                              ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Text
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            recipe.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            '${recipe.timeMinutes} min'
+                            '${recipe.calories > 0 ? '  •  ${recipe.calories} cal' : ''}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey.shade500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(
+                      Icons.chevron_right,
+                      color: Colors.grey,
+                      size: 18,
+                    ),
+                  ],
+                ),
+              ),
             );
           },
         );

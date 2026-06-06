@@ -1082,13 +1082,11 @@ class DatabaseService {
   // 9. AI RECIPE HISTORY
   // ============================================================
 
-  /// Gets the user's AI-generated recipe history (latest 3)
+  /// Gets the user's AI-generated recipe history from savedRecipes
   Stream<List<Map<String, dynamic>>> getAiRecipeHistory(String userId) {
-    return _firestore
-        .collection('ai_recipe_requests')
-        .where('userId', isEqualTo: userId)
-        .orderBy('createdAt', descending: true)
-        .limit(3)
+    return _savedRecipes(userId)
+        .where('isAiGenerated', isEqualTo: true)
+        .orderBy('savedAt', descending: true)
         .snapshots()
         .map(
           (snap) => snap.docs.map((doc) {
