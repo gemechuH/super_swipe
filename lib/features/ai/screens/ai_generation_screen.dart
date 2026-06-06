@@ -6,10 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:super_swipe/core/config/swipe_constants.dart';
-import 'package:super_swipe/core/models/pantry_item.dart';
 import 'package:super_swipe/core/models/recipe.dart';
 import 'package:super_swipe/core/providers/draft_recipe_provider.dart';
-import 'package:super_swipe/core/providers/firestore_providers.dart';
 import 'package:super_swipe/core/providers/selected_ingredients_provider.dart';
 import 'package:super_swipe/core/providers/user_data_providers.dart';
 import 'package:super_swipe/core/router/app_router.dart';
@@ -63,6 +61,19 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
 
   // Track refinement text for button enable/disable
   String _refineText = '';
+  String? _selectedQuickRefine; // tracks selected quick-refine chip
+
+  // Quick refine options with their AI prompts
+  static const Map<String, String> _quickRefineOptions = {
+    '🌶️ Spicier':
+        'Make this recipe significantly spicier. Add more chilli, hot sauce, cayenne, or other heat sources with specific amounts. Mention the heat level in the description.',
+    '🥗 Healthier':
+        'Make this recipe healthier. Reduce saturated fat, use leaner proteins, add more vegetables, reduce sugar and sodium, and use whole grain alternatives where possible. Keep it delicious.',
+    '⚡ Easier':
+        'Simplify this recipe for a beginner cook. Reduce steps, use simpler techniques, cut prep time, and reduce the number of ingredients while keeping the core flavour.',
+    '✨ Fancier':
+        'Elevate this recipe to restaurant quality. Add a sophisticated garnish, use a more refined technique, incorporate a luxurious ingredient, and improve the plating description.',
+  };
 
   // Rate limiting: max 5 generations per minute
   final List<DateTime> _generationTimestamps = [];
@@ -1081,15 +1092,16 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
 
                 // REFINE Section
                 Container(
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: Colors.blue[50],
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: Colors.blue[200]!),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Header
                       const Row(
                         children: [
                           Icon(
@@ -1099,21 +1111,72 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                           ),
                           SizedBox(width: 6),
                           Text(
-                            'Not quite right? Let\'s refine it!',
+                            'Not quite right? Refine it!',
                             style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
+
+                      // Quick-select chips
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: _quickRefineOptions.keys.map((label) {
+                          final isSelected = _selectedQuickRefine == label;
+                          return GestureDetector(
+                            onTap: _isRefining
+                                ? null
+                                : () => setState(() {
+                                    _selectedQuickRefine = isSelected
+                                        ? null
+                                        : label;
+                                  }),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? AppTheme.primaryColor
+                                    : Colors.white,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? AppTheme.primaryColor
+                                      : Colors.grey.shade300,
+                                ),
+                              ),
+                              child: Text(
+                                label,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : AppTheme.textPrimary,
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      // Custom text field
                       TextField(
                         controller: _refineController,
                         style: const TextStyle(fontSize: 12),
                         decoration: InputDecoration(
-                          hintText:
-                              'e.g., Make it spicier, I don\'t have onions...',
+                          hintText: _selectedQuickRefine != null
+                              ? 'Add more detail (optional)...'
+                              : 'Or describe what to change...',
                           hintStyle: TextStyle(
                             color: Colors.grey[400],
                             fontSize: 12,
@@ -1131,38 +1194,61 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
+
+                      // Refine button
                       SizedBox(
                         width: double.infinity,
-                        height: 36,
-                        child: OutlinedButton.icon(
-                          onPressed: _isRefining || _refineText.trim().isEmpty
+                        height: 38,
+                        child: ElevatedButton.icon(
+                          onPressed:
+                              (_isRefining ||
+                                  (_selectedQuickRefine == null &&
+                                      _refineText.trim().isEmpty))
                               ? null
                               : _refineRecipe,
                           icon: _isRefining
                               ? const SizedBox(
                                   width: 14,
                                   height: 14,
-                                  child: AppInlineLoading(size: 14),
+                                  child: AppInlineLoading(
+                                    size: 14,
+                                    baseColor: Color(0xFFEFEFEF),
+                                    highlightColor: Color(0xFFFFFFFF),
+                                  ),
                                 )
-                              : const Icon(Icons.refresh, size: 14),
+                              : const Icon(
+                                  Icons.auto_fix_high_rounded,
+                                  size: 15,
+                                ),
                           label: Text(
                             _isRefining
-                                ? 'Perfecting...'
+                                ? 'Refining...'
+                                : _selectedQuickRefine != null
+                                ? 'Refine: $_selectedQuickRefine'
                                 : _refineText.trim().isEmpty
-                                ? 'Enter refinement to continue'
+                                ? 'Select an option or type below'
                                 : 'Refine Recipe',
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                            side: BorderSide(
-                              color: _refineText.trim().isEmpty
-                                  ? Colors.grey.shade400
-                                  : AppTheme.primaryColor,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
                             ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor:
+                                (_selectedQuickRefine != null ||
+                                    _refineText.trim().isNotEmpty)
+                                ? AppTheme.primaryColor
+                                : Colors.grey.shade300,
+                            foregroundColor:
+                                (_selectedQuickRefine != null ||
+                                    _refineText.trim().isNotEmpty)
+                                ? Colors.white
+                                : Colors.grey.shade500,
+                            elevation: 0,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(10),
                             ),
                           ),
                         ),
@@ -1523,6 +1609,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
     ref.read(draftRecipeProvider.notifier).clearDraft();
     _checkedSteps.clear();
     _refineController.clear();
+    setState(() => _selectedQuickRefine = null);
     _generateRecipe();
   }
 
@@ -1687,10 +1774,20 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
   Future<void> _refineRecipe() async {
     final currentDraft = ref.read(draftRecipeProvider);
 
-    // Input validation: require refinement text
-    if (_refineController.text.trim().isEmpty) {
+    // Build combined refinement text: chip prompt + optional custom text
+    final chipPrompt = _selectedQuickRefine != null
+        ? _quickRefineOptions[_selectedQuickRefine!] ?? ''
+        : '';
+    final customText = _refineController.text.trim();
+    final combinedRefinement = [
+      chipPrompt,
+      customText,
+    ].where((s) => s.isNotEmpty).join(' Additionally: ');
+
+    // Require at least a chip or custom text
+    if (combinedRefinement.isEmpty) {
       setState(() {
-        _errorMessage = 'Please describe what you\'d like to change."';
+        _errorMessage = 'Please select an option or describe what to change.';
       });
       return;
     }
@@ -1731,15 +1828,13 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
         },
       );
       final currentDraft = ref.read(draftRecipeProvider)!;
-      // Use the new refineRecipe method that sends original JSON to Gemini
       var refinedRecipe = await aiService.refineRecipe(
         originalRecipe: currentDraft.recipe,
-        refinementText: _refineController.text.trim(),
+        refinementText: combinedRefinement,
         showCalories: _showCalories,
       );
 
       // IMPORTANT: Reuse existing image URL from draft - don't fetch new one!
-      // This preserves Unsplash API quota and maintains attribution
       if (currentDraft.imageUrl != null &&
           currentDraft.imageUrl!.isNotEmpty &&
           !currentDraft.imageUrl!.startsWith('assets/')) {
@@ -1750,8 +1845,10 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
       ref
           .read(draftRecipeProvider.notifier)
           .updateWithRefinement(refinedRecipe);
+
+      // Reset refine inputs
       _refineController.clear();
-      setState(() {}); // Trigger rebuild
+      setState(() => _selectedQuickRefine = null);
     } catch (e) {
       setState(() => _errorMessage = 'Refinement failed. Please try again.');
     } finally {
@@ -1808,18 +1905,13 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
       ref.read(draftRecipeProvider.notifier).clearDraft();
       context.go(AppRoutes.recipes);
 
-      // Run slower post-save tasks in the background.
-      final pantryService = ref.read(pantryServiceProvider);
-      final pantryItemsSnapshot =
-          ref.read(pantryItemsProvider).value ?? const <PantryItem>[];
+      // Publish to global in the background (non-blocking)
       unawaited(
-        _runPostSaveTasks(
-          db: db,
-          pantryService: pantryService,
-          pantryItemsSnapshot: pantryItemsSnapshot,
-          userId: userId,
-          recipe: recipeToSave,
-        ),
+        db
+            .publishRecipeToGlobal(userId: userId, recipe: recipeToSave)
+            .catchError((e) {
+              if (kDebugMode) debugPrint('Publish to global failed: $e');
+            }),
       );
     } catch (e) {
       setState(
@@ -1835,59 +1927,6 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
-    }
-  }
-
-  Future<void> _runPostSaveTasks({
-    required dynamic db,
-    required dynamic pantryService,
-    required List<PantryItem> pantryItemsSnapshot,
-    required String userId,
-    required Recipe recipe,
-  }) async {
-    try {
-      await db.publishRecipeToGlobal(userId: userId, recipe: recipe);
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Publish to global failed: $e');
-      }
-    }
-
-    try {
-      await _depleteUsedIngredientsSnapshot(
-        pantryService: pantryService,
-        pantryItemsSnapshot: pantryItemsSnapshot,
-        userId: userId,
-        recipeIngredients: recipe.ingredients,
-      );
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('Deplete pantry failed: $e');
-      }
-    }
-  }
-
-  /// Delete pantry items that were used in the recipe
-  Future<void> _depleteUsedIngredientsSnapshot({
-    required dynamic pantryService,
-    required List<PantryItem> pantryItemsSnapshot,
-    required String userId,
-    required List<String> recipeIngredients,
-  }) async {
-    for (final pantryItem in pantryItemsSnapshot) {
-      final pantryName = pantryItem.name.toLowerCase();
-
-      // Check if any recipe ingredient matches this pantry item
-      final isUsed = recipeIngredients.any((ingredient) {
-        final ingredientLower = ingredient.toLowerCase();
-        return ingredientLower.contains(pantryName) ||
-            pantryName.contains(ingredientLower);
-      });
-
-      if (isUsed) {
-        // Delete the pantry item entirely (Issue 2 fix)
-        await pantryService.deletePantryItem(userId, pantryItem.id);
-      }
     }
   }
 
