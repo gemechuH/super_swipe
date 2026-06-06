@@ -89,7 +89,9 @@ class AiRecipeService {
     final oldIndex = _currentKeyIndex % keys.length;
     _currentKeyIndex = (oldIndex + 1) % keys.length;
     if (kDebugMode) {
-      debugPrint('[API Key Rotation] Switched from key ${oldIndex + 1} to key ${(_currentKeyIndex % keys.length) + 1} of ${keys.length}');
+      debugPrint(
+        '[API Key Rotation] Switched from key ${oldIndex + 1} to key ${(_currentKeyIndex % keys.length) + 1} of ${keys.length}',
+      );
     }
   }
 
@@ -269,7 +271,7 @@ Return JSON with this exact format:
     if (_apiKey.isEmpty) {
       throw Exception('Kitchen is closed: GEMINI_API_KEY missing in .env');
     }
-    
+
     // Override mealType with filter if set
     final effectiveMealType = swipeFilters?.mealType?.promptValue ?? mealType;
 
@@ -347,7 +349,8 @@ Return JSON with this exact format:
       response,
       preview.energyLevel,
       showCalories,
-      existingImageUrl: preview.imageUrl ?? 
+      existingImageUrl:
+          preview.imageUrl ??
           ImageSearchService.getDeterministicFallbackAsset(preview.id),
       forcedId: preview.id,
       fallbackEquipment: preview.equipmentIcons,
@@ -359,7 +362,7 @@ Return JSON with this exact format:
 
   /// PHASE 2 STREAMING: Generate recipe with progressive step updates
   /// This provides faster UX by generating steps incrementally.
-  /// 
+  ///
   /// The [onStepsUpdate] callback is called each time new steps are available.
   /// Steps are generated in batches for faster perceived loading.
   Future<Recipe> generateFullRecipeProgressive({
@@ -369,7 +372,8 @@ Return JSON with this exact format:
     required List<String> dietaryRestrictions,
     required bool showCalories,
     bool strictPantryMatch = true,
-    required Future<void> Function(List<String> steps, bool isComplete) onStepsUpdate,
+    required Future<void> Function(List<String> steps, bool isComplete)
+    onStepsUpdate,
   }) async {
     if (_apiKey.isEmpty) {
       throw Exception('Kitchen is closed: GEMINI_API_KEY missing in .env');
@@ -377,7 +381,7 @@ Return JSON with this exact format:
 
     // Step 1: Generate quick version (first 3 steps only) - faster response
     _onStatus?.call('Preparing your recipe...');
-    
+
     final quickPrompt = _buildQuickRecipePrompt(
       preview: preview,
       pantryItems: pantryItems,
@@ -394,9 +398,11 @@ Return JSON with this exact format:
     );
 
     // Parse quick response
-    final quickInstructions = List<String>.from(quickResponse['instructions'] ?? []);
+    final quickInstructions = List<String>.from(
+      quickResponse['instructions'] ?? [],
+    );
     final ingredients = List<String>.from(quickResponse['ingredients'] ?? []);
-    
+
     // Notify UI with first steps
     if (quickInstructions.isNotEmpty) {
       await onStepsUpdate(quickInstructions, false);
@@ -404,7 +410,7 @@ Return JSON with this exact format:
 
     // Step 2: Generate remaining steps
     _onStatus?.call('Adding more detail...');
-    
+
     final remainingPrompt = _buildRemainingStepsPrompt(
       preview: preview,
       existingSteps: quickInstructions,
@@ -420,14 +426,17 @@ Return JSON with this exact format:
     );
 
     // Merge all steps
-    final remainingSteps = List<String>.from(remainingResponse['instructions'] ?? []);
+    final remainingSteps = List<String>.from(
+      remainingResponse['instructions'] ?? [],
+    );
     final allSteps = [...quickInstructions, ...remainingSteps];
-    
+
     // Notify UI with complete steps
     await onStepsUpdate(allSteps, true);
 
     // For legacy cards (no image), use deterministic asset to match Swipe UI
-    final imageUrl = preview.imageUrl ?? 
+    final imageUrl =
+        preview.imageUrl ??
         ImageSearchService.getDeterministicFallbackAsset(preview.id);
 
     return Recipe(
@@ -438,8 +447,12 @@ Return JSON with this exact format:
       ingredients: ingredients,
       instructions: allSteps,
       timeMinutes: quickResponse['timeMinutes'] ?? preview.estimatedTimeMinutes,
-      calories: showCalories ? (quickResponse['calories'] ?? preview.calories) : 0,
-      equipment: List<String>.from(quickResponse['equipment'] ?? preview.equipmentIcons),
+      calories: showCalories
+          ? (quickResponse['calories'] ?? preview.calories)
+          : 0,
+      equipment: List<String>.from(
+        quickResponse['equipment'] ?? preview.equipmentIcons,
+      ),
       energyLevel: preview.energyLevel,
       ingredientIds: preview.ingredients.isNotEmpty
           ? preview.ingredients.map((e) => e.toLowerCase().trim()).toList()
@@ -612,7 +625,9 @@ Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'No
     required String systemPrompt,
   }) async {
     if (kDebugMode) {
-      debugPrint('AI Chef using model: $model (key ${(_currentKeyIndex % _apiKeys.length) + 1}/${_apiKeys.length})');
+      debugPrint(
+        'AI Chef using model: $model (key ${(_currentKeyIndex % _apiKeys.length) + 1}/${_apiKeys.length})',
+      );
     }
 
     final body = {
@@ -635,7 +650,8 @@ Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'No
       },
     };
 
-    const maxRetries = 5; // Increased from 2 to 5 for better rate limit handling
+    const maxRetries =
+        5; // Increased from 2 to 5 for better rate limit handling
     for (var attempt = 0; attempt <= maxRetries; attempt++) {
       var acquiredPermit = false;
       try {
@@ -667,12 +683,16 @@ Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'No
 
             // Exponential backoff: 3s, 6s, 12s, 24s, 48s (reduced since we rotated key)
             final waitSeconds = 3 * (1 << attempt); // 2^attempt * 3
-            _onStatus?.call('Switching AI key, retrying in ${waitSeconds}s... (${attempt + 1}/${maxRetries + 1})');
-            
+            _onStatus?.call(
+              'Switching AI key, retrying in ${waitSeconds}s... (${attempt + 1}/${maxRetries + 1})',
+            );
+
             if (kDebugMode) {
-              debugPrint('[AI Rate Limit] Rotated key, waiting ${waitSeconds}s before retry ${attempt + 1}');
+              debugPrint(
+                '[AI Rate Limit] Rotated key, waiting ${waitSeconds}s before retry ${attempt + 1}',
+              );
             }
-            
+
             await Future.delayed(Duration(seconds: waitSeconds));
             continue;
           }
@@ -733,7 +753,7 @@ Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'No
             debugPrint('━━━ JSON PARSE ERROR (attempt 1) ━━━');
             debugPrint('Error: $e');
           }
-          
+
           // Try to extract error position from the exception message
           // Format: "at position NNNN" or "position NNNN"
           int? errorPos;
@@ -741,7 +761,7 @@ Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'No
           if (posMatch != null) {
             errorPos = int.tryParse(posMatch.group(1) ?? '');
           }
-          
+
           // Attempt to fix the JSON if we know the error position
           if (errorPos != null && errorPos > 0) {
             final fixedJson = _attemptJsonFix(cleanJson, errorPos);
@@ -758,10 +778,15 @@ Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'No
               }
             }
           }
-          
+
           if (kDebugMode) {
             debugPrint('Raw JSON (first 1000 chars):');
-            debugPrint(cleanJson.substring(0, cleanJson.length > 1000 ? 1000 : cleanJson.length));
+            debugPrint(
+              cleanJson.substring(
+                0,
+                cleanJson.length > 1000 ? 1000 : cleanJson.length,
+              ),
+            );
             debugPrint('━━━━━━━━━━━━━━━━━━━━━━━');
           }
           throw FormatException('Failed to parse recipe: $e');
@@ -781,70 +806,75 @@ Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'No
   /// Clean common JSON formatting issues from AI output
   String _cleanJsonString(String json) {
     var cleaned = json;
-    
+
     // Fix trailing commas before closing brackets/braces
     cleaned = cleaned.replaceAll(RegExp(r',(\s*[}\]])'), r'$1');
-    
+
     // Fix missing commas between array elements (common AI error)
     // Pattern 1: "value" followed by newline/whitespace then "value"
     cleaned = cleaned.replaceAll(RegExp(r'"\s*\n\s*"'), '",\n"');
-    
+
     // Pattern 2: "value" followed by whitespace then "value" (same line)
     cleaned = cleaned.replaceAll(RegExp(r'"\s{2,}"'), '", "');
-    
+
     // Pattern 3: } followed by newline/whitespace then { (objects in array)
     cleaned = cleaned.replaceAll(RegExp(r'}\s*\n\s*\{'), '},\n{');
-    
+
     // Pattern 4: ] followed by newline/whitespace then [ (arrays in array)
     cleaned = cleaned.replaceAll(RegExp(r']\s*\n\s*\['), '],\n[');
-    
+
     // Pattern 5: "value" followed by newline then { (string then object)
     cleaned = cleaned.replaceAll(RegExp(r'"\s*\n\s*\{'), '",\n{');
-    
+
     // Pattern 6: } followed by newline then "key": (object then key)
     cleaned = cleaned.replaceAll(RegExp(r'}\s*\n\s*"'), '},\n"');
-    
+
     // Pattern 7: ] followed by newline then "key": (array then key)
     cleaned = cleaned.replaceAll(RegExp(r']\s*\n\s*"'), '],\n"');
-    
+
     // Pattern 8: number/boolean/null followed by newline then "key":
-    cleaned = cleaned.replaceAll(RegExp(r'(\d|true|false|null)\s*\n\s*"'), r'$1,\n"');
-    
+    cleaned = cleaned.replaceAll(
+      RegExp(r'(\d|true|false|null)\s*\n\s*"'),
+      r'$1,\n"',
+    );
+
     // Remove any trailing commas in objects
     cleaned = cleaned.replaceAll(RegExp(r',(\s*})'), r'$1');
-    
+
     // Remove any trailing commas in arrays
     cleaned = cleaned.replaceAll(RegExp(r',(\s*])'), r'$1');
-    
+
     return cleaned;
   }
-  
+
   /// Attempt to fix JSON at a specific error position
   String _attemptJsonFix(String json, int errorPosition) {
     if (errorPosition <= 0 || errorPosition >= json.length) {
       return json;
     }
-    
+
     // Look backwards from error position to find what's missing
     var searchStart = (errorPosition - 50).clamp(0, json.length);
     var context = json.substring(searchStart, errorPosition);
-    
+
     // Common case: missing comma between array elements
     // Find the last quote or closing brace/bracket before error
     final lastQuote = context.lastIndexOf('"');
     final lastBrace = context.lastIndexOf('}');
     final lastBracket = context.lastIndexOf(']');
-    
-    final lastDelimiter = [lastQuote, lastBrace, lastBracket]
-        .where((i) => i >= 0)
-        .fold(-1, (a, b) => a > b ? a : b);
-    
+
+    final lastDelimiter = [
+      lastQuote,
+      lastBrace,
+      lastBracket,
+    ].where((i) => i >= 0).fold(-1, (a, b) => a > b ? a : b);
+
     if (lastDelimiter >= 0) {
       // Insert comma after the delimiter
       final insertPos = searchStart + lastDelimiter + 1;
       return '${json.substring(0, insertPos)},${json.substring(insertPos)}';
     }
-    
+
     return json;
   }
 
@@ -1013,7 +1043,7 @@ Context:
     }
 
     // Time constraint
-    if (filters.timeFilter != SwipeTimeFilter.anyTime && 
+    if (filters.timeFilter != SwipeTimeFilter.anyTime &&
         filters.timeFilter.maxMinutes != null) {
       constraints.add(
         'TIME CONSTRAINT: Recipe MUST be completable in ${filters.timeFilter.maxMinutes} minutes or less (total cook + prep time).',
@@ -1022,7 +1052,9 @@ Context:
 
     // Cooking method preferences
     if (filters.cookingMethods.isNotEmpty) {
-      final methods = filters.cookingMethods.map((m) => m.displayName).join(', ');
+      final methods = filters.cookingMethods
+          .map((m) => m.displayName)
+          .join(', ');
       constraints.add(
         'COOKING METHOD PREFERENCE: Strongly prefer recipes using: $methods',
       );
@@ -1030,9 +1062,7 @@ Context:
 
     // Custom preferences
     if (filters.customText.trim().isNotEmpty) {
-      constraints.add(
-        'CUSTOM PREFERENCES: ${filters.customText.trim()}',
-      );
+      constraints.add('CUSTOM PREFERENCES: ${filters.customText.trim()}');
     }
 
     if (constraints.isEmpty) {
@@ -1098,7 +1128,14 @@ PREFERENCES:
 - Allergies to AVOID: ${allergies.isNotEmpty ? allergies.join(', ') : 'None'}
 - Dietary Restrictions: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'None'}
 - Meal Type: ${mealType ?? 'Any'}
-    - Energy Level: ${EnergyLevel.fromInt(energyLevel).promptLine}
+- Energy Level: ${EnergyLevel.fromInt(energyLevel).promptLine}
+
+Generate a FULL professional recipe with:
+- A vivid 2-3 sentence description that paints a picture of the dish (flavour profile, aroma, who it is perfect for).
+- Complete ingredients list with exact amounts (e.g. "1 cup", "2 tbsp").
+- Detailed step-by-step instructions with temperatures and techniques (e.g. "cook on medium-high until golden, about 3 minutes").
+- Accurate time and calorie estimates.
+Make it Michelin-star quality.
 ''';
   }
 
@@ -1116,7 +1153,11 @@ ${jsonEncode({'title': originalRecipe.title, 'description': originalRecipe.descr
 USER REQUEST: $refinementText
 
 Return an updated JSON version of this recipe incorporating the user's request.
-Keep the title similar unless specifically asked to change it.
+- Keep the title similar unless specifically asked to change it.
+- Keep the same vivid 2-3 sentence description style, updated to reflect any changes.
+- Maintain exact ingredient amounts (e.g. "1 cup", "2 tbsp").
+- Keep detailed step-by-step instructions with temperatures and techniques.
+- Adjust time and calorie estimates if the changes warrant it.
 ''';
   }
 

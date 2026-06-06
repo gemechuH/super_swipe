@@ -33,6 +33,7 @@ class AiGenerationScreen extends ConsumerStatefulWidget {
 class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
   final TextEditingController _cravingsController = TextEditingController();
   final TextEditingController _refineController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
 
   String? _selectedMealType;
   int _energyLevel = 2;
@@ -40,7 +41,20 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
   bool _isGenerating = false;
   bool _isRefining = false;
   bool _isSaving = false;
-  int _completedSteps = 0; // tracks how many steps user has clicked through
+  bool _settingsExpanded = false; // controls collapse when draft is shown
+  final Set<int> _checkedSteps = {}; // tracks which steps are marked done
+
+  // Loading message cycling during generation
+  String _loadingMessage = 'Checking your pantry...';
+  Timer? _loadingMessageTimer;
+  static const List<String> _loadingMessages = [
+    'Checking your pantry...',
+    'Consulting the Michelin guide...',
+    'Crafting your recipe...',
+    'Balancing the flavours...',
+    'Adding the finishing touches...',
+    'Almost ready to plate...',
+  ];
 
   // Draft recipe now stored in DraftRecipeNotifier for navigation persistence
   // Use ref.watch(draftRecipeProvider) to get current draft
@@ -88,6 +102,8 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
   void dispose() {
     _cravingsController.dispose();
     _refineController.dispose();
+    _scrollController.dispose();
+    _loadingMessageTimer?.cancel();
     super.dispose();
   }
 
@@ -125,139 +141,57 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
+            final draft = ref.watch(draftRecipeProvider);
+            final hasDraft = draft != null;
+
             return SingleChildScrollView(
+              controller: _scrollController,
               physics: const ClampingScrollPhysics(),
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               padding: EdgeInsets.fromLTRB(
                 16,
                 0,
                 16,
-                MediaQuery.of(context).padding.bottom + 20,
+                MediaQuery.of(context).padding.bottom +
+                    100, // clear FAB + nav bar
               ),
               child: ConstrainedBox(
                 constraints: BoxConstraints(minHeight: constraints.maxHeight),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Introduction - compact
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            AppTheme.primaryColor.withValues(alpha: 0.1),
-                            AppTheme.primaryColor.withValues(alpha: 0.05),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Row(
-                        children: [
-                          Text('👨‍🍳', style: TextStyle(fontSize: 22)),
-                          SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Create a recipe from your pantry.',
-                              style: TextStyle(fontSize: 12, height: 1.3),
+                    // ── SETTINGS SECTION ──────────────────────────────────
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 320),
+                      switchInCurve: Curves.easeOut,
+                      switchOutCurve: Curves.easeIn,
+                      transitionBuilder: (child, animation) =>
+                          SizeTransition(sizeFactor: animation, child: child),
+                      child: hasDraft
+                          // Collapsed: show a compact summary chip
+                          ? _buildSettingsSummaryChip(
+                              key: const ValueKey('collapsed'),
+                            )
+                          // Expanded: show all settings
+                          : _buildSettingsFull(
+                              key: const ValueKey('expanded'),
+                              constraints: constraints,
                             ),
-                          ),
-                        ],
-                      ),
                     ),
-
-                    SizedBox(height: constraints.maxHeight * 0.018),
-
-                    // Meal Type Selector
-                    MealTypeSelector(
-                      label: 'Meal Type',
-                      selectedMealType: _selectedMealType,
-                      onChanged: (type) =>
-                          setState(() => _selectedMealType = type),
-                    ),
-
-                    SizedBox(height: constraints.maxHeight * 0.018),
-
-                    // Energy Level Slider
-                    _buildSectionTitle('Cooking Energy', Icons.bolt_rounded),
-                    const SizedBox(height: 6),
-                    MasterEnergySlider(
-                      value: _energyLevel,
-                      onChanged: (v) => setState(() => _energyLevel = v),
-                    ),
-
-                    SizedBox(height: constraints.maxHeight * 0.015),
-
-                    // Calorie Toggle - compact
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Include Nutrition Info',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                                Text(
-                                  'Show calorie count in the recipe',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: AppTheme.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Transform.scale(
-                            scale: 0.85,
-                            child: Switch(
-                              value: _showCalories,
-                              onChanged: (v) =>
-                                  setState(() => _showCalories = v),
-                              activeThumbColor: AppTheme.primaryColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    SizedBox(height: constraints.maxHeight * 0.015),
-
-                    // Pantry Preview
-                    _buildPantryPreview(),
-
-                    SizedBox(height: constraints.maxHeight * 0.02),
 
                     if (_errorMessage != null) _buildErrorBanner(),
 
-                    // DRAFT Recipe Card
-                    Builder(
-                      builder: (context) {
-                        final draft = ref.watch(draftRecipeProvider);
-                        if (draft == null) return const SizedBox.shrink();
-                        return Column(
-                          children: [
-                            const SizedBox(height: 16),
-                            _buildDraftRecipeCard(draft.recipe),
-                          ],
-                        );
-                      },
-                    ),
+                    // ── LOADING CARD (while generating, before draft exists) ──
+                    if (_isGenerating) ...[
+                      const SizedBox(height: 12),
+                      _buildGeneratingCard(),
+                    ],
+
+                    // ── DRAFT CARD ────────────────────────────────────────
+                    if (hasDraft) ...[
+                      const SizedBox(height: 12),
+                      _buildDraftRecipeCard(draft.recipe),
+                    ],
 
                     const SizedBox(height: 16),
                   ],
@@ -270,6 +204,294 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
       bottomNavigationBar: ref.watch(draftRecipeProvider) == null
           ? _buildPromptComposer()
           : null,
+    );
+  }
+
+  // ── GENERATING CARD — shown while AI is working ───────────────────────────
+  Widget _buildGeneratingCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Animated chef icon
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: AppTheme.primaryColor.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Center(
+              child: Text('👨‍🍳', style: TextStyle(fontSize: 28)),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Pulsing dots
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(3, (i) => _PulsingDot(delayMs: i * 200)),
+          ),
+          const SizedBox(height: 14),
+          // Cycling status message
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 400),
+            transitionBuilder: (child, animation) => FadeTransition(
+              opacity: animation,
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0, 0.15),
+                  end: Offset.zero,
+                ).animate(animation),
+                child: child,
+              ),
+            ),
+            child: Text(
+              _loadingMessage,
+              key: ValueKey(_loadingMessage),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF2D2621),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Your recipe is being crafted...',
+            style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── SETTINGS: collapsed summary chip shown when a draft exists ────────────
+  Widget _buildSettingsSummaryChip({Key? key}) {
+    final selectedItems = ref.watch(selectedIngredientsProvider);
+    final mealLabel = _selectedMealType ?? 'Any';
+    final energyLabel = EnergyLevel.fromInt(_energyLevel).summaryLabel;
+
+    return GestureDetector(
+      key: key,
+      onTap: () => setState(() => _settingsExpanded = !_settingsExpanded),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 260),
+        margin: const EdgeInsets.only(bottom: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: _settingsExpanded
+                ? AppTheme.primaryColor.withValues(alpha: 0.4)
+                : Colors.grey.shade200,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Summary row — always visible
+            Row(
+              children: [
+                const Icon(
+                  Icons.tune_rounded,
+                  size: 15,
+                  color: AppTheme.primaryColor,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '$mealLabel  •  $energyLabel  •  ${selectedItems.length} ingredients',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF2D2621),
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Icon(
+                  _settingsExpanded
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.keyboard_arrow_down_rounded,
+                  size: 18,
+                  color: AppTheme.textSecondary,
+                ),
+              ],
+            ),
+            // Expandable full settings
+            if (_settingsExpanded) ...[
+              const SizedBox(height: 12),
+              const Divider(height: 1),
+              const SizedBox(height: 12),
+              MealTypeSelector(
+                label: 'Meal Type',
+                selectedMealType: _selectedMealType,
+                onChanged: (type) => setState(() => _selectedMealType = type),
+              ),
+              const SizedBox(height: 12),
+              _buildSectionTitle('Cooking Energy', Icons.bolt_rounded),
+              const SizedBox(height: 6),
+              MasterEnergySlider(
+                value: _energyLevel,
+                onChanged: (v) => setState(() => _energyLevel = v),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Include Nutrition Info',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
+                        Text(
+                          'Show calorie count in the recipe',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppTheme.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Transform.scale(
+                    scale: 0.8,
+                    child: Switch(
+                      value: _showCalories,
+                      onChanged: (v) => setState(() => _showCalories = v),
+                      activeThumbColor: AppTheme.primaryColor,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              _buildPantryPreview(),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── SETTINGS: full expanded view shown when no draft exists ───────────────
+  Widget _buildSettingsFull({Key? key, required BoxConstraints constraints}) {
+    return Column(
+      key: key,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Introduction
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                AppTheme.primaryColor.withValues(alpha: 0.1),
+                AppTheme.primaryColor.withValues(alpha: 0.05),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Row(
+            children: [
+              Text('👨‍🍳', style: TextStyle(fontSize: 22)),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Create a recipe from your pantry.',
+                  style: TextStyle(fontSize: 12, height: 1.3),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        SizedBox(height: constraints.maxHeight * 0.018),
+
+        MealTypeSelector(
+          label: 'Meal Type',
+          selectedMealType: _selectedMealType,
+          onChanged: (type) => setState(() => _selectedMealType = type),
+        ),
+
+        SizedBox(height: constraints.maxHeight * 0.018),
+
+        _buildSectionTitle('Cooking Energy', Icons.bolt_rounded),
+        const SizedBox(height: 6),
+        MasterEnergySlider(
+          value: _energyLevel,
+          onChanged: (v) => setState(() => _energyLevel = v),
+        ),
+
+        SizedBox(height: constraints.maxHeight * 0.015),
+
+        // Calorie Toggle
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Include Nutrition Info',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                    Text(
+                      'Show calorie count in the recipe',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Transform.scale(
+                scale: 0.85,
+                child: Switch(
+                  value: _showCalories,
+                  onChanged: (v) => setState(() => _showCalories = v),
+                  activeThumbColor: AppTheme.primaryColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        SizedBox(height: constraints.maxHeight * 0.015),
+
+        _buildPantryPreview(),
+
+        SizedBox(height: constraints.maxHeight * 0.02),
+      ],
     );
   }
 
@@ -590,7 +812,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.amber.shade600,
+              color: Colors.green.shade600,
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(14),
               ),
@@ -619,8 +841,9 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                 // Title
                 Text(
                   recipe.title,
-                  maxLines: 2,
+                  maxLines: 3,
                   overflow: TextOverflow.ellipsis,
+                  softWrap: true,
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
@@ -630,11 +853,9 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                 ),
                 const SizedBox(height: 6),
 
-                // Description — max 2 lines
+                // Description — fully visible
                 Text(
                   recipe.description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: AppTheme.textSecondary,
                     fontSize: 12,
@@ -686,65 +907,63 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
 
                 const SizedBox(height: 14),
 
-                // Instructions — step by step reveal
+                // Instructions — all steps visible, each individually checkable
                 const Text(
                   'Cooking Steps',
                   style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 ...recipe.instructions.asMap().entries.map((entry) {
                   final stepIndex = entry.key;
                   final stepText = entry.value;
-                  final isVisible = stepIndex <= _completedSteps;
-                  final isCompleted = stepIndex < _completedSteps;
-                  final isCurrent = stepIndex == _completedSteps;
-
-                  if (!isVisible) return const SizedBox.shrink();
+                  final isDone = _checkedSteps.contains(stepIndex);
 
                   return GestureDetector(
-                    onTap: isCurrent
-                        ? () => setState(() => _completedSteps++)
-                        : null,
+                    onTap: () => setState(() {
+                      if (isDone) {
+                        _checkedSteps.remove(stepIndex);
+                      } else {
+                        _checkedSteps.add(stepIndex);
+                      }
+                    }),
                     child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
-                      margin: const EdgeInsets.only(bottom: 6),
-                      padding: const EdgeInsets.all(10),
+                      duration: const Duration(milliseconds: 200),
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 11,
+                      ),
                       decoration: BoxDecoration(
-                        color: isCompleted
+                        color: isDone
                             ? Colors.green.shade50
-                            : isCurrent
-                            ? AppTheme.primaryColor.withValues(alpha: 0.06)
                             : Colors.grey.shade50,
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: isCompleted
-                              ? Colors.green.shade200
-                              : isCurrent
-                              ? AppTheme.primaryColor.withValues(alpha: 0.3)
+                          color: isDone
+                              ? Colors.green.shade300
                               : Colors.grey.shade200,
                         ),
                       ),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // Step number badge
                           Container(
-                            width: 20,
-                            height: 20,
-                            margin: const EdgeInsets.only(right: 8, top: 1),
+                            width: 22,
+                            height: 22,
+                            margin: const EdgeInsets.only(right: 10, top: 1),
                             decoration: BoxDecoration(
-                              color: isCompleted
+                              color: isDone
                                   ? Colors.green
-                                  : isCurrent
-                                  ? AppTheme.primaryColor
-                                  : Colors.grey.shade400,
+                                  : AppTheme.primaryColor,
                               shape: BoxShape.circle,
                             ),
                             child: Center(
-                              child: isCompleted
+                              child: isDone
                                   ? const Icon(
                                       Icons.check,
                                       color: Colors.white,
-                                      size: 12,
+                                      size: 13,
                                     )
                                   : Text(
                                       '${stepIndex + 1}',
@@ -756,32 +975,43 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                                     ),
                             ),
                           ),
+                          // Step text
                           Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  stepText,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    height: 1.4,
-                                    color: isCompleted
-                                        ? Colors.grey.shade600
-                                        : AppTheme.textPrimary,
-                                  ),
+                            child: Text(
+                              stepText,
+                              style: TextStyle(
+                                fontSize: 12,
+                                height: 1.5,
+                                color: isDone
+                                    ? Colors.grey.shade500
+                                    : AppTheme.textPrimary,
+                              ),
+                            ),
+                          ),
+                          // Checkbox on the right
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8, top: 1),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              width: 20,
+                              height: 20,
+                              decoration: BoxDecoration(
+                                color: isDone ? Colors.green : Colors.white,
+                                borderRadius: BorderRadius.circular(5),
+                                border: Border.all(
+                                  color: isDone
+                                      ? Colors.green
+                                      : Colors.grey.shade400,
+                                  width: 1.5,
                                 ),
-                                if (isCurrent) ...[
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    'Tap to mark done ✓',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: AppTheme.primaryColor,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ],
+                              ),
+                              child: isDone
+                                  ? const Icon(
+                                      Icons.check,
+                                      color: Colors.white,
+                                      size: 13,
+                                    )
+                                  : null,
                             ),
                           ),
                         ],
@@ -890,7 +1120,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                 Builder(
                   builder: (context) {
                     final totalSteps = recipe.instructions.length;
-                    final allDone = _completedSteps >= totalSteps;
+                    final allDone = _checkedSteps.length >= totalSteps;
                     return SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
@@ -920,7 +1150,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                                 ? 'Saving...'
                                 : allDone
                                 ? 'Save to My Cookbook'
-                                : 'Complete steps ($_completedSteps/$totalSteps)',
+                                : 'Complete steps (${_checkedSteps.length}/$totalSteps)',
                             style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
@@ -967,7 +1197,14 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
         children: [
           Icon(icon, size: 16, color: AppTheme.textSecondary),
           const SizedBox(width: 4),
-          Text(label, style: const TextStyle(color: AppTheme.textSecondary)),
+          Flexible(
+            child: Text(
+              label,
+              style: const TextStyle(color: AppTheme.textSecondary),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
         ],
       ),
     );
@@ -1005,6 +1242,8 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        actionsAlignment: MainAxisAlignment.spaceBetween,
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         title: Row(
           children: [
             const Icon(Icons.auto_awesome, color: AppTheme.primaryColor),
@@ -1117,11 +1356,18 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
               }
               _generateRecipe();
             },
-            icon: const Icon(Icons.restaurant),
-            label: Text(isPremium ? 'Continue' : 'Use 1 🥕 & Generate'),
+            icon: const Icon(Icons.restaurant, size: 16),
+            label: Text(
+              isPremium ? 'Continue' : 'Use 1 🥕 & Generate',
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12),
+            ),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primaryColor,
               foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              minimumSize: Size.zero,
             ),
           ),
         ],
@@ -1242,8 +1488,34 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
     setState(() {
       _isGenerating = true;
       _errorMessage = null;
+      _loadingMessage = _loadingMessages[0];
       ref.read(draftRecipeProvider.notifier).clearDraft();
       // Refinement counter is tracked in DraftRecipeNotifier
+    });
+
+    // Dismiss keyboard immediately so the loading card is visible
+    FocusScope.of(context).unfocus();
+
+    // Scroll to top so the loading card is the first thing the user sees
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+
+    // Cycle through loading messages every 2 seconds
+    var _msgIndex = 1;
+    _loadingMessageTimer?.cancel();
+    _loadingMessageTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (!mounted) return;
+      setState(() {
+        _loadingMessage = _loadingMessages[_msgIndex % _loadingMessages.length];
+        _msgIndex++;
+      });
     });
 
     try {
@@ -1298,15 +1570,28 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
       _cravingsController.clear();
 
       // Reset step tracker for new recipe
-      setState(() => _completedSteps = 0);
+      // Collapse settings and scroll to top so draft is immediately visible
+      setState(() {
+        _checkedSteps.clear();
+        _settingsExpanded = false;
+      });
+
+      // Scroll to top so the draft card is the first thing the user sees
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollController.hasClients) {
+          _scrollController.animateTo(
+            0,
+            duration: const Duration(milliseconds: 350),
+            curve: Curves.easeOut,
+          );
+        }
+      });
 
       // Toast message after generation
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text(
-              '🍽️ Recipe ready! Scroll down to view it. Enjoy!',
-            ),
+            content: const Text('🍽️ Your recipe is ready!'),
             backgroundColor: AppTheme.successColor,
             duration: const Duration(seconds: 3),
             behavior: SnackBarBehavior.floating,
@@ -1328,6 +1613,8 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
             : 'Oops! Something went wrong. Please try again.';
       });
     } finally {
+      _loadingMessageTimer?.cancel();
+      _loadingMessageTimer = null;
       if (mounted) setState(() => _isGenerating = false);
     }
   }
@@ -1451,19 +1738,10 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
       final db = ref.read(databaseServiceProvider);
       await db.saveAiGeneratedRecipe(userId, recipeToSave);
 
-      // Navigate immediately after the critical save.
+      // Navigate to recipes list so the user sees their saved cookbook.
       if (!mounted) return;
-      context.push(
-        '${AppRoutes.recipes}/${recipeToSave.id}',
-        extra: {
-          'recipe': recipeToSave,
-          'assumeUnlocked': true,
-          'openDirections': true,
-        },
-      );
-
-      // Clear draft so returning to this screen doesn't show stale data.
       ref.read(draftRecipeProvider.notifier).clearDraft();
+      context.go(AppRoutes.recipes);
 
       // Run slower post-save tasks in the background.
       final pantryService = ref.read(pantryServiceProvider);
@@ -1693,6 +1971,61 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
           },
         );
       },
+    );
+  }
+}
+
+/// Three-dot pulsing animation for the generating card.
+class _PulsingDot extends StatefulWidget {
+  final int delayMs;
+  const _PulsingDot({required this.delayMs});
+
+  @override
+  State<_PulsingDot> createState() => _PulsingDotState();
+}
+
+class _PulsingDotState extends State<_PulsingDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _anim = Tween<double>(
+      begin: 0.4,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+    Future.delayed(Duration(milliseconds: widget.delayMs), () {
+      if (mounted) _ctrl.repeat(reverse: true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 3),
+      child: FadeTransition(
+        opacity: _anim,
+        child: Container(
+          width: 8,
+          height: 8,
+          decoration: const BoxDecoration(
+            color: AppTheme.primaryColor,
+            shape: BoxShape.circle,
+          ),
+        ),
+      ),
     );
   }
 }

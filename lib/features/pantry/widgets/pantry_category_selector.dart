@@ -621,10 +621,18 @@ class _PantryCategorySelectorContentState
     if (toAdd.isEmpty && toRemove.isEmpty) return 'No changes';
 
     final parts = <String>[];
-    if (toAdd.isNotEmpty) parts.add('+${toAdd.length}');
-    if (toRemove.isNotEmpty) parts.add('-${toRemove.length}');
+    if (toAdd.isNotEmpty) {
+      parts.add(
+        'Add ${toAdd.length} ingredient${toAdd.length == 1 ? '' : 's'}',
+      );
+    }
+    if (toRemove.isNotEmpty) {
+      parts.add(
+        'Remove ${toRemove.length} ingredient${toRemove.length == 1 ? '' : 's'}',
+      );
+    }
 
-    return 'Apply Changes (${parts.join(" / ")})';
+    return parts.join(' & ');
   }
 
   Widget _buildCustomTab() {

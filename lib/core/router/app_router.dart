@@ -14,7 +14,8 @@ import 'package:super_swipe/features/recipes/screens/recipe_detail_screen.dart';
 import 'package:super_swipe/features/settings/screens/settings_screen.dart';
 import 'package:super_swipe/features/ai/screens/ai_generation_screen.dart';
 import 'package:super_swipe/features/shell/main_wrapper.dart';
-import 'package:super_swipe/features/swipe/screens/swipe_screen.dart';
+// TODO: SWIPE FEATURE — uncomment to restore swipe routing
+// import 'package:super_swipe/features/swipe/screens/swipe_screen.dart';
 import 'package:super_swipe/core/models/recipe.dart';
 
 /// Route names
@@ -154,12 +155,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: HomeScreen()),
           ),
-          GoRoute(
-            path: AppRoutes.swipe,
-            name: 'swipe',
-            pageBuilder: (context, state) =>
-                const NoTransitionPage(child: SwipeScreen()),
-          ),
+          // TODO: SWIPE FEATURE — uncomment to restore the swipe route
+          // GoRoute(
+          //   path: AppRoutes.swipe,
+          //   name: 'swipe',
+          //   pageBuilder: (context, state) =>
+          //       const NoTransitionPage(child: SwipeScreen()),
+          // ),
           GoRoute(
             path: AppRoutes.pantry,
             name: 'pantry',

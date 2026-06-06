@@ -166,16 +166,17 @@ class _NotchedBottomNavBar extends StatelessWidget {
                     context.go(AppRoutes.home);
                   },
                 ),
-                _NavItem(
-                  icon: Icons.swipe_outlined,
-                  selectedIcon: Icons.swipe_rounded,
-                  label: 'Swipe',
-                  isSelected: currentIndex == 1,
-                  onTap: () {
-                    shellNavigatorKey.currentState?.popUntil((r) => r.isFirst);
-                    context.go(AppRoutes.swipe);
-                  },
-                ),
+                // TODO: SWIPE FEATURE — uncomment to restore the Swipe tab
+                // _NavItem(
+                //   icon: Icons.swipe_outlined,
+                //   selectedIcon: Icons.swipe_rounded,
+                //   label: 'Swipe',
+                //   isSelected: currentIndex == 1,
+                //   onTap: () {
+                //     shellNavigatorKey.currentState?.popUntil((r) => r.isFirst);
+                //     context.go(AppRoutes.swipe);
+                //   },
+                // ),
                 _NavItem(
                   icon: Icons.kitchen_outlined,
                   selectedIcon: Icons.kitchen_rounded,
@@ -229,7 +230,8 @@ class _NotchedBottomNavBar extends StatelessWidget {
   int _calculateSelectedIndex(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
     if (location.startsWith(AppRoutes.home)) return 0;
-    if (location.startsWith(AppRoutes.swipe)) return 1;
+    // TODO: SWIPE FEATURE — restore index 1 when swipe tab is re-added
+    // if (location.startsWith(AppRoutes.swipe)) return 1;
     if (location.startsWith(AppRoutes.pantry)) return 2;
     if (location.startsWith(AppRoutes.recipes)) return 3;
     if (location.startsWith(AppRoutes.settings)) return 4;
