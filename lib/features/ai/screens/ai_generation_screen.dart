@@ -1895,6 +1895,8 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -1904,26 +1906,43 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
         minChildSize: 0.4,
         maxChildSize: 0.9,
         expand: false,
+        snap: true,
+        snapSizes: const [0.4, 0.7, 0.9],
         builder: (context, scrollController) => Column(
           children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(top: 12, bottom: 8),
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
+            // Drag handle — tapping it also closes
+            GestureDetector(
+              onTap: () => Navigator.pop(context),
+              behavior: HitTestBehavior.opaque,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
               ),
             ),
-            const Padding(
-              padding: EdgeInsets.all(16),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
               child: Row(
                 children: [
-                  Icon(Icons.history, color: AppTheme.primaryColor),
-                  SizedBox(width: 8),
-                  Text(
+                  const Icon(Icons.history, color: AppTheme.primaryColor),
+                  const SizedBox(width: 8),
+                  const Text(
                     'Recipe History',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
                   ),
                 ],
               ),
