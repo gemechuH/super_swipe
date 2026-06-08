@@ -52,7 +52,8 @@ class MainWrapper extends ConsumerWidget {
     }
 
     // Navigate to AI generation screen
-    context.push(AppRoutes.aiGenerate);
+    shellNavigatorKey.currentState?.popUntil((r) => r.isFirst);
+    context.go(AppRoutes.aiGenerate);
   }
 
   void _showAuthRequiredModal(BuildContext context) {
@@ -255,7 +256,7 @@ class _NotchedBottomNavBar extends StatelessWidget {
     if (location.startsWith(AppRoutes.pantry)) return 2;
     if (location.startsWith(AppRoutes.recipes)) return 3;
     if (location.startsWith(AppRoutes.settings)) return 4;
-    return 0;
+    return -1;
   }
 }
 
