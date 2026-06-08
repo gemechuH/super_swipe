@@ -21,6 +21,7 @@ import 'package:super_swipe/core/providers/recipe_providers.dart';
 import 'package:super_swipe/services/ai/ai_recipe_service.dart';
 import 'package:super_swipe/services/database/database_provider.dart';
 import 'package:super_swipe/services/image/image_search_service.dart';
+import 'package:super_swipe/core/providers/firestore_providers.dart';
 
 class AiGenerationScreen extends ConsumerStatefulWidget {
   const AiGenerationScreen({super.key});
@@ -1445,7 +1446,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
 
     if (!isPremium && currentCarrots < 1) {
       // Out of carrots — show upgrade dialog
-      _showOutOfCarrotsDialog(currentCarrots, maxCarrots);
+      _showOutOfCarrotsDialog();
       return;
     }
 
@@ -1551,19 +1552,6 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
           ElevatedButton.icon(
             onPressed: () async {
               Navigator.pop(dialogContext);
-              // Deduct carrot before generating
-              final userId = ref.read(authProvider).user?.uid;
-              if (userId != null && !isPremium) {
-                final success = await ref
-                    .read(databaseServiceProvider)
-                    .deductCarrot(userId);
-                if (!success) {
-                  if (mounted) {
-                    _showOutOfCarrotsDialog(currentCarrots, maxCarrots);
-                  }
-                  return;
-                }
-              }
               _generateRecipe();
             },
             icon: const Icon(Icons.restaurant, size: 16),
@@ -1585,68 +1573,39 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
     );
   }
 
-  void _showOutOfCarrotsDialog(int current, int max) {
+  void _showOutOfCarrotsDialog() {
     showDialog(
       context: context,
-      builder: (ctx) => Dialog(
+      builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('🥕', style: TextStyle(fontSize: 40)),
-              const SizedBox(height: 12),
-              const Text(
-                'Weekly limit reached',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'You\'ve used all $max weekly carrots. Come back next week or upgrade for unlimited recipes.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey.shade600,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Premium plan coming soon! 🚀'),
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryColor,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text(
-                    'Upgrade for Unlimited',
-                    style: TextStyle(fontSize: 13),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: Text(
-                  'Come back later',
-                  style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
-                ),
-              ),
-            ],
-          ),
+        title: const Row(
+          children: [
+            Text('🥕', style: TextStyle(fontSize: 24)),
+            SizedBox(width: 8),
+            Text('Out of Carrots!'),
+          ],
         ),
+        content: const Text(
+            'You have run out of carrots. Please visit the store to get more or upgrade to Chef Pro for unlimited generation!'),
+        actions: [
+          TextButton(
+            onPressed: () => context.pop(),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              context.pop();
+              context.push(AppRoutes.store);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text('Visit Store', style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
     );
   }
@@ -1702,6 +1661,20 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
         _errorMessage = 'Please select at least one ingredient.';
       });
       return;
+    }
+
+    // Check & deduct carrots
+    final uid = ref.read(authProvider).user?.uid;
+    final userProfile = ref.read(userProfileProvider).value;
+    final isPremium = userProfile?.subscriptionStatus == 'premium';
+
+    if (uid != null && !isPremium) {
+      // spendCarrots returns true if successful, false if insufficient balance
+      final success = await ref.read(userServiceProvider).spendCarrots(uid, 1);
+      if (!success) {
+        _showOutOfCarrotsDialog();
+        return;
+      }
     }
 
     setState(() {

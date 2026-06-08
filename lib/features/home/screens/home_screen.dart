@@ -48,8 +48,8 @@ class HomeScreen extends ConsumerWidget {
             return Align(
               alignment: Alignment.centerLeft,
               child: !isPremium
-                  ? _buildAppBarCarrotBadge(carrotCount, maxCarrots)
-                  : _buildAppBarPremiumBadge(),
+                  ? _buildAppBarCarrotBadge(context, carrotCount, maxCarrots)
+                  : _buildAppBarPremiumBadge(context),
             );
           },
           orElse: () => const SizedBox.shrink(),
@@ -329,9 +329,11 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildAppBarCarrotBadge(int current, int max) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+  Widget _buildAppBarCarrotBadge(BuildContext context, int current, int max) {
+    return GestureDetector(
+      onTap: () => context.push(AppRoutes.store),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.orange.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(10),
@@ -355,12 +357,15 @@ class HomeScreen extends ConsumerWidget {
           ),
         ],
       ),
+    ),
     );
   }
 
-  Widget _buildAppBarPremiumBadge() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+  Widget _buildAppBarPremiumBadge(BuildContext context) {
+    return GestureDetector(
+      onTap: () => context.push(AppRoutes.store),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.amber.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(20),
@@ -384,6 +389,7 @@ class HomeScreen extends ConsumerWidget {
           ),
         ],
       ),
+    ),
     );
   }
 
@@ -661,6 +667,9 @@ class HomeScreen extends ConsumerWidget {
     WidgetRef ref,
     AuthState authState,
   ) {
+    final userProfile = ref.read(userProfileProvider).value;
+    final isPremium = userProfile?.subscriptionStatus == 'premium';
+
     showDialog(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.5),
@@ -699,6 +708,39 @@ class HomeScreen extends ConsumerWidget {
                 style: GoogleFonts.inter(
                   fontSize: 14,
                   color: AppTheme.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isPremium
+                      ? Colors.amber.withValues(alpha: 0.15)
+                      : Colors.grey.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isPremium
+                        ? Colors.amber.withValues(alpha: 0.3)
+                        : Colors.grey.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isPremium)
+                      const Padding(
+                        padding: EdgeInsets.only(right: 4),
+                        child: Text('⭐', style: TextStyle(fontSize: 12)),
+                      ),
+                    Text(
+                      isPremium ? 'Premium' : 'Free Plan',
+                      style: TextStyle(
+                        color: isPremium ? Colors.amber[800] : Colors.grey[700],
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 24),

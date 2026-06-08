@@ -13,6 +13,7 @@ import 'package:super_swipe/features/recipes/screens/recipes_screen.dart';
 import 'package:super_swipe/features/recipes/screens/recipe_detail_screen.dart';
 import 'package:super_swipe/features/settings/screens/settings_screen.dart';
 import 'package:super_swipe/features/ai/screens/ai_generation_screen.dart';
+import 'package:super_swipe/features/store/screens/store_screen.dart';
 import 'package:super_swipe/features/shell/main_wrapper.dart';
 // TODO: SWIPE FEATURE — uncomment to restore swipe routing
 // import 'package:super_swipe/features/swipe/screens/swipe_screen.dart';
@@ -32,6 +33,7 @@ class AppRoutes {
   static const String settings = '/settings';
   static const String aiGenerate = '/ai-generate';
   static const String swipe = '/swipe';
+  static const String store = '/store';
 }
 
 const _publicRoutes = [AppRoutes.onboarding, AppRoutes.login, AppRoutes.signup];
@@ -186,6 +188,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             name: 'aiGenerate',
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: AiGenerationScreen()),
+          ),
+          GoRoute(
+            path: AppRoutes.store,
+            name: 'store',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: StoreScreen()),
           ),
           // Keep profile for backwards compat but redirect to settings
           GoRoute(

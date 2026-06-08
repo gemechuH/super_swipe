@@ -182,26 +182,11 @@ class UserService {
         return true;
       }
 
-      final data = userSnapshot.data() as Map<String, dynamic>?;
-      final carrots = (data?['carrots'] as Map<String, dynamic>?) ?? {};
-      var currentCarrots = (carrots['current'] as num?)?.toInt() ?? 0;
-      final subscriptionStatus =
-          (data?['subscriptionStatus'] as String?)?.toLowerCase() ?? 'free';
-      final isPremium = subscriptionStatus == 'premium';
-
-      if (!isPremium && currentCarrots < 1) return false;
-
-      // Update user stats (and carrots for free users)
+      // Update user stats
       final userUpdates = <String, dynamic>{
         'stats.recipesUnlocked': FieldValue.increment(1),
         'updatedAt': FieldValue.serverTimestamp(),
       };
-      if (!isPremium) {
-        userUpdates.addAll({
-          'carrots.current': currentCarrots - 1,
-          'stats.totalCarrotsSpent': FieldValue.increment(1),
-        });
-      }
       transaction.update(userRef, userUpdates);
 
       // Save recipe
@@ -236,6 +221,24 @@ class UserService {
   Future<void> incrementRecipesUnlocked(String userId) async {
     await _firestoreService.users.doc(userId).update({
       'stats.recipesUnlocked': FieldValue.increment(1),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Simulate purchasing a subscription
+  Future<void> purchaseSubscription(String userId) async {
+    await _firestoreService.users.doc(userId).update({
+      'subscriptionStatus': 'premium',
+      'carrots.max': 50,
+      'carrots.current': FieldValue.increment(50),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Simulate purchasing a carrot bundle
+  Future<void> purchaseCarrots(String userId, int amount) async {
+    await _firestoreService.users.doc(userId).update({
+      'carrots.current': FieldValue.increment(amount),
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }

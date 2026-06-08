@@ -4,7 +4,8 @@ import 'package:super_swipe/core/providers/user_data_providers.dart';
 import 'package:super_swipe/core/theme/app_theme.dart';
 import 'package:super_swipe/core/widgets/loading/app_loading.dart';
 import 'package:super_swipe/features/auth/providers/auth_provider.dart';
-
+import 'package:go_router/go_router.dart';
+import 'package:super_swipe/core/router/app_router.dart';
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
@@ -147,18 +148,44 @@ class ProfileScreen extends ConsumerWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              userProfile.subscriptionStatus == 'premium'
-                                  ? '⭐ Premium'
-                                  : 'Free Plan',
-                              style: TextStyle(
-                                color:
-                                    userProfile.subscriptionStatus == 'premium'
-                                    ? Colors.amber[700]
-                                    : Colors.grey[600],
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
+                            const SizedBox(height: 4),
+                            GestureDetector(
+                              onTap: () => context.push(AppRoutes.store),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: userProfile.subscriptionStatus == 'premium'
+                                      ? Colors.amber.withValues(alpha: 0.15)
+                                      : Colors.grey.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: userProfile.subscriptionStatus == 'premium'
+                                        ? Colors.amber.withValues(alpha: 0.3)
+                                        : Colors.grey.withValues(alpha: 0.2),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (userProfile.subscriptionStatus == 'premium')
+                                      const Padding(
+                                        padding: EdgeInsets.only(right: 4),
+                                        child: Text('⭐', style: TextStyle(fontSize: 12)),
+                                      ),
+                                    Text(
+                                      userProfile.subscriptionStatus == 'premium'
+                                          ? 'Premium'
+                                          : 'Free Plan',
+                                      style: TextStyle(
+                                        color: userProfile.subscriptionStatus == 'premium'
+                                            ? Colors.amber[800]
+                                            : Colors.grey[700],
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ],
