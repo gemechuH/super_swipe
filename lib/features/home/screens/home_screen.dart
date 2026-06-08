@@ -9,7 +9,6 @@ import 'package:super_swipe/core/router/app_router.dart';
 import 'package:super_swipe/core/theme/app_theme.dart';
 import 'package:super_swipe/core/widgets/loading/app_shimmer.dart';
 import 'package:super_swipe/features/auth/providers/auth_provider.dart';
-import 'package:super_swipe/features/swipe/providers/pantry_first_swipe_deck_provider.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -86,7 +85,6 @@ class HomeScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const _SwipeDeckPreloader(),
                   SizedBox(height: h * 0.02),
                   // ── Welcome Greeting ─────────────────────────────
                   Text(
@@ -112,12 +110,12 @@ class HomeScreen extends ConsumerWidget {
 
                   SizedBox(height: h * 0.024),
 
-                  // ── Swipe Button ─────────────────────────────────
+                  // ── Generate Recipe Button ─────────────────────────────────
                   SizedBox(
                     width: double.infinity,
                     height: buttonHeight,
                     child: ElevatedButton(
-                      onPressed: () => context.push(AppRoutes.swipe),
+                      onPressed: () => context.push(AppRoutes.aiGenerate),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.primaryColor,
                         foregroundColor: Colors.white,
@@ -126,26 +124,20 @@ class HomeScreen extends ConsumerWidget {
                           borderRadius: BorderRadius.circular(buttonHeight / 2),
                         ),
                       ),
-                      child: Text(
-                        'Swipe for Super',
-                        style: GoogleFonts.inter(
-                          fontSize: h < 680 ? 13 : 14,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: h * 0.01),
-                  Center(
-                    child: Text(
-                      'Unlimited swipes • Unlock when ready to cook',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.inter(
-                        fontSize: h < 680 ? 12 : 13,
-                        color: AppTheme.textSecondary,
-                        height: 1.4,
-                        fontWeight: FontWeight.w400,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.restaurant, size: 18),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Generate a Recipe',
+                            style: GoogleFonts.inter(
+                              fontSize: h < 680 ? 13 : 14,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -293,7 +285,7 @@ class HomeScreen extends ConsumerWidget {
           ),
           SizedBox(height: screenHeight * 0.008),
           Text(
-            'Start swiping to discover meals you\'ll love',
+            'Generate a recipe to discover meals you\'ll love',
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(
               fontSize: 14,
@@ -306,7 +298,7 @@ class HomeScreen extends ConsumerWidget {
             width: double.infinity,
             height: 50,
             child: ElevatedButton(
-              onPressed: () => context.push(AppRoutes.swipe),
+              onPressed: () => context.push(AppRoutes.aiGenerate),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.primaryColor,
                 foregroundColor: Colors.white,
@@ -319,7 +311,7 @@ class HomeScreen extends ConsumerWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    'Start Swiping',
+                    'Generate a Recipe',
                     style: GoogleFonts.inter(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
@@ -327,7 +319,7 @@ class HomeScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  const Icon(Icons.arrow_forward_rounded, size: 20),
+                  const Icon(Icons.restaurant, size: 18),
                 ],
               ),
             ),
@@ -773,46 +765,6 @@ class HomeScreen extends ConsumerWidget {
         ),
       ),
     );
-  }
-}
-
-/// Invisible widget that triggers the swipe deck generation in the background
-class _SwipeDeckPreloader extends ConsumerStatefulWidget {
-  const _SwipeDeckPreloader();
-
-  @override
-  ConsumerState<_SwipeDeckPreloader> createState() =>
-      _SwipeDeckPreloaderState();
-}
-
-class _SwipeDeckPreloaderState extends ConsumerState<_SwipeDeckPreloader> {
-  // We'll warm up the default energy level (2 - Medium)
-  static const int _defaultEnergyLevel = 2;
-
-  @override
-  void initState() {
-    super.initState();
-    // Schedule the read for after the first frame to avoid build-phase issues
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _triggerPreload();
-    });
-  }
-
-  void _triggerPreload() {
-    // Just valid reading the provider triggers the build() method,
-    // which calls ensureInitialDeck()
-    ref.read(pantryFirstSwipeDeckProvider(_defaultEnergyLevel));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // We also watch it here to ensure it stays active if the user changes pantry items
-    // ignoring the value to avoid unnecessary rebuilds of this widget (using select)
-    ref.watch(
-      pantryFirstSwipeDeckProvider(_defaultEnergyLevel).select((_) => 0),
-    );
-
-    return const SizedBox.shrink();
   }
 }
 
