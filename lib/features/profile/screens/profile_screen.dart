@@ -31,9 +31,7 @@ class ProfileScreen extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout_rounded, size: 20, color: AppTheme.errorColor),
-            onPressed: () async {
-              await ref.read(authProvider.notifier).signOut();
-            },
+            onPressed: () => _showSignOutConfirmation(context, ref),
           ),
         ],
       ),
@@ -535,5 +533,43 @@ class ProfileScreen extends ConsumerWidget {
     }
 
     return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+
+  Future<void> _showSignOutConfirmation(BuildContext context, WidgetRef ref) async {
+    return showDialog(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.5),
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text(
+            'Sign Out',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          content: const Text('Are you sure you want to sign out of your account?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                await ref.read(authProvider.notifier).signOut();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.errorColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('Sign Out', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
   }
 }
