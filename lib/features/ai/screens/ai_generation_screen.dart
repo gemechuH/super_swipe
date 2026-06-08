@@ -125,13 +125,36 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      resizeToAvoidBottomInset: true,
-      backgroundColor: const Color(0xFFFFFBF5),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: Row(
+    final draft = ref.watch(draftRecipeProvider);
+    final hasDraft = draft != null;
+
+    return PopScope(
+      canPop: !hasDraft,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (hasDraft) {
+          ref.read(draftRecipeProvider.notifier).clearDraft();
+        }
+      },
+      child: Scaffold(
+        resizeToAvoidBottomInset: true,
+        backgroundColor: const Color(0xFFFFFBF5),
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: AppTheme.textPrimary),
+            onPressed: () {
+              if (hasDraft) {
+                ref.read(draftRecipeProvider.notifier).clearDraft();
+              } else {
+                if (Navigator.of(context).canPop()) {
+                  context.pop();
+                }
+              }
+            },
+          ),
+          title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(Icons.restaurant, color: AppTheme.primaryColor),
@@ -154,70 +177,82 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
           ),
         ],
       ),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final draft = ref.watch(draftRecipeProvider);
-            final hasDraft = draft != null;
+      body: Stack(
+        children: [
+          SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  controller: _scrollController,
+                  physics: const ClampingScrollPhysics(),
+                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    0,
+                    16,
+                    MediaQuery.of(context).padding.bottom +
+                        100, // clear FAB + nav bar
+                  ),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // ── SETTINGS SECTION ──────────────────────────────────
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 320),
+                          switchInCurve: Curves.easeOut,
+                          switchOutCurve: Curves.easeIn,
+                          transitionBuilder: (child, animation) =>
+                              SizeTransition(sizeFactor: animation, child: child),
+                          child: hasDraft
+                              // Collapsed: show a compact summary chip
+                              ? _buildSettingsSummaryChip(
+                                  key: const ValueKey('collapsed'),
+                                )
+                              // Expanded: show all settings
+                              : _buildSettingsFull(
+                                  key: const ValueKey('expanded'),
+                                  constraints: constraints,
+                                ),
+                        ),
 
-            return SingleChildScrollView(
-              controller: _scrollController,
-              physics: const ClampingScrollPhysics(),
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              padding: EdgeInsets.fromLTRB(
-                16,
-                0,
-                16,
-                MediaQuery.of(context).padding.bottom +
-                    100, // clear FAB + nav bar
-              ),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // ── SETTINGS SECTION ──────────────────────────────────
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 320),
-                      switchInCurve: Curves.easeOut,
-                      switchOutCurve: Curves.easeIn,
-                      transitionBuilder: (child, animation) =>
-                          SizeTransition(sizeFactor: animation, child: child),
-                      child: hasDraft
-                          // Collapsed: show a compact summary chip
-                          ? _buildSettingsSummaryChip(
-                              key: const ValueKey('collapsed'),
-                            )
-                          // Expanded: show all settings
-                          : _buildSettingsFull(
-                              key: const ValueKey('expanded'),
-                              constraints: constraints,
-                            ),
+                        if (_errorMessage != null) _buildErrorBanner(),
+
+                        // ── DRAFT CARD ────────────────────────────────────────
+                        if (hasDraft) ...[
+                          const SizedBox(height: 12),
+                          _buildDraftRecipeCard(draft.recipe),
+                        ],
+
+                        const SizedBox(height: 16),
+                      ],
                     ),
-
-                    if (_errorMessage != null) _buildErrorBanner(),
-
-                    // ── LOADING CARD (while generating, before draft exists) ──
-                    if (_isGenerating) ...[
-                      const SizedBox(height: 12),
-                      _buildGeneratingCard(),
-                    ],
-
-                    // ── DRAFT CARD ────────────────────────────────────────
-                    if (hasDraft) ...[
-                      const SizedBox(height: 12),
-                      _buildDraftRecipeCard(draft.recipe),
-                    ],
-
-                    const SizedBox(height: 16),
-                  ],
+                  ),
+                );
+              },
+            ),
+          ),
+          
+          // ── LOADING OVERLAY (while generating) ──
+          if (_isGenerating)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withValues(alpha: 0.4),
+                alignment: Alignment.center,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: _buildGeneratingCard(),
+                  ),
                 ),
               ),
-            );
-          },
-        ),
+            ),
+        ],
       ),
       bottomNavigationBar: null,
+    ),
     );
   }
 
