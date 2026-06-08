@@ -1092,11 +1092,11 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
 
                 // REFINE Section
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.blue[50],
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.blue[200]!),
+                    color: const Color(0xFFE8F4FA),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFD0E8F5)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1105,26 +1105,27 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                       const Row(
                         children: [
                           Icon(
-                            Icons.tune,
+                            Icons.tune_rounded,
                             color: AppTheme.primaryColor,
-                            size: 16,
+                            size: 20,
                           ),
-                          SizedBox(width: 6),
+                          SizedBox(width: 8),
                           Text(
                             'Not quite right? Refine it!',
                             style: TextStyle(
                               fontWeight: FontWeight.w700,
-                              fontSize: 13,
+                              fontSize: 15,
+                              color: Color(0xFF2D2621),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 14),
 
                       // Quick-select chips
                       Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
+                        spacing: 8,
+                        runSpacing: 8,
                         children: _quickRefineOptions.keys.map((label) {
                           final isSelected = _selectedQuickRefine == label;
                           return GestureDetector(
@@ -1136,30 +1137,40 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                                         : label;
                                   }),
                             child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 180),
+                              duration: const Duration(milliseconds: 200),
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
+                                horizontal: 16,
+                                vertical: 10,
                               ),
                               decoration: BoxDecoration(
                                 color: isSelected
                                     ? AppTheme.primaryColor
                                     : Colors.white,
-                                borderRadius: BorderRadius.circular(20),
+                                borderRadius: BorderRadius.circular(24),
                                 border: Border.all(
                                   color: isSelected
                                       ? AppTheme.primaryColor
                                       : Colors.grey.shade300,
                                 ),
+                                boxShadow: isSelected
+                                    ? []
+                                    : [
+                                        BoxShadow(
+                                          color: Colors.black
+                                              .withValues(alpha: 0.03),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 2),
+                                        )
+                                      ],
                               ),
                               child: Text(
                                 label,
                                 style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 13,
                                   fontWeight: FontWeight.w600,
                                   color: isSelected
                                       ? Colors.white
-                                      : AppTheme.textPrimary,
+                                      : const Color(0xFF4A4A4A),
                                 ),
                               ),
                             ),
@@ -1167,88 +1178,99 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                         }).toList(),
                       ),
 
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 14),
 
                       // Custom text field
-                      TextField(
-                        controller: _refineController,
-                        style: const TextStyle(fontSize: 12),
-                        decoration: InputDecoration(
-                          hintText: _selectedQuickRefine != null
-                              ? 'Add more detail (optional)...'
-                              : 'Or describe what to change...',
-                          hintStyle: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 12,
-                          ),
-                          filled: true,
-                          fillColor: Colors.white,
-                          isDense: true,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 8,
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.02),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            )
+                          ],
+                        ),
+                        child: TextField(
+                          controller: _refineController,
+                          style: const TextStyle(fontSize: 13),
+                          decoration: InputDecoration(
+                            hintText: 'Add more detail (optional)...',
+                            hintStyle: TextStyle(
+                              color: Colors.grey[400],
+                              fontSize: 13,
+                            ),
+                            filled: false,
+                            isDense: true,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 14),
 
                       // Refine button
                       SizedBox(
                         width: double.infinity,
-                        height: 38,
+                        height: 48,
                         child: ElevatedButton.icon(
                           onPressed:
                               (_isRefining ||
-                                  (_selectedQuickRefine == null &&
-                                      _refineText.trim().isEmpty))
-                              ? null
-                              : _refineRecipe,
+                                      (_selectedQuickRefine == null &&
+                                          _refineText.trim().isEmpty))
+                                  ? null
+                                  : _refineRecipe,
                           icon: _isRefining
                               ? const SizedBox(
-                                  width: 14,
-                                  height: 14,
+                                  width: 18,
+                                  height: 18,
                                   child: AppInlineLoading(
-                                    size: 14,
+                                    size: 18,
                                     baseColor: Color(0xFFEFEFEF),
                                     highlightColor: Color(0xFFFFFFFF),
                                   ),
                                 )
                               : const Icon(
                                   Icons.auto_fix_high_rounded,
-                                  size: 15,
+                                  size: 18,
                                 ),
                           label: Text(
                             _isRefining
                                 ? 'Refining...'
                                 : _selectedQuickRefine != null
-                                ? 'Refine: $_selectedQuickRefine'
-                                : _refineText.trim().isEmpty
-                                ? 'Select an option or type below'
-                                : 'Refine Recipe',
+                                    ? 'Refine: $_selectedQuickRefine'
+                                    : 'Refine Recipe',
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                (_selectedQuickRefine != null ||
+                            backgroundColor: (_selectedQuickRefine != null ||
                                     _refineText.trim().isNotEmpty)
                                 ? AppTheme.primaryColor
                                 : Colors.grey.shade300,
-                            foregroundColor:
-                                (_selectedQuickRefine != null ||
+                            foregroundColor: (_selectedQuickRefine != null ||
                                     _refineText.trim().isNotEmpty)
                                 ? Colors.white
                                 : Colors.grey.shade500,
-                            elevation: 0,
+                            elevation: (_selectedQuickRefine != null ||
+                                    _refineText.trim().isNotEmpty)
+                                ? 2
+                                : 0,
+                            shadowColor:
+                                AppTheme.primaryColor.withValues(alpha: 0.4),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(24),
                             ),
                           ),
                         ),
