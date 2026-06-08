@@ -6,6 +6,8 @@ import 'package:super_swipe/core/widgets/loading/app_loading.dart';
 import 'package:super_swipe/core/widgets/shared/shared_widgets.dart';
 import 'package:super_swipe/features/auth/providers/auth_provider.dart';
 import 'package:super_swipe/services/database/database_provider.dart';
+import 'package:go_router/go_router.dart';
+import 'package:super_swipe/core/router/app_router.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -19,10 +21,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   List<String> _allergies = [];
   List<String> _dietaryRestrictions = [];
   List<String> _preferredCuisines = [];
-  String? _defaultMealType;
   String _pantryFlexibility = 'lenient';
   String _defaultDifficulty = 'easy';
-  int _defaultEnergyLevel = 2;
   bool _isSaving = false;
   bool _hasUnsavedChanges = false;
 
@@ -46,11 +46,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           );
           _pantryFlexibility = userProfile.preferences.pantryFlexibility;
           _defaultDifficulty = userProfile.preferences.defaultDifficulty;
-          _defaultEnergyLevel = userProfile.preferences.defaultEnergyLevel;
-          // Load default meal type
-          _defaultMealType = userProfile.preferences.defaultMealType.isNotEmpty
-              ? userProfile.preferences.defaultMealType
-              : 'dinner';
         });
       }
     });
@@ -92,6 +87,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 child: AppInlineLoading(size: 16),
               ),
             ),
+          _buildProfileAvatar(context),
         ],
       ),
       body: userProfileAsync.when(
@@ -174,25 +170,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               const SizedBox(height: 12),
 
               // =============================================
-              // DEFAULT MEAL TYPE - Selector
-              // =============================================
-              _buildSectionCard(
-                child: MealTypeSelector(
-                  label: 'Default Meal Type',
-                  selectedMealType: _defaultMealType,
-                  scrollable: true,
-                  onChanged: (type) {
-                    setState(() {
-                      _defaultMealType = type;
-                      _hasUnsavedChanges = true;
-                    });
-                  },
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // =============================================
               // PANTRY FLEXIBILITY & DIFFICULTY
               // =============================================
               _buildSectionCard(
@@ -237,31 +214,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
 
               const SizedBox(height: 12),
-
-              // =============================================
-              // ENERGY LEVEL - Master Slider
-              // =============================================
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildSectionHeader(
-                    'Default Energy Level',
-                    Icons.bolt_rounded,
-                  ),
-                  const SizedBox(height: 10),
-                  MasterEnergySlider(
-                    value: _defaultEnergyLevel,
-                    onChanged: (v) {
-                      setState(() {
-                        _defaultEnergyLevel = v;
-                        _hasUnsavedChanges = true;
-                      });
-                    },
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 14),
 
               // Save Button
               SizedBox(
@@ -390,8 +342,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         'preferredCuisines': _preferredCuisines,
         'pantryFlexibility': _pantryFlexibility,
         'defaultDifficulty': _defaultDifficulty,
-        'defaultMealType': _defaultMealType ?? 'dinner',
-        'defaultEnergyLevel': _defaultEnergyLevel,
       });
 
       _hasUnsavedChanges = false;
@@ -416,5 +366,45 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
+  }
+
+  Widget _buildProfileAvatar(BuildContext context) {
+    final authState = ref.watch(authProvider);
+    final userProfileAsync = ref.watch(userProfileProvider);
+    
+    final photoUrl = authState.user?.photoURL;
+    final displayName = userProfileAsync.value?.displayName ?? 'User';
+    final initials = displayName.isNotEmpty
+        ? displayName[0].toUpperCase()
+        : 'U';
+
+    return GestureDetector(
+      onTap: () => context.push(AppRoutes.profile),
+      child: Container(
+        margin: const EdgeInsets.only(right: 16),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: AppTheme.primaryColor.withValues(alpha: 0.3),
+            width: 2,
+          ),
+        ),
+        child: CircleAvatar(
+          radius: 18,
+          backgroundColor: AppTheme.primaryLight.withValues(alpha: 0.3),
+          backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
+          child: photoUrl == null
+              ? Text(
+                  initials,
+                  style: const TextStyle(
+                    color: AppTheme.primaryColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                )
+              : null,
+        ),
+      ),
+    );
   }
 }

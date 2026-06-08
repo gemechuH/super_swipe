@@ -30,8 +30,10 @@ class ProfileScreen extends ConsumerWidget {
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings_outlined, size: 20),
-            onPressed: () {},
+            icon: const Icon(Icons.logout_rounded, size: 20, color: AppTheme.errorColor),
+            onPressed: () async {
+              await ref.read(authProvider.notifier).signOut();
+            },
           ),
         ],
       ),
@@ -191,11 +193,42 @@ class ProfileScreen extends ConsumerWidget {
                           ],
                         ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.edit_outlined, size: 18),
-                        onPressed: () {},
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
+                      Column(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined, size: 18),
+                            onPressed: () {},
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                          if (userProfile.subscriptionStatus != 'premium') ...[
+                            const SizedBox(height: 10),
+                            GestureDetector(
+                              onTap: () => context.push(AppRoutes.store),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFFFF9A8B), Color(0xFFFF6A88)],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Text(
+                                  'Upgrade',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ],
                   ),
@@ -356,8 +389,6 @@ class ProfileScreen extends ConsumerWidget {
                   ),
                 ),
 
-                SizedBox(height: h * 0.015),
-
                 // 5. Compact Menu Options
                 Container(
                   decoration: BoxDecoration(
@@ -391,41 +422,6 @@ class ProfileScreen extends ConsumerWidget {
                   ),
                 ),
 
-                SizedBox(height: h * 0.02),
-
-                // 6. Compact Sign Out
-                TextButton(
-                  onPressed: () async {
-                    await ref.read(authProvider.notifier).signOut();
-                  },
-                  style: TextButton.styleFrom(
-                    foregroundColor: AppTheme.errorColor,
-                    backgroundColor: AppTheme.surfaceColor,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 10,
-                      horizontal: 20,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.logout_rounded, size: 16),
-                      SizedBox(width: 6),
-                      Text(
-                        'Sign Out',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                SizedBox(height: h * 0.02),
               ],
             ),
           );

@@ -201,7 +201,7 @@ class _NotchedBottomNavBar extends StatelessWidget {
               child: CustomPaint(
                 size: const Size(80, 64),
                 painter: _CurvedTextPainter(
-                  text: 'My chef',
+                  text: 'My Chef',
                   textStyle: const TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w500,

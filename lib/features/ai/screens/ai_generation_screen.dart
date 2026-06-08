@@ -161,7 +161,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
             const Icon(Icons.restaurant, color: AppTheme.primaryColor),
             const SizedBox(width: 8),
             Text(
-              'AI Chef',
+              'My Chef',
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                 fontWeight: FontWeight.w800,
                 fontSize: 18,
