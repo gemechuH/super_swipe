@@ -129,12 +129,17 @@ class HomeScreen extends ConsumerWidget {
                         children: [
                           const Icon(Icons.restaurant, size: 18),
                           const SizedBox(width: 8),
-                          Text(
-                            'Generate a Recipe',
-                            style: GoogleFonts.inter(
-                              fontSize: h < 680 ? 13 : 14,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 0.2,
+                          Flexible(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                'Generate a Recipe',
+                                style: GoogleFonts.inter(
+                                  fontSize: h < 680 ? 13 : 14,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
                             ),
                           ),
                         ],

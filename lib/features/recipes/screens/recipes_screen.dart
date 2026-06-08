@@ -222,7 +222,7 @@ class _RecipesScreenState extends ConsumerState<RecipesScreen> {
                               _searchQuery.isNotEmpty
                                   ? 'Try a different search term'
                                   : (_selectedFilter == 0
-                                        ? 'Start swiping to unlock and save delicious recipes!'
+                                        ? 'Generate your first recipe from your pantry!'
                                         : 'Try selecting a different filter'),
                               textAlign: TextAlign.center,
                               style: TextStyle(

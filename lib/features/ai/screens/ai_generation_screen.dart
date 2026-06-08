@@ -658,13 +658,18 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
             else
               const Icon(Icons.auto_awesome_rounded, size: 20),
             const SizedBox(width: 10),
-            Text(
-              disabled && !_isGenerating
-                  ? 'Add pantry items to generate'
-                  : _isGenerating
-                  ? 'Generating...'
-                  : 'Generate Recipe',
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  disabled && !_isGenerating
+                      ? 'Add pantry items to generate'
+                      : _isGenerating
+                      ? 'Generating...'
+                      : 'Generate Recipe',
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                ),
+              ),
             ),
           ],
         ),
@@ -1175,11 +1180,14 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                           return GestureDetector(
                             onTap: _isRefining
                                 ? null
-                                : () => setState(() {
-                                    _selectedQuickRefine = isSelected
-                                        ? null
-                                        : label;
-                                  }),
+                                : () {
+                                    setState(() {
+                                      _selectedQuickRefine = isSelected ? null : label;
+                                    });
+                                    if (!isSelected) {
+                                      _refineRecipe();
+                                    }
+                                  },
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
                               alignment: Alignment.center,

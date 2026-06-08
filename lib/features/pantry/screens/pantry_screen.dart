@@ -74,6 +74,7 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
           if (!_showDepleted && item.quantity <= 0) return false;
           return item.name.toLowerCase().contains(_searchQuery.toLowerCase());
         }).toList();
+        filtered.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
         return _buildScreen(context, authState, filtered);
       },
     );
@@ -1053,7 +1054,11 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
               messenger.showSnackBar(
                 SnackBar(
                   content: Text(
-                    'Updated pantry (+${toAdd.length}, -${toRemove.length})',
+                    (toAdd.isNotEmpty && toRemove.isNotEmpty)
+                        ? 'Added ${toAdd.length}, removed ${toRemove.length} ingredients'
+                        : toAdd.isNotEmpty
+                            ? 'Added ${toAdd.length} ingredient${toAdd.length == 1 ? '' : 's'}'
+                            : 'Removed ${toRemove.length} ingredient${toRemove.length == 1 ? '' : 's'}',
                   ),
                   backgroundColor: AppTheme.successColor,
                   behavior: SnackBarBehavior.floating,

@@ -607,12 +607,17 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                                 ),
                               ),
                               subtitle: Text(instructions[index]),
-                              onTap: (!isNext || _isUpdatingProgress)
+                              onTap: _isUpdatingProgress
                                   ? null
-                                  : () => _markStepComplete(stepNumber),
-                              trailing: isNext && !_isUpdatingProgress
-                                  ? const Icon(Icons.chevron_right_rounded)
-                                  : (_isUpdatingProgress && isNext)
+                                  : () {
+                                      // If already completed, tapping it unchecks it (sets progress to previous step)
+                                      if (isCompleted) {
+                                        _markStepComplete(stepNumber - 1);
+                                      } else {
+                                        _markStepComplete(stepNumber);
+                                      }
+                                    },
+                              trailing: _isUpdatingProgress && isNext
                                   ? const SizedBox(
                                       width: 18,
                                       height: 18,
@@ -661,6 +666,24 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.successColor,
                         foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppTheme.spacingM),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        // Navigate back to AI generator, preserving parameters if we pass them in state
+                        // Or just go to the generator screen directly
+                        context.go(AppRoutes.aiGenerate);
+                      },
+                      icon: const Icon(Icons.auto_awesome_rounded),
+                      label: const Text('Regenerate Recipe'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.primaryColor,
+                        side: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.3)),
                       ),
                     ),
                   ),
