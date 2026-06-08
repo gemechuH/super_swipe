@@ -73,6 +73,10 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
         'Simplify this recipe for a beginner cook. Reduce steps, use simpler techniques, cut prep time, and reduce the number of ingredients while keeping the core flavour.',
     '✨ Fancier':
         'Elevate this recipe to restaurant quality. Add a sophisticated garnish, use a more refined technique, incorporate a luxurious ingredient, and improve the plating description.',
+    '👶 Kid-friendly':
+        'Adapt this recipe to be more appealing to children. Remove strong or very spicy flavours, simplify the presentation, and use familiar ingredients. Ensure it remains nutritious.',
+    '💪 More Protein':
+        'Increase the protein content of this recipe. Suggest adding or substituting higher protein ingredients like eggs, Greek yoghurt, beans, lean meats, or tofu without drastically changing the core dish.',
   };
 
   // Rate limiting: max 5 generations per minute
@@ -1123,9 +1127,13 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                       const SizedBox(height: 14),
 
                       // Quick-select chips
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
+                      GridView.count(
+                        crossAxisCount: 3,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        mainAxisSpacing: 8,
+                        crossAxisSpacing: 8,
+                        childAspectRatio: 2.4, // controls the height of the buttons
                         children: _quickRefineOptions.keys.map((label) {
                           final isSelected = _selectedQuickRefine == label;
                           return GestureDetector(
@@ -1138,15 +1146,13 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                                   }),
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 10,
-                              ),
+                              alignment: Alignment.center,
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
                               decoration: BoxDecoration(
                                 color: isSelected
                                     ? AppTheme.primaryColor
                                     : Colors.white,
-                                borderRadius: BorderRadius.circular(24),
+                                borderRadius: BorderRadius.circular(20),
                                 border: Border.all(
                                   color: isSelected
                                       ? AppTheme.primaryColor
@@ -1158,19 +1164,23 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                                         BoxShadow(
                                           color: Colors.black
                                               .withValues(alpha: 0.03),
-                                          blurRadius: 4,
-                                          offset: const Offset(0, 2),
+                                          blurRadius: 3,
+                                          offset: const Offset(0, 1),
                                         )
                                       ],
                               ),
-                              child: Text(
-                                label,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: isSelected
-                                      ? Colors.white
-                                      : const Color(0xFF4A4A4A),
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  label,
+                                  maxLines: 1,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : const Color(0xFF4A4A4A),
+                                  ),
                                 ),
                               ),
                             ),
@@ -1871,8 +1881,22 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
       // Reset refine inputs
       _refineController.clear();
       setState(() => _selectedQuickRefine = null);
+
+      // Show success toast
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Recipe successfully refined! ✨'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
     } catch (e) {
-      setState(() => _errorMessage = 'Refinement failed. Please try again.');
+      if (kDebugMode) {
+        debugPrint('Refinement Error: $e');
+      }
+      setState(() => _errorMessage = 'Refinement failed: $e');
     } finally {
       if (mounted) setState(() => _isRefining = false);
     }
