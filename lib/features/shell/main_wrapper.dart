@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -191,8 +192,27 @@ class _NotchedBottomNavBar extends StatelessWidget {
             ),
           ),
 
-          // Center gap for FAB
-          const SizedBox(width: 56),
+          // Center gap for FAB with text label below it
+          SizedBox(
+            width: 80,
+            child: GestureDetector(
+              onTap: onAIPressed,
+              behavior: HitTestBehavior.opaque,
+              child: CustomPaint(
+                size: const Size(80, 64),
+                painter: _CurvedTextPainter(
+                  text: 'My chef',
+                  textStyle: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                    color: AppTheme.textLight,
+                    letterSpacing: 2.5,
+                  ),
+                  radius: 40, // Perfect radius to fit below the notch
+                ),
+              ),
+            ),
+          ),
 
           // Right side: Recipes, Settings
           Expanded(
@@ -283,5 +303,77 @@ class _NavItem extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _CurvedTextPainter extends CustomPainter {
+  final String text;
+  final TextStyle textStyle;
+  final double radius;
+
+  _CurvedTextPainter({
+    required this.text,
+    required this.textStyle,
+    required this.radius,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Top-center of the gap is exactly the center of the FAB circle
+    canvas.translate(size.width / 2, 0);
+
+    final textPainter = TextPainter(textDirection: TextDirection.ltr);
+    
+    double totalAngle = 0;
+    final List<double> charAngles = [];
+
+    for (int i = 0; i < text.length; i++) {
+      textPainter.text = TextSpan(text: text[i], style: textStyle);
+      textPainter.layout();
+      final charAngle = textPainter.width / radius;
+      charAngles.add(charAngle);
+      totalAngle += charAngle;
+    }
+
+    // Start angle at bottom-left (pi/2 + totalAngle/2). Sweep from left to right by DECREASING angle.
+    double currentAngle = (math.pi / 2) + (totalAngle / 2);
+
+    for (int i = 0; i < text.length; i++) {
+      textPainter.text = TextSpan(text: text[i], style: textStyle);
+      textPainter.layout();
+
+      final charAngle = charAngles[i];
+      // Move angle to the center of the character (decreasing angle moves right)
+      currentAngle -= charAngle / 2;
+
+      canvas.save();
+      
+      // Find position on the arc
+      final x = radius * math.cos(currentAngle);
+      final y = radius * math.sin(currentAngle);
+      canvas.translate(x, y);
+      
+      // Rotate the canvas so the letter points up/down correctly
+      // math.pi / 2 points down. Subtracting it makes the letter upright.
+      canvas.rotate(currentAngle - math.pi / 2);
+
+      // Draw the character centered
+      textPainter.paint(
+        canvas,
+        Offset(-textPainter.width / 2, -textPainter.height / 2),
+      );
+
+      canvas.restore();
+      
+      // Move to the next character
+      currentAngle -= charAngle / 2;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _CurvedTextPainter oldDelegate) {
+    return oldDelegate.text != text ||
+        oldDelegate.textStyle != textStyle ||
+        oldDelegate.radius != radius;
   }
 }
