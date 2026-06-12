@@ -185,7 +185,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
               builder: (context, constraints) {
                 return SingleChildScrollView(
                   controller: _scrollController,
-                  physics: const ClampingScrollPhysics(),
+                  physics: const AlwaysScrollableScrollPhysics(),
                   keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                   padding: EdgeInsets.fromLTRB(
                     16,
@@ -1296,16 +1296,20 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                                   Icons.auto_fix_high_rounded,
                                   size: 18,
                                 ),
-                          label: Text(
-                            _isRefining
-                                ? 'Refining...'
-                                : _selectedQuickRefine != null
-                                    ? 'Refine: $_selectedQuickRefine'
-                                    : 'Refine Recipe',
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
+                          label: Flexible(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                _isRefining
+                                    ? 'Refining...'
+                                    : _selectedQuickRefine != null
+                                        ? 'Refine: $_selectedQuickRefine'
+                                        : 'Refine Recipe',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                             ),
                           ),
                           style: ElevatedButton.styleFrom(

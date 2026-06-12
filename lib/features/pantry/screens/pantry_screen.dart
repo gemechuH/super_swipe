@@ -200,11 +200,16 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
                                 _showIngredientSelector();
                               },
                               icon: const Icon(Icons.add_rounded, size: 14),
-                              label: const Text(
-                                'Add',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
+                              label: const Flexible(
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    'Add',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
                                 ),
                               ),
                               style: ElevatedButton.styleFrom(

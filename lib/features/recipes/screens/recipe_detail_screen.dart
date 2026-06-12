@@ -680,7 +680,12 @@ class _RecipeDetailScreenState extends ConsumerState<RecipeDetailScreen> {
                         context.go(AppRoutes.aiGenerate);
                       },
                       icon: const Icon(Icons.auto_awesome_rounded),
-                      label: const Text('Regenerate Recipe'),
+                      label: const Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text('Regenerate Recipe'),
+                        ),
+                      ),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppTheme.primaryColor,
                         side: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.3)),
