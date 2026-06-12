@@ -214,7 +214,7 @@ class _SubscriptionCard extends StatelessWidget {
                   title,
                   style: const TextStyle(
                     fontSize: 20,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w600,
                     color: Colors.white,
                   ),
                 ),
@@ -227,6 +227,7 @@ class _SubscriptionCard extends StatelessWidget {
               description,
               style: TextStyle(
                 fontSize: 13,
+                fontWeight: FontWeight.w500,
                 color: Colors.white.withOpacity(0.9),
                 height: 1.4,
               ),
@@ -239,7 +240,7 @@ class _SubscriptionCard extends StatelessWidget {
                   price,
                   style: const TextStyle(
                     fontSize: 18,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w700,
                     color: Colors.white,
                   ),
                 ),
@@ -260,7 +261,7 @@ class _SubscriptionCard extends StatelessWidget {
                         isActive ? 'Active' : 'Subscribe',
                         style: TextStyle(
                           color: isActive ? Colors.white : const Color(0xFFFF6A88),
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w600,
                           fontSize: 13,
                         ),
                       ),
@@ -319,7 +320,7 @@ class _TopUpCard extends StatelessWidget {
                     title,
                     style: const TextStyle(
                       fontSize: 15,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w600,
                       color: AppTheme.textPrimary,
                     ),
                   ),
@@ -328,6 +329,7 @@ class _TopUpCard extends StatelessWidget {
                     '+$carrots Carrots',
                     style: const TextStyle(
                       fontSize: 13,
+                      fontWeight: FontWeight.w500,
                       color: AppTheme.textLight,
                     ),
                   ),
@@ -349,7 +351,7 @@ class _TopUpCard extends StatelessWidget {
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 13,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
