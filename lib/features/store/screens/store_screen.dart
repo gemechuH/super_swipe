@@ -34,7 +34,7 @@ class StoreScreen extends ConsumerWidget {
         centerTitle: true,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+        padding: EdgeInsets.fromLTRB(16.0, 16.0, 16.0, MediaQuery.of(context).padding.bottom + 100),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
