@@ -14,7 +14,7 @@ import 'package:super_swipe/services/image/image_search_service.dart';
 class GeminiRateLimitException implements Exception {
   const GeminiRateLimitException();
   @override
-  String toString() => 'Gemini API Rate Limit Reached';
+  String toString() => 'Your chef is busy right now! 👨‍🍳 Please try again in a minute.';
 }
 
 /// Google Gemini Powered AI Recipe Service
@@ -580,6 +580,7 @@ Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'No
     required String cravings,
     required int energyLevel,
     required bool showCalories,
+    required bool useBasicSpices,
     List<String> preferredCuisines = const [],
     String? mealType,
     bool strictPantryMatch = true,
@@ -594,6 +595,7 @@ Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'No
       dietaryRestrictions: dietaryRestrictions,
       cravings: cravings,
       energyLevel: energyLevel,
+      useBasicSpices: useBasicSpices,
       mealType: mealType,
       strictPantryMatch: strictPantryMatch,
     );
@@ -612,6 +614,7 @@ Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'No
     required Recipe originalRecipe,
     required String refinementText,
     required bool showCalories,
+    required bool useBasicSpices,
   }) async {
     if (_apiKey.isEmpty) {
       throw Exception('Kitchen is closed: GEMINI_API_KEY missing in .env');
@@ -620,6 +623,7 @@ Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'No
     final userPrompt = _buildRefinementPrompt(
       originalRecipe: originalRecipe,
       refinementText: refinementText,
+      useBasicSpices: useBasicSpices,
     );
 
     final response = await _callGemini(
@@ -726,6 +730,10 @@ Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'No
               debugPrint('[AI Rate Limit] All retries exhausted.');
             }
             throw const GeminiRateLimitException();
+          }
+
+          if (response.statusCode == 503) {
+            throw Exception('Your chef has too many orders! 🍳 Please try again in a minute.');
           }
 
           throw Exception('AI Error (${response.statusCode}): $errorMessage');
@@ -1131,12 +1139,17 @@ and accurate calorie estimate. Make it Michelin-star quality.
     required List<String> dietaryRestrictions,
     required String cravings,
     required int energyLevel,
+    required bool useBasicSpices,
     String? mealType,
     bool strictPantryMatch = true,
   }) {
     final pantryRule = strictPantryMatch
         ? 'CRITICAL RULE: Use ONLY these pantry ingredients: [${pantryItems.join(', ')}]. Do NOT add any other ingredients except water, salt, pepper, and oil.'
         : 'Prioritize ingredients from this list: [${pantryItems.join(', ')}], but you may add up to 2 common pantry staples (like onions, garlic, or butter) if it significantly improves the recipe.';
+
+    final spiceRule = useBasicSpices 
+        ? 'SPICE LEVEL (BASIC): Strictly limit seasonings to basic pantry staples (e.g., salt, black pepper, garlic powder, onion powder, paprika, dried parsley). Do NOT use complex or exotic spices.'
+        : 'SPICE LEVEL (ADVENTUROUS): Assume the user has a fully stocked spice cabinet. Be highly creative with herbs, complex spices, and global flavor profiles to elevate the dish.';
 
     return '''
 $pantryRule
@@ -1147,6 +1160,8 @@ PREFERENCES:
 - Dietary Restrictions: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'None'}
 - Meal Type: ${mealType ?? 'Any'}
 - Energy Level: ${EnergyLevel.fromInt(energyLevel).promptLine}
+  CRITICAL TIME LIMIT: The "timeMinutes" field MUST NOT exceed the target time of: ${EnergyLevel.fromInt(energyLevel).sliderDescription}.
+- $spiceRule
 
 Generate a FULL professional recipe with:
 - A vivid 2-3 sentence description that paints a picture of the dish (flavour profile, aroma, who it is perfect for).
@@ -1161,14 +1176,23 @@ Make it Michelin-star quality.
   String _buildRefinementPrompt({
     required Recipe originalRecipe,
     required String refinementText,
+    required bool useBasicSpices,
   }) {
+    final spiceRule = useBasicSpices 
+        ? 'SPICE LEVEL (BASIC): Strictly limit seasonings to basic pantry staples (e.g., salt, black pepper, garlic powder, onion powder, paprika). Do NOT use complex or exotic spices.'
+        : 'SPICE LEVEL (ADVENTUROUS): Assume the user has a fully stocked spice cabinet. Be highly creative with herbs, complex spices, and global flavor profiles.';
+
     return '''
 Refine this existing recipe based on user feedback:
 
 CURRENT RECIPE:
 ${jsonEncode({'title': originalRecipe.title, 'description': originalRecipe.description, 'ingredients': originalRecipe.ingredients, 'instructions': originalRecipe.instructions, 'timeMinutes': originalRecipe.timeMinutes, 'calories': originalRecipe.calories})}
 
-USER REQUEST: $refinementText
+USER FEEDBACK / MODIFICATION REQUEST:
+"$refinementText"
+
+$spiceRule
+CRITICAL TIME LIMIT: Do NOT exceed the original recipe's Energy Level time constraints.
 
 Return an updated JSON version of this recipe incorporating the user's request.
 - Keep the title similar unless specifically asked to change it.

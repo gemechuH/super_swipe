@@ -38,6 +38,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
   String? _selectedMealType;
   int _energyLevel = 2;
   bool _showCalories = true;
+  bool _useBasicSpices = true;
   bool _isGenerating = false;
   bool _isRefining = false;
   bool _isSaving = false;
@@ -529,6 +530,50 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                 child: Switch(
                   value: _showCalories,
                   onChanged: (v) => setState(() => _showCalories = v),
+                  activeThumbColor: AppTheme.primaryColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        SizedBox(height: constraints.maxHeight * 0.015),
+
+        // Spice Toggle
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Spice Preference',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                    Text(
+                      _useBasicSpices ? 'Basic pantry staples only' : 'Adventurous and complex',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Transform.scale(
+                scale: 0.85,
+                child: Switch(
+                  value: _useBasicSpices,
+                  onChanged: (v) => setState(() => _useBasicSpices = v),
                   activeThumbColor: AppTheme.primaryColor,
                 ),
               ),
@@ -1747,6 +1792,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
         cravings: _cravingsController.text.trim(),
         energyLevel: _energyLevel,
         showCalories: _showCalories,
+        useBasicSpices: _useBasicSpices,
         preferredCuisines: userProfile?.preferences.preferredCuisines ?? [],
         mealType: _selectedMealType ?? 'dinner',
         strictPantryMatch: strictMatch,
@@ -1884,6 +1930,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
         originalRecipe: currentDraft.recipe,
         refinementText: combinedRefinement,
         showCalories: _showCalories,
+        useBasicSpices: _useBasicSpices,
       );
 
       // IMPORTANT: Reuse existing image URL from draft - don't fetch new one!
