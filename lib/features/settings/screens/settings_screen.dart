@@ -215,39 +215,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
               const SizedBox(height: 12),
 
-              // Save Button
-              SizedBox(
-                width: double.infinity,
-                height: 46,
-                child: ElevatedButton.icon(
-                  onPressed: _isSaving ? null : _savePreferences,
-                  icon: _isSaving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: AppInlineLoading(
-                            size: 16,
-                            baseColor: Color(0xFFEFEFEF),
-                            highlightColor: Color(0xFFFFFFFF),
-                          ),
-                        )
-                      : const Icon(Icons.save_rounded, size: 18),
-                  label: Text(
-                    _isSaving ? 'Saving...' : 'Save All Preferences',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryColor,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                ),
-              ),
+              _buildSaveButton(context),
             ],
           ),
         ),
@@ -315,6 +283,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 child: Text(
                   labels[index],
                   textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -326,6 +296,71 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           );
         }),
       ),
+    );
+  }
+
+  Widget _buildSaveButton(BuildContext context) {
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 330 || textScale > 1.2;
+        final label = _isSaving
+            ? 'Saving...'
+            : (isNarrow ? 'Save Preferences' : 'Save All Preferences');
+
+        return SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: ElevatedButton(
+            onPressed: _isSaving ? null : _savePreferences,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryColor,
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: AppTheme.primaryColor.withValues(
+                alpha: 0.6,
+              ),
+              disabledForegroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_isSaving)
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: AppInlineLoading(
+                      size: 16,
+                      baseColor: Color(0xFFEFEFEF),
+                      highlightColor: Color(0xFFFFFFFF),
+                    ),
+                  )
+                else
+                  const Icon(Icons.save_rounded, size: 18),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -371,7 +406,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget _buildProfileAvatar(BuildContext context) {
     final authState = ref.watch(authProvider);
     final userProfileAsync = ref.watch(userProfileProvider);
-    
+
     final photoUrl = authState.user?.photoURL;
     final displayName = userProfileAsync.value?.displayName ?? 'User';
     final initials = displayName.isNotEmpty

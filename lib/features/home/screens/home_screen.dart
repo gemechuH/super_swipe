@@ -25,10 +25,11 @@ class HomeScreen extends ConsumerWidget {
     final w = size.width;
 
     // Responsive font sizes — clean and readable
-    final double subtitleSize = h < 680 ? 12 : 13;
-    final double buttonHeight = h < 680 ? 44 : 48;
-    final double sectionTitleSize = h < 680 ? 17 : 18;
-    final double cardTitleSize = h < 680 ? 13 : 14;
+    final isCompactWidth = w < 360;
+    final double subtitleSize = h < 680 || isCompactWidth ? 12 : 13;
+    final double buttonHeight = h < 680 || isCompactWidth ? 44 : 48;
+    final double sectionTitleSize = h < 680 || isCompactWidth ? 17 : 18;
+    final double cardTitleSize = h < 680 || isCompactWidth ? 13 : 14;
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
@@ -339,30 +340,30 @@ class HomeScreen extends ConsumerWidget {
       onTap: () => context.push(AppRoutes.store),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.orange.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: Colors.orange.withValues(alpha: 0.1),
-          width: 0.5,
+        decoration: BoxDecoration(
+          color: Colors.orange.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: Colors.orange.withValues(alpha: 0.1),
+            width: 0.5,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('🥕', style: TextStyle(fontSize: 14)),
+            const SizedBox(width: 6),
+            Text(
+              '$current/$max weekly unlocks',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w400,
+                color: Colors.orange.shade900,
+              ),
+            ),
+          ],
         ),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text('🥕', style: TextStyle(fontSize: 14)),
-          const SizedBox(width: 6),
-          Text(
-            '$current/$max weekly unlocks',
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              fontWeight: FontWeight.w400,
-              color: Colors.orange.shade900,
-            ),
-          ),
-        ],
-      ),
-    ),
     );
   }
 
@@ -371,30 +372,30 @@ class HomeScreen extends ConsumerWidget {
       onTap: () => context.push(AppRoutes.store),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.amber.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.amber.withValues(alpha: 0.3),
-          width: 1.5,
+        decoration: BoxDecoration(
+          color: Colors.amber.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: Colors.amber.withValues(alpha: 0.3),
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('⭐', style: TextStyle(fontSize: 16)),
+            const SizedBox(width: 8),
+            Text(
+              'Premium',
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.amber.shade900,
+              ),
+            ),
+          ],
         ),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text('⭐', style: TextStyle(fontSize: 16)),
-          const SizedBox(width: 8),
-          Text(
-            'Premium',
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Colors.amber.shade900,
-            ),
-          ),
-        ],
-      ),
-    ),
     );
   }
 
@@ -423,7 +424,7 @@ class HomeScreen extends ConsumerWidget {
                 left: Radius.circular(16),
               ),
               child: SizedBox(
-                width: 120,
+                width: 104,
                 height: 120,
                 child: recipe.imageUrl.startsWith('http')
                     ? CachedNetworkImage(
@@ -446,7 +447,7 @@ class HomeScreen extends ConsumerWidget {
             // Content
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -463,34 +464,17 @@ class HomeScreen extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Row(
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 4,
                       children: [
-                        Icon(
-                          Icons.access_time,
-                          size: 14,
-                          color: Colors.grey[500],
+                        _RecipeMetaItem(
+                          icon: Icons.access_time,
+                          label: '${recipe.timeMinutes} min',
                         ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${recipe.timeMinutes} min',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Icon(
-                          Icons.local_fire_department,
-                          size: 14,
-                          color: Colors.grey[500],
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${recipe.calories} kcal',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
+                        _RecipeMetaItem(
+                          icon: Icons.local_fire_department,
+                          label: '${recipe.calories} kcal',
                         ),
                       ],
                     ),
@@ -534,12 +518,16 @@ class HomeScreen extends ConsumerWidget {
               children: [
                 Icon(icon, color: iconColor, size: 16),
                 const SizedBox(width: 6),
-                Text(
-                  title,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: AppTheme.textSecondary,
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: AppTheme.textSecondary,
+                    ),
                   ),
                 ),
               ],
@@ -559,12 +547,16 @@ class HomeScreen extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(width: 3),
-                Text(
-                  label,
-                  style: GoogleFonts.inter(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w400,
-                    color: Colors.grey[600],
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w400,
+                      color: Colors.grey[600],
+                    ),
                   ),
                 ),
               ],
@@ -666,7 +658,30 @@ class HomeScreen extends ConsumerWidget {
       ),
     );
   }
+}
 
+class _RecipeMetaItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _RecipeMetaItem({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: Colors.grey[500]),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: GoogleFonts.inter(fontSize: 12, color: Colors.grey[600]),
+        ),
+      ],
+    );
+  }
 }
 
 /// Skeleton screen that mirrors the real home screen layout.
