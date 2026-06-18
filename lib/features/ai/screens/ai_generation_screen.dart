@@ -38,7 +38,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
   String? _selectedMealType;
   int _energyLevel = 2;
   bool _showCalories = true;
-  bool _useBasicSpices = true;
+  SpiceCabinetLevel _spiceLevel = SpiceCabinetLevel.basic;
   bool _isGenerating = false;
   bool _isRefining = false;
   bool _isSaving = false;
@@ -539,42 +539,32 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
 
         SizedBox(height: constraints.maxHeight * 0.015),
 
-        // Spice Toggle
+        // Spice Preference
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Spice Preference',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
-                    ),
-                    Text(
-                      _useBasicSpices ? 'Basic pantry staples only' : 'Adventurous and complex',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppTheme.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
+              const Text(
+                'Spice Preference',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
               ),
-              Transform.scale(
-                scale: 0.85,
-                child: Switch(
-                  value: _useBasicSpices,
-                  onChanged: (v) => setState(() => _useBasicSpices = v),
-                  activeThumbColor: AppTheme.primaryColor,
+              const SizedBox(height: 8),
+              _buildSpiceLevelSelector(),
+              const SizedBox(height: 8),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: Text(
+                  _spiceLevel.helperText,
+                  key: ValueKey(_spiceLevel),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppTheme.textSecondary,
+                  ),
                 ),
               ),
             ],
@@ -601,6 +591,53 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
   }
 
   // ── Optional cravings input ───────────────────────────────────────────────
+  Widget _buildSpiceLevelSelector() {
+    const levels = SpiceCabinetLevel.values;
+
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: levels.map((level) {
+          final selected = level == _spiceLevel;
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _spiceLevel = level),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 4,
+                  vertical: 9,
+                ),
+                decoration: BoxDecoration(
+                  color: selected ? AppTheme.primaryColor : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    level.label,
+                    maxLines: 1,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: selected ? Colors.white : AppTheme.textSecondary,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
   Widget _buildInlineCravingsInput() {
     final selectedItems = ref.watch(selectedIngredientsProvider);
     final disabled = _isGenerating || selectedItems.isEmpty;
@@ -1792,7 +1829,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
         cravings: _cravingsController.text.trim(),
         energyLevel: _energyLevel,
         showCalories: _showCalories,
-        useBasicSpices: _useBasicSpices,
+        spiceLevel: _spiceLevel,
         preferredCuisines: userProfile?.preferences.preferredCuisines ?? [],
         mealType: _selectedMealType ?? 'dinner',
         strictPantryMatch: strictMatch,
@@ -1930,7 +1967,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
         originalRecipe: currentDraft.recipe,
         refinementText: combinedRefinement,
         showCalories: _showCalories,
-        useBasicSpices: _useBasicSpices,
+        spiceLevel: _spiceLevel,
       );
 
       // IMPORTANT: Reuse existing image URL from draft - don't fetch new one!

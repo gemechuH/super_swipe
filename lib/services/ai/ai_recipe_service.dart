@@ -17,6 +17,32 @@ class GeminiRateLimitException implements Exception {
   String toString() => 'Your chef is busy right now! 👨‍🍳 Please try again in a minute.';
 }
 
+enum SpiceCabinetLevel { saltPepper, basic, stocked }
+
+extension SpiceCabinetLevelText on SpiceCabinetLevel {
+  String get label {
+    switch (this) {
+      case SpiceCabinetLevel.saltPepper:
+        return 'Salt & Pepper';
+      case SpiceCabinetLevel.basic:
+        return 'Basic Spices';
+      case SpiceCabinetLevel.stocked:
+        return 'Tons of Spices';
+    }
+  }
+
+  String get helperText {
+    switch (this) {
+      case SpiceCabinetLevel.saltPepper:
+        return 'I have only salt and pepper — build flavor through technique';
+      case SpiceCabinetLevel.basic:
+        return 'I have basic spices like garlic powder, paprika, and cumin';
+      case SpiceCabinetLevel.stocked:
+        return 'I have tons of spices — go bold with herbs, blends, heat & acid';
+    }
+  }
+}
+
 /// Google Gemini Powered AI Recipe Service
 /// Migrated from OpenAI to resolve quota issues.
 class AiRecipeService {
@@ -201,6 +227,8 @@ SEASONING & FLAVOUR RULES (CRITICAL — users complain recipes are severely unde
 7. Spices must be BLOOMED in oil before adding liquids — this doubles their flavour impact. Say so in the instructions.
 8. Taste and adjust is a STEP — include it explicitly: "Taste and adjust salt, acid, and heat before serving."
 9. DO NOT be timid. A well-seasoned dish is the difference between good and memorable. Cook with confidence and heavy hands on the spices.
+
+SPICE CABINET OVERRIDE: If the user prompt includes a SPICE CABINET rule, that rule overrides the generic seasoning suggestions above. Never add seasonings outside the selected spice cabinet level.
 
 Return JSON with this exact format:
 {
@@ -580,7 +608,8 @@ Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'No
     required String cravings,
     required int energyLevel,
     required bool showCalories,
-    required bool useBasicSpices,
+    bool? useBasicSpices,
+    SpiceCabinetLevel spiceLevel = SpiceCabinetLevel.basic,
     List<String> preferredCuisines = const [],
     String? mealType,
     bool strictPantryMatch = true,
@@ -596,6 +625,7 @@ Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'No
       cravings: cravings,
       energyLevel: energyLevel,
       useBasicSpices: useBasicSpices,
+      spiceLevel: spiceLevel,
       mealType: mealType,
       strictPantryMatch: strictPantryMatch,
     );
@@ -614,7 +644,8 @@ Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'No
     required Recipe originalRecipe,
     required String refinementText,
     required bool showCalories,
-    required bool useBasicSpices,
+    bool? useBasicSpices,
+    SpiceCabinetLevel spiceLevel = SpiceCabinetLevel.basic,
   }) async {
     if (_apiKey.isEmpty) {
       throw Exception('Kitchen is closed: GEMINI_API_KEY missing in .env');
@@ -624,6 +655,7 @@ Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'No
       originalRecipe: originalRecipe,
       refinementText: refinementText,
       useBasicSpices: useBasicSpices,
+      spiceLevel: spiceLevel,
     );
 
     final response = await _callGemini(
@@ -1139,7 +1171,8 @@ and accurate calorie estimate. Make it Michelin-star quality.
     required List<String> dietaryRestrictions,
     required String cravings,
     required int energyLevel,
-    required bool useBasicSpices,
+    bool? useBasicSpices,
+    SpiceCabinetLevel spiceLevel = SpiceCabinetLevel.basic,
     String? mealType,
     bool strictPantryMatch = true,
   }) {
@@ -1147,9 +1180,9 @@ and accurate calorie estimate. Make it Michelin-star quality.
         ? 'CRITICAL RULE: Use ONLY these pantry ingredients: [${pantryItems.join(', ')}]. Do NOT add any other ingredients except water, salt, pepper, and oil.'
         : 'Prioritize ingredients from this list: [${pantryItems.join(', ')}], but you may add up to 2 common pantry staples (like onions, garlic, or butter) if it significantly improves the recipe.';
 
-    final spiceRule = useBasicSpices 
-        ? 'SPICE LEVEL (BASIC): Strictly limit seasonings to basic pantry staples (e.g., salt, black pepper, garlic powder, onion powder, paprika, dried parsley). Do NOT use complex or exotic spices.'
-        : 'SPICE LEVEL (ADVENTUROUS): Assume the user has a fully stocked spice cabinet. Be highly creative with herbs, complex spices, and global flavor profiles to elevate the dish.';
+    final spiceRule = _spiceRuleFor(
+      _effectiveSpiceLevel(useBasicSpices, spiceLevel),
+    );
 
     return '''
 $pantryRule
@@ -1176,11 +1209,12 @@ Make it Michelin-star quality.
   String _buildRefinementPrompt({
     required Recipe originalRecipe,
     required String refinementText,
-    required bool useBasicSpices,
+    bool? useBasicSpices,
+    SpiceCabinetLevel spiceLevel = SpiceCabinetLevel.basic,
   }) {
-    final spiceRule = useBasicSpices 
-        ? 'SPICE LEVEL (BASIC): Strictly limit seasonings to basic pantry staples (e.g., salt, black pepper, garlic powder, onion powder, paprika). Do NOT use complex or exotic spices.'
-        : 'SPICE LEVEL (ADVENTUROUS): Assume the user has a fully stocked spice cabinet. Be highly creative with herbs, complex spices, and global flavor profiles.';
+    final spiceRule = _spiceRuleFor(
+      _effectiveSpiceLevel(useBasicSpices, spiceLevel),
+    );
 
     return '''
 Refine this existing recipe based on user feedback:
@@ -1201,6 +1235,43 @@ Return an updated JSON version of this recipe incorporating the user's request.
 - Keep detailed step-by-step instructions with temperatures and techniques.
 - Adjust time and calorie estimates if the changes warrant it.
 ''';
+  }
+
+  SpiceCabinetLevel _effectiveSpiceLevel(
+    bool? useBasicSpices,
+    SpiceCabinetLevel spiceLevel,
+  ) {
+    if (useBasicSpices == null) return spiceLevel;
+    return useBasicSpices ? SpiceCabinetLevel.basic : SpiceCabinetLevel.stocked;
+  }
+
+  String _spiceRuleFor(SpiceCabinetLevel spiceLevel) {
+    switch (spiceLevel) {
+      case SpiceCabinetLevel.saltPepper:
+        return '''
+SPICE CABINET: SALT & PEPPER ONLY.
+- The user only has salt, black pepper, oil/fat, and water as assumed staples.
+- Do NOT add garlic powder, onion powder, paprika, cumin, chili flakes, dried herbs, spice blends, sauces, vinegar, lemon, or fresh herbs unless they are explicitly listed in the pantry items.
+- Build flavor with browning, proper salting, black pepper, cooking technique, texture, and the selected pantry ingredients.
+- Ingredients must reflect this limitation clearly; no hidden extra seasonings.
+''';
+      case SpiceCabinetLevel.basic:
+        return '''
+SPICE CABINET: BASIC SPICES.
+- You may assume common basics: salt, black pepper, garlic powder, onion powder, paprika, chili flakes, dried oregano or parsley, and neutral oil.
+- Keep seasoning familiar and accessible. Use 2-4 basic seasonings with exact amounts.
+- Do not use specialty spices, global blends, fresh herbs, citrus, vinegar, sauces, or unusual aromatics unless they are explicitly in the pantry items.
+''';
+      case SpiceCabinetLevel.stocked:
+        return '''
+SPICE CABINET: WELL-STOCKED / TONS OF SPICES — MANDATORY BOLD SEASONING.
+- The user has a FULL spice cabinet and DEMANDS interesting, complex flavor. Do NOT use generic seasoning.
+- You MUST use at least 5 distinct seasonings from this list (pick what fits the cuisine): cumin, coriander, turmeric, smoked paprika, cayenne, chipotle powder, za'atar, garam masala, curry powder, ras el hanout, five-spice, Chinese five spice, sumac, harissa, berbere, thyme, rosemary, oregano, basil, bay leaf, tarragon, cinnamon, cardamom, star anise, ginger, mustard seed, fennel seed, toasted sesame, soy sauce, fish sauce, oyster sauce, Worcestershire, miso, tamarind, vinegar, citrus zest, citrus juice, or fresh herbs.
+- STRICTLY FORBIDDEN: Do NOT produce a recipe that only uses salt, pepper, and paprika for this level. That is a failure.
+- Bloom dried spices in oil. Layer seasoning through every cooking stage. Add acid at the end. Finish with a fresh herb or zest.
+- The final dish must smell and taste noticeably more complex and exciting than a "basic spices" recipe.
+''';
+    }
   }
 
   /// Map parsed JSON to Recipe model

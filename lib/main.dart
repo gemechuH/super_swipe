@@ -228,6 +228,18 @@ class SuperSwipeApp extends ConsumerWidget {
         primaryTextTheme: withDmSansFallback(baseTheme.primaryTextTheme),
       ),
       routerConfig: router,
+      // Clamp system font scale so large accessibility settings don't
+      // break the layout on clients with bigger default font sizes.
+      builder: (context, child) {
+        final clamped = MediaQuery.of(context).textScaler.clamp(
+          minScaleFactor: 0.85,
+          maxScaleFactor: 1.1,
+        );
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(textScaler: clamped),
+          child: child!,
+        );
+      },
     );
   }
 }
