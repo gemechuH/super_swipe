@@ -698,7 +698,7 @@ Dietary: ${dietaryRestrictions.isNotEmpty ? dietaryRestrictions.join(', ') : 'No
         ],
       },
       'generationConfig': {
-        'temperature': 0.7,
+        'temperature': 1.0,
         'maxOutputTokens': 8192,
         'response_mime_type': 'application/json',
       },
@@ -1177,7 +1177,7 @@ and accurate calorie estimate. Make it Michelin-star quality.
     bool strictPantryMatch = true,
   }) {
     final pantryRule = strictPantryMatch
-        ? 'CRITICAL RULE: Use ONLY these pantry ingredients: [${pantryItems.join(', ')}]. Do NOT add any other ingredients except water, salt, pepper, and oil.'
+        ? 'CRITICAL RULE: Use ONLY these pantry ingredients: [${pantryItems.join(', ')}]. Do NOT add any other ingredients except water, salt, pepper, oil, AND whatever spices are permitted by your Spice Cabinet rules below.'
         : 'Prioritize ingredients from this list: [${pantryItems.join(', ')}], but you may add up to 2 common pantry staples (like onions, garlic, or butter) if it significantly improves the recipe.';
 
     final spiceRule = _spiceRuleFor(
@@ -1202,6 +1202,11 @@ Generate a FULL professional recipe with:
 - Detailed step-by-step instructions with temperatures and techniques (e.g. "cook on medium-high until golden, about 3 minutes").
 - Accurate time and calorie estimates.
 Make it Michelin-star quality.
+
+CRITICAL CREATIVITY RULE:
+- BE HIGHLY CREATIVE AND UNIQUE! Do NOT constantly rely on boring, generic recipes like "Roasted Chicken and Root Vegetables".
+- If you are given basic ingredients, find an interesting, uncommon, or global way to prepare them (e.g., soups, stews, curries, stir-fries, bowls, unique hashes) rather than just roasting or baking them.
+- Give the recipe an exciting and unique title!
 ''';
   }
 

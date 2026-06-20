@@ -1834,6 +1834,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
         preferredCuisines: userProfile?.preferences.preferredCuisines ?? [],
         mealType: _selectedMealType ?? 'dinner',
         strictPantryMatch: strictMatch,
+        spiceLevel: _spiceLevel,
       );
 
       // Fetch matching image from Unsplash
