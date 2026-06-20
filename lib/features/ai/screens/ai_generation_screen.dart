@@ -21,7 +21,6 @@ import 'package:super_swipe/core/providers/recipe_providers.dart';
 import 'package:super_swipe/services/ai/ai_recipe_service.dart';
 import 'package:super_swipe/services/database/database_provider.dart';
 import 'package:super_swipe/services/image/image_search_service.dart';
-import 'package:super_swipe/core/providers/firestore_providers.dart';
 
 class AiGenerationScreen extends ConsumerStatefulWidget {
   const AiGenerationScreen({super.key});
@@ -157,104 +156,110 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
             },
           ),
           title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.restaurant, color: AppTheme.primaryColor),
-            const SizedBox(width: 8),
-            Text(
-              'My Chef',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                fontSize: 18,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.restaurant, color: AppTheme.primaryColor),
+              const SizedBox(width: 8),
+              Text(
+                'My Chef',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 18,
+                ),
               ),
+            ],
+          ),
+          centerTitle: true,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.history, color: AppTheme.primaryColor),
+              tooltip: 'Recipe History',
+              onPressed: () => _showRecipeHistory(context),
             ),
           ],
         ),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.history, color: AppTheme.primaryColor),
-            tooltip: 'Recipe History',
-            onPressed: () => _showRecipeHistory(context),
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          SafeArea(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return SingleChildScrollView(
-                  controller: _scrollController,
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                  padding: EdgeInsets.fromLTRB(
-                    16,
-                    0,
-                    16,
-                    MediaQuery.of(context).padding.bottom +
-                        100, // clear FAB + nav bar
-                  ),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // ── SETTINGS SECTION ──────────────────────────────────
-                        AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 320),
-                          switchInCurve: Curves.easeOut,
-                          switchOutCurve: Curves.easeIn,
-                          transitionBuilder: (child, animation) =>
-                              SizeTransition(sizeFactor: animation, child: child),
-                          child: hasDraft
-                              // Collapsed: show a compact summary chip
-                              ? _buildSettingsSummaryChip(
-                                  key: const ValueKey('collapsed'),
-                                )
-                              // Expanded: show all settings
-                              : _buildSettingsFull(
-                                  key: const ValueKey('expanded'),
-                                  constraints: constraints,
-                                ),
-                        ),
-
-                        if (_errorMessage != null) _buildErrorBanner(),
-
-                        // ── DRAFT CARD ────────────────────────────────────────
-                        if (hasDraft) ...[
-                          const SizedBox(height: 12),
-                          _buildDraftRecipeCard(draft.recipe),
-                        ],
-
-                        const SizedBox(height: 16),
-                      ],
+        body: Stack(
+          children: [
+            SafeArea(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    controller: _scrollController,
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    padding: EdgeInsets.fromLTRB(
+                      16,
+                      0,
+                      16,
+                      MediaQuery.of(context).padding.bottom +
+                          100, // clear FAB + nav bar
                     ),
-                  ),
-                );
-              },
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // ── SETTINGS SECTION ──────────────────────────────────
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 320),
+                            switchInCurve: Curves.easeOut,
+                            switchOutCurve: Curves.easeIn,
+                            transitionBuilder: (child, animation) =>
+                                SizeTransition(
+                                  sizeFactor: animation,
+                                  child: child,
+                                ),
+                            child: hasDraft
+                                // Collapsed: show a compact summary chip
+                                ? _buildSettingsSummaryChip(
+                                    key: const ValueKey('collapsed'),
+                                  )
+                                // Expanded: show all settings
+                                : _buildSettingsFull(
+                                    key: const ValueKey('expanded'),
+                                    constraints: constraints,
+                                  ),
+                          ),
+
+                          if (_errorMessage != null) _buildErrorBanner(),
+
+                          // ── DRAFT CARD ────────────────────────────────────────
+                          if (hasDraft) ...[
+                            const SizedBox(height: 12),
+                            _buildDraftRecipeCard(draft.recipe),
+                          ],
+
+                          const SizedBox(height: 16),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
             ),
-          ),
-          
-          // ── LOADING OVERLAY (while generating) ──
-          if (_isGenerating)
-            Positioned.fill(
-              child: Container(
-                color: Colors.black.withValues(alpha: 0.4),
-                alignment: Alignment.center,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: _buildGeneratingCard(),
+
+            // ── LOADING OVERLAY (while generating) ──
+            if (_isGenerating)
+              Positioned.fill(
+                child: Container(
+                  color: Colors.black.withValues(alpha: 0.4),
+                  alignment: Alignment.center,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: _buildGeneratingCard(),
+                    ),
                   ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
+        bottomNavigationBar: null,
       ),
-      bottomNavigationBar: null,
-    ),
     );
   }
 
@@ -609,10 +614,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
                 alignment: Alignment.center,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 4,
-                  vertical: 9,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 9),
                 decoration: BoxDecoration(
                   color: selected ? AppTheme.primaryColor : Colors.transparent,
                   borderRadius: BorderRadius.circular(8),
@@ -749,7 +751,10 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                       : _isGenerating
                       ? 'Generating...'
                       : 'Generate Recipe',
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ),
@@ -1256,7 +1261,8 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                         physics: const NeverScrollableScrollPhysics(),
                         mainAxisSpacing: 8,
                         crossAxisSpacing: 8,
-                        childAspectRatio: 2.4, // controls the height of the buttons
+                        childAspectRatio:
+                            2.4, // controls the height of the buttons
                         children: _quickRefineOptions.keys.map((label) {
                           final isSelected = _selectedQuickRefine == label;
                           return GestureDetector(
@@ -1264,7 +1270,9 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                                 ? null
                                 : () {
                                     setState(() {
-                                      _selectedQuickRefine = isSelected ? null : label;
+                                      _selectedQuickRefine = isSelected
+                                          ? null
+                                          : label;
                                     });
                                     if (!isSelected) {
                                       _refineRecipe();
@@ -1273,7 +1281,9 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
                               alignment: Alignment.center,
-                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                              ),
                               decoration: BoxDecoration(
                                 color: isSelected
                                     ? AppTheme.primaryColor
@@ -1288,11 +1298,12 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                                     ? []
                                     : [
                                         BoxShadow(
-                                          color: Colors.black
-                                              .withValues(alpha: 0.03),
+                                          color: Colors.black.withValues(
+                                            alpha: 0.03,
+                                          ),
                                           blurRadius: 3,
                                           offset: const Offset(0, 1),
-                                        )
+                                        ),
                                       ],
                               ),
                               child: FittedBox(
@@ -1326,7 +1337,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                               color: Colors.black.withValues(alpha: 0.02),
                               blurRadius: 4,
                               offset: const Offset(0, 2),
-                            )
+                            ),
                           ],
                         ),
                         child: TextField(
@@ -1360,10 +1371,10 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                         child: ElevatedButton.icon(
                           onPressed:
                               (_isRefining ||
-                                      (_selectedQuickRefine == null &&
-                                          _refineText.trim().isEmpty))
-                                  ? null
-                                  : _refineRecipe,
+                                  (_selectedQuickRefine == null &&
+                                      _refineText.trim().isEmpty))
+                              ? null
+                              : _refineRecipe,
                           icon: _isRefining
                               ? const SizedBox(
                                   width: 18,
@@ -1385,8 +1396,8 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                                 _isRefining
                                     ? 'Refining...'
                                     : _selectedQuickRefine != null
-                                        ? 'Refine: $_selectedQuickRefine'
-                                        : 'Refine Recipe',
+                                    ? 'Refine: $_selectedQuickRefine'
+                                    : 'Refine Recipe',
                                 style: const TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w700,
@@ -1395,20 +1406,24 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                             ),
                           ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: (_selectedQuickRefine != null ||
+                            backgroundColor:
+                                (_selectedQuickRefine != null ||
                                     _refineText.trim().isNotEmpty)
                                 ? AppTheme.primaryColor
                                 : Colors.grey.shade300,
-                            foregroundColor: (_selectedQuickRefine != null ||
+                            foregroundColor:
+                                (_selectedQuickRefine != null ||
                                     _refineText.trim().isNotEmpty)
                                 ? Colors.white
                                 : Colors.grey.shade500,
-                            elevation: (_selectedQuickRefine != null ||
+                            elevation:
+                                (_selectedQuickRefine != null ||
                                     _refineText.trim().isNotEmpty)
                                 ? 2
                                 : 0,
-                            shadowColor:
-                                AppTheme.primaryColor.withValues(alpha: 0.4),
+                            shadowColor: AppTheme.primaryColor.withValues(
+                              alpha: 0.4,
+                            ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(24),
                             ),
@@ -1680,7 +1695,8 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
           ],
         ),
         content: const Text(
-            'You have run out of carrots. Please visit the store to get more or upgrade to Chef Pro for unlimited generation!'),
+          'You have run out of carrots. Please visit the store to get more or upgrade to Chef Pro for unlimited generation!',
+        ),
         actions: [
           TextButton(
             onPressed: () => context.pop(),
@@ -1697,7 +1713,10 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: const Text('Visit Store', style: TextStyle(color: Colors.white)),
+            child: const Text(
+              'Visit Store',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -1757,26 +1776,11 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
       return;
     }
 
-    // Check & deduct carrots
-    final uid = ref.read(authProvider).user?.uid;
-    final userProfile = ref.read(userProfileProvider).value;
-    final isPremium = userProfile?.subscriptionStatus == 'premium';
-
-    if (uid != null && !isPremium) {
-      // spendCarrots returns true if successful, false if insufficient balance
-      final success = await ref.read(userServiceProvider).spendCarrots(uid, 1);
-      if (!success) {
-        _showOutOfCarrotsDialog();
-        return;
-      }
-    }
-
     setState(() {
       _isGenerating = true;
       _errorMessage = null;
       _loadingMessage = _loadingMessages[0];
       ref.read(draftRecipeProvider.notifier).clearDraft();
-      // Refinement counter is tracked in DraftRecipeNotifier
     });
 
     // Dismiss keyboard immediately so the loading card is visible
@@ -1794,13 +1798,13 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
     });
 
     // Cycle through loading messages every 2 seconds
-    var _msgIndex = 1;
+    var msgIndex = 1;
     _loadingMessageTimer?.cancel();
     _loadingMessageTimer = Timer.periodic(const Duration(seconds: 2), (_) {
       if (!mounted) return;
       setState(() {
-        _loadingMessage = _loadingMessages[_msgIndex % _loadingMessages.length];
-        _msgIndex++;
+        _loadingMessage = _loadingMessages[msgIndex % _loadingMessages.length];
+        msgIndex++;
       });
     });
 
@@ -1829,7 +1833,6 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
         cravings: _cravingsController.text.trim(),
         energyLevel: _energyLevel,
         showCalories: _showCalories,
-        spiceLevel: _spiceLevel,
         preferredCuisines: userProfile?.preferences.preferredCuisines ?? [],
         mealType: _selectedMealType ?? 'dinner',
         strictPantryMatch: strictMatch,
@@ -2197,7 +2200,7 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
           controller: scrollController,
           padding: const EdgeInsets.all(16),
           itemCount: recipes.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 10),
+          separatorBuilder: (_, _) => const SizedBox(height: 10),
           itemBuilder: (context, index) {
             final recipe = recipes[index];
             return InkWell(
@@ -2228,15 +2231,16 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                             ? Image.network(
                                 recipe.imageUrl,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Container(
-                                  color: AppTheme.primaryColor.withValues(
-                                    alpha: 0.1,
-                                  ),
-                                  child: const Icon(
-                                    Icons.restaurant,
-                                    color: AppTheme.primaryColor,
-                                  ),
-                                ),
+                                errorBuilder: (context, error, stackTrace) =>
+                                    Container(
+                                      color: AppTheme.primaryColor.withValues(
+                                        alpha: 0.1,
+                                      ),
+                                      child: const Icon(
+                                        Icons.restaurant,
+                                        color: AppTheme.primaryColor,
+                                      ),
+                                    ),
                               )
                             : Container(
                                 color: AppTheme.primaryColor.withValues(

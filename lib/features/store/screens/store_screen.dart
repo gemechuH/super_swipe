@@ -171,7 +171,7 @@ class _SubscriptionCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFFFF6A88).withOpacity(0.3),
+              color: const Color(0xFFFF6A88).withValues(alpha: 0.3),
               blurRadius: 16,
               offset: const Offset(0, 8),
             ),
@@ -201,7 +201,7 @@ class _SubscriptionCard extends StatelessWidget {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
-                color: Colors.white.withOpacity(0.9),
+                color: Colors.white.withValues(alpha: 0.9),
                 height: 1.4,
               ),
             ),
@@ -220,7 +220,7 @@ class _SubscriptionCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
-                    color: isActive ? Colors.white.withOpacity(0.2) : Colors.white,
+                    color: isActive ? Colors.white.withValues(alpha: 0.2) : Colors.white,
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Row(

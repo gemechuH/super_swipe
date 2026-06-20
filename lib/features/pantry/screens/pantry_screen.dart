@@ -743,39 +743,6 @@ class _PantryScreenState extends ConsumerState<PantryScreen> {
     return false;
   }
 
-  // Stricter auth check — also blocks anonymous/guest users
-  bool _requireFullAuth() {
-    final authState = ref.read(authProvider);
-    final user = authState.user;
-    if (user == null || user.isAnonymous == true) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Sign In Required'),
-          content: const Text('Please sign in to access this feature.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                GoRouter.of(context).go(AppRoutes.login);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primaryColor,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Sign In'),
-            ),
-          ],
-        ),
-      );
-      return true;
-    }
-    return false;
-  }
 
   Widget _buildIconForItem(String name) {
     IconData icon = Icons.local_grocery_store;
