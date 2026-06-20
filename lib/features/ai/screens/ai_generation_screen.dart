@@ -1041,8 +1041,6 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
                 // Title
                 Text(
                   recipe.title,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
                   softWrap: true,
                   style: const TextStyle(
                     fontSize: 15,

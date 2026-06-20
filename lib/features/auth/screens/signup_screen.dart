@@ -225,11 +225,12 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                         ),
 
                         // ── Flexible gap ─────────────────────────────
+                        const SizedBox(height: 16),
                         const Spacer(),
 
                         // ── Create Account Button ────────────────────
-                        SizedBox(
-                          height: buttonHeight,
+                        ConstrainedBox(
+                          constraints: BoxConstraints(minHeight: buttonHeight),
                           child: ElevatedButton(
                             onPressed: isAnyLoading || !_agreeToTerms
                                 ? null

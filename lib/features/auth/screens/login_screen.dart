@@ -152,11 +152,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ),
 
                         // ── Flexible gap — shrinks when keyboard open
+                        const SizedBox(height: 16),
+                        const SizedBox(height: 16),
                         const Spacer(),
 
                         // ── Log In Button ──────────────────────────
-                        SizedBox(
-                          height: buttonHeight,
+                        ConstrainedBox(
+                          constraints: BoxConstraints(minHeight: buttonHeight),
                           child: ElevatedButton(
                             onPressed: isAnyLoading ? null : _handleLogin,
                             style: ElevatedButton.styleFrom(
@@ -191,8 +193,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         SizedBox(height: sectionGap),
 
                         // ── Sign Up Button ─────────────────────────
-                        SizedBox(
-                          height: buttonHeight,
+                        ConstrainedBox(
+                          constraints: BoxConstraints(minHeight: buttonHeight),
                           child: OutlinedButton(
                             onPressed: () => context.go(AppRoutes.signup),
                             style: OutlinedButton.styleFrom(
@@ -245,8 +247,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         Row(
                           children: [
                             Expanded(
-                              child: SizedBox(
-                                height: socialButtonHeight,
+                              child: ConstrainedBox(
+                                    constraints: BoxConstraints(minHeight: socialButtonHeight),
                                 child: OutlinedButton(
                                   onPressed: isAnyLoading
                                       ? null
@@ -281,8 +283,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                             const SizedBox(width: 12),
                             Expanded(
-                              child: SizedBox(
-                                height: socialButtonHeight,
+                              child: ConstrainedBox(
+                                    constraints: BoxConstraints(minHeight: socialButtonHeight),
                                 child: OutlinedButton(
                                   onPressed: isAnyLoading
                                       ? null
