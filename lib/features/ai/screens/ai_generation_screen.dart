@@ -20,6 +20,7 @@ import 'package:super_swipe/features/auth/providers/auth_provider.dart';
 import 'package:super_swipe/core/providers/recipe_providers.dart';
 import 'package:super_swipe/services/ai/ai_recipe_service.dart';
 import 'package:super_swipe/services/database/database_provider.dart';
+import 'package:super_swipe/core/providers/firestore_providers.dart';
 import 'package:super_swipe/services/image/image_search_service.dart';
 
 class AiGenerationScreen extends ConsumerStatefulWidget {
@@ -1772,6 +1773,23 @@ class _AiGenerationScreenState extends ConsumerState<AiGenerationScreen> {
         _errorMessage = 'Please select at least one ingredient.';
       });
       return;
+    }
+
+    final authState = ref.read(authProvider);
+    final userProfile = ref.read(userProfileProvider).value;
+    final subscription = userProfile?.subscriptionStatus.toLowerCase() ?? 'free';
+    final isPremium = subscription == 'premium';
+
+    // Deduct a carrot if not premium
+    if (!isPremium) {
+      final uid = authState.user?.uid;
+      if (uid != null) {
+        final success = await ref.read(userServiceProvider).spendCarrots(uid, 1);
+        if (!success) {
+          _showOutOfCarrotsDialog();
+          return;
+        }
+      }
     }
 
     setState(() {

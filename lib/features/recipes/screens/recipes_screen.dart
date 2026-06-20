@@ -356,15 +356,45 @@ class _RecipesScreenState extends ConsumerState<RecipesScreen> {
   }
 
   Widget _buildRecipeCard(BuildContext context, Recipe recipe, String? userId) {
-    return InkWell(
-      onTap: userId == null
-          ? null
-          : () => context.push(
-              '${AppRoutes.recipes}/${recipe.id}',
-              extra: recipe,
+    return Dismissible(
+      key: Key('recipe_${recipe.id}'),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: AppTheme.primaryColor,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: const Icon(Icons.delete_outline, color: Colors.white, size: 28),
+      ),
+      onDismissed: (direction) {
+        if (userId != null) {
+          ref.read(recipeServiceProvider).unsaveRecipe(userId, recipe.id);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Recipe deleted'),
+              action: SnackBarAction(
+                label: 'Undo',
+                onPressed: () {
+                  ref.read(recipeServiceProvider).saveRecipe(userId, recipe);
+                },
+              ),
+              behavior: SnackBarBehavior.floating,
             ),
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
+          );
+        }
+      },
+      child: InkWell(
+        onTap: userId == null
+            ? null
+            : () => context.push(
+                '${AppRoutes.recipes}/${recipe.id}',
+                extra: recipe,
+              ),
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
           color: AppTheme.surfaceColor,
@@ -582,6 +612,7 @@ class _RecipesScreenState extends ConsumerState<RecipesScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 }
